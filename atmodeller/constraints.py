@@ -8,6 +8,7 @@ This module defines constraints that can be applied to an interior-atmosphere sy
 from __future__ import annotations
 
 import logging
+from abc import abstractmethod
 from collections import UserList
 from dataclasses import dataclass, field
 
@@ -32,6 +33,13 @@ class PressureConstraint(ConstantConstraint):
     """A constant pressure constraint. See base class."""
 
     name: str = field(init=False, default="pressure")
+
+
+@dataclass(kw_only=True, frozen=True)
+class TotalPressureConstraint(ConstantConstraint):
+    """Total pressure constraint. See base class."""
+
+    name: str = field(init=False, default="total_pressure")
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -94,6 +102,11 @@ class SystemConstraints(UserList):
         return self._filter_by_name("pressure")
 
     @property
+    def total_pressure_constraint(self) -> list[ConstraintABC]:
+        """Total pressure constraint."""
+        return self._filter_by_name("total_pressure")
+
+    @property
     def reaction_network_constraints(self) -> list[ConstraintABC]:
         """Constraints related to the reaction network."""
         filtered_entries: list[ConstraintABC] = self.fugacity_constraints
@@ -109,14 +122,33 @@ class SystemConstraints(UserList):
 
 @dataclass(kw_only=True, frozen=True)
 class RedoxBuffer(ConstraintABC):
-    """A mineral redox buffer that constrains a fugacity as a function of temperature.
+    """A mineral redox buffer that constrains a fugacity as a function of temperature
 
     Args:
-        log10_shift: Log10 shift relative to the buffer.
+        log10_shift: Log10 shift relative to the buffer
     """
 
     log10_shift: float = 0
     name: str = field(init=False, default="fugacity")
+
+    @abstractmethod
+    def get_log10_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
+        """Log10 value at the buffer
+
+        Args:
+            temperature: Temperature
+            pressure: Pressure
+            **kwargs: Arbitrary keyword arguments
+
+        Returns:
+            Log10 of the fugacity at the buffer
+        """
+
+    def get_value(self, **kwargs) -> float:
+        log10_value: float = self.get_log10_value(**kwargs)
+        log10_value += self.log10_shift
+        value: float = 10**log10_value
+        return value
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -135,7 +167,7 @@ class IronWustiteBufferConstraintHirschmann(OxygenFugacityBuffer):
     See base class.
     """
 
-    def get_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
+    def get_log10_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
         """See base class."""
 
         del kwargs
@@ -145,8 +177,6 @@ class IronWustiteBufferConstraintHirschmann(OxygenFugacityBuffer):
             + 0.055 * (pressure - 1) / temperature
             - 0.8853 * np.log(temperature)
         )
-        fugacity += self.log10_shift
-        fugacity = 10**fugacity
 
         return fugacity
 
@@ -161,7 +191,7 @@ class IronWustiteBufferConstraintOneill(OxygenFugacityBuffer):
     See base class.
     """
 
-    def get_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
+    def get_log10_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
         """See base class."""
 
         del pressure
@@ -171,8 +201,6 @@ class IronWustiteBufferConstraintOneill(OxygenFugacityBuffer):
             * (-244118 + 115.559 * temperature - 8.474 * temperature * np.log(temperature))
             / (np.log(10) * GAS_CONSTANT * temperature)
         )
-        fugacity += self.log10_shift
-        fugacity = 10**fugacity
 
         return fugacity
 
@@ -186,7 +214,7 @@ class IronWustiteBufferConstraintBallhaus(OxygenFugacityBuffer):
     See base class.
     """
 
-    def get_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
+    def get_log10_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
         """See base class."""
 
         del kwargs
@@ -197,8 +225,6 @@ class IronWustiteBufferConstraintBallhaus(OxygenFugacityBuffer):
             + 0.053 * pressure / temperature
             + 3e-6 * pressure
         )
-        fugacity += self.log10_shift
-        fugacity = 10**fugacity
 
         return fugacity
 
@@ -213,7 +239,7 @@ class IronWustiteBufferConstraintFischer(OxygenFugacityBuffer):
     See base class.
     """
 
-    def get_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
+    def get_log10_value(self, *, temperature: float, pressure: float = 1, **kwargs) -> float:
         """See base class."""
 
         del kwargs
@@ -228,6 +254,5 @@ class IronWustiteBufferConstraintFischer(OxygenFugacityBuffer):
         )
         b_P *= 1000 / temperature
         fugacity: float = a_P + b_P
-        fugacity += self.log10_shift
-        fugacity = 10**fugacity
+
         return fugacity

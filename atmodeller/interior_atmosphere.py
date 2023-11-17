@@ -13,7 +13,7 @@ from functools import cached_property
 from typing import Union
 
 import numpy as np
-from scipy.optimize import fsolve, least_squares, root
+from scipy.optimize import root
 
 from atmodeller import GAS_CONSTANT, GRAVITATIONAL_CONSTANT
 from atmodeller.constraints import SystemConstraints
@@ -197,12 +197,12 @@ class ReactionNetwork:
     """Determines the necessary reactions to solve a chemical network.
 
     Args:
-        species: Speciess.
+        species: Species
 
     Attributes:
-        species: Species.
-        species_matrix: The stoichiometry matrix of the species in terms of elements.
-        reaction_matrix: The reaction stoichiometry matrix.
+        species: Species
+        species_matrix: The stoichiometry matrix of the species in terms of elements
+        reaction_matrix: The reaction stoichiometry matrix
     """
 
     species: Species
@@ -824,7 +824,7 @@ class InteriorAtmosphereSystem:
             system=self, constraints=constraints, coefficient_matrix=coefficient_matrix
         )
 
-        # Compute residual for the mass balance.
+        # Compute residual for the mass balance (if relevant).
         residual_mass: np.ndarray = np.zeros(len(constraints.mass_constraints), dtype=np.float_)
         for constraint_index, constraint in enumerate(constraints.mass_constraints):
             for species in self.species.gas_species.values():
@@ -839,8 +839,19 @@ class InteriorAtmosphereSystem:
             residual_mass[constraint_index] /= constraint.get_value()
         logger.debug("Residual_mass = %s", residual_mass)
 
+        # Compute residual for the total pressure (if relevant)
+        residual_total_pressure: np.ndarray = np.zeros(len(constraints.total_pressure_constraint))
+        for constraint_index, constraint in enumerate(constraints.total_pressure_constraint):
+            # To calculate in log10 space instead like other pressures?
+            residual_total_pressure[constraint_index] += (
+                self.total_pressure - constraint.get_value()
+            )
+            residual_total_pressure[constraint_index] /= constraint.get_value()
+
         # Combined residual.
-        residual: np.ndarray = np.concatenate((residual_reaction, residual_mass))
+        residual: np.ndarray = np.concatenate(
+            (residual_reaction, residual_mass, residual_total_pressure)
+        )
         logger.debug("Residual = %s", residual)
 
         return residual

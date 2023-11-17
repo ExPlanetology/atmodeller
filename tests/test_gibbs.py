@@ -5,11 +5,14 @@ See the LICENSE file for licensing information.
 Tests using the JANAF data for simple CHO interior-atmosphere systems.
 """
 
+import logging
+
 from atmodeller import __version__, debug_logger
 from atmodeller.constraints import (
     IronWustiteBufferConstraintHirschmann,
     MassConstraint,
     SystemConstraints,
+    TotalPressureConstraint,
 )
 from atmodeller.interfaces import GasSpecies, NoSolubility
 from atmodeller.interior_atmosphere import InteriorAtmosphereSystem, Planet, Species
@@ -19,7 +22,8 @@ from atmodeller.utilities import earth_oceans_to_kg
 rtol: float = 1.0e-8
 atol: float = 1.0e-8
 
-debug_logger()
+logger: logging.Logger = debug_logger()
+logger.setLevel(logging.INFO)
 
 
 def test_version():
@@ -271,4 +275,43 @@ def test_H_and_C() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
+    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+
+
+def test_H_and_C_total_pressure() -> None:
+    """Tests H2-H2O and CO-CO2 with a total pressure constraint."""
+
+    species: Species = Species(
+        [
+            GasSpecies(chemical_formula="H2O", solubility=PeridotiteH2O()),
+            GasSpecies(chemical_formula="H2", solubility=NoSolubility()),
+            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(chemical_formula="CO", solubility=NoSolubility()),
+            GasSpecies(chemical_formula="CO2", solubility=BasaltDixonCO2()),
+        ]
+    )
+
+    oceans: float = 1
+    planet: Planet = Planet()
+    h_kg: float = earth_oceans_to_kg(oceans)
+
+    constraints: SystemConstraints = SystemConstraints(
+        [
+            MassConstraint(species="H", value=h_kg),
+            IronWustiteBufferConstraintHirschmann(),
+            TotalPressureConstraint(species="None", value=100),
+        ]
+    )
+
+    system: InteriorAtmosphereSystem = InteriorAtmosphereSystem(species=species, planet=planet)
+
+    target_pressures: dict[str, float] = {
+        "CO": 81.01220583060697,
+        "CO2": 18.210852074534948,
+        "H2": 0.3836944531352654,
+        "H2O": 0.3932478266315712,
+        "O2": 8.754746041914438e-08,
+    }
+
+    system.solve(constraints, factor=1)
     assert system.isclose(target_pressures, rtol=rtol, atol=atol)
