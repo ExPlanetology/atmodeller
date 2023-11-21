@@ -27,6 +27,7 @@ from atmodeller.solubilities import (
 )
 
 logger: logging.Logger = debug_logger()
+logger.setLevel(logging.WARNING)
 
 rtol: float = 1.0e-8
 atol: float = 1.0e-8
@@ -334,7 +335,7 @@ def test_CHONS_Species_IW_MixConstraints() -> None:
         "N2": 2.3491951394429105,
     }
 
-    system.solve(SystemConstraints(constraints))
+    system.solve(constraints, factor=1)
     assert system.isclose(target_pressures, rtol=rtol, atol=atol)
 
 

@@ -299,7 +299,7 @@ def test_H_and_C_total_pressure() -> None:
         [
             MassConstraint(species="H", value=h_kg),
             IronWustiteBufferConstraintHirschmann(),
-            TotalPressureConstraint(species="None", value=100),
+            TotalPressureConstraint(value=100),
         ]
     )
 

@@ -34,12 +34,23 @@ class GetValueABC(ABC):
         """Computes the value for given input arguments.
 
         Args:
-            **kwargs: Keyword arguments only.
+            **kwargs: Keyword arguments only
 
         Returns:
-            An evaluation based on the provided arguments.
+            An evaluation based on the provided arguments
         """
         ...
+
+    def get_log10_value(self, **kwargs) -> float:
+        """Computes the log10 value for given input arguments.
+
+        Args:
+            **kwargs: Keyword arguments only
+
+        Returns:
+            An evaluation of the log10 value based on the provided arguments
+        """
+        return np.log10(self.get_value(**kwargs))
 
 
 @dataclass(kw_only=True)
@@ -306,12 +317,11 @@ class ConstantConstraint(ConstraintABC):
 
 @dataclass(kw_only=True, frozen=True)
 class IdealityConstant(ConstantConstraint):
-    """A constant fugacity coefficient or activity.
+    """A constant activity.
 
     The constructor must accept no arguments to enable it to be used as a default factory when the
-    user does not specify a fugacity coefficient model for a gas species or an activity model for
-    a solid species. Therefore, the name and species arguments are set to empty strings because
-    they are not used.
+    user does not specify an activity model for a solid species. Therefore, the name and species
+    arguments are set to empty strings because they are not used.
 
     Args:
         value: The constant value. Defaults to 1 (i.e. ideal behaviour).
@@ -323,6 +333,39 @@ class IdealityConstant(ConstantConstraint):
     name: str = field(init=False, default="")
     species: str = field(init=False, default="")
     value: float = 1.0
+
+
+# Solubility limiter applied universally
+MAXIMUM_PPMW: float = UnitConversion.weight_percent_to_ppmw(10)  # 10% by weight.
+
+
+def limit_solubility(bound: float = MAXIMUM_PPMW) -> Callable:
+    """A decorator to limit the solubility in ppmw.
+
+    Args:
+        bound: The maximum limit of the solubility in ppmw. Defaults to MAXIMUM_PPMW.
+
+    Returns:
+        The decorator.
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(self: Solubility, *args, **kwargs):
+            result: float = func(self, *args, **kwargs)
+            if result > bound:
+                msg: str = "%s solubility (%d ppmw) will be limited to %d ppmw" % (
+                    self.__class__.__name__,
+                    result,
+                    bound,
+                )
+                logger.warning(msg)
+
+            return np.clip(result, 0, bound)  # Limit the result between 0 and 'bound'
+
+        return wrapper
+
+    return decorator
 
 
 class Solubility(GetValueABC):
@@ -343,28 +386,29 @@ class Solubility(GetValueABC):
 
     @abstractmethod
     def _solubility(
-        self, fugacity: float, temperature: float, fugacities_dict: dict[str, float]
+        self, fugacity: float, temperature: float, log10_fugacities_dict: dict[str, float]
     ) -> float:
         """Dissolved volatile concentration in the melt in ppmw.
 
         Args:
             fugacity: Fugacity of the species in bar.
             temperature: Temperature in kelvin.
-            fugacities_dict: Fugacities of all species in the system.
+            log10_fugacities_dict: Log10 fugacities of all species in the system.
 
         Returns:
             Dissolved volatile concentration in the melt in ppmw.
         """
         raise NotImplementedError
 
+    @limit_solubility()  # Note this limiter is always applied.
     def get_value(
-        self, *, fugacity: float, temperature: float, fugacities_dict: dict[str, float]
+        self, *, fugacity: float, temperature: float, log10_fugacities_dict: dict[str, float]
     ) -> float:
         """Dissolved volatile concentration in the melt in ppmw.
 
         See self._solubility.
         """
-        solubility: float = self._solubility(fugacity, temperature, fugacities_dict)
+        solubility: float = self._solubility(fugacity, temperature, log10_fugacities_dict)
         logger.debug(
             "%s, f = %f, T = %f, ppmw = %f",
             self.__class__.__name__,
@@ -972,7 +1016,9 @@ class GasSpecies(ChemicalComponent):
 
         pressure: float = system.solution_dict[self.chemical_formula]
         fugacity: float = system.fugacities_dict[self.chemical_formula]
-        fugacity_coefficient: float = system.fugacity_coefficients_dict[self.chemical_formula]
+        fugacity_coefficient: float = (
+            10 ** system.log10_fugacity_coefficients_dict[self.chemical_formula]
+        )
 
         # Atmosphere.
         mass_in_atmosphere: float = UnitConversion.bar_to_Pa(pressure) / planet.surface_gravity
@@ -987,7 +1033,7 @@ class GasSpecies(ChemicalComponent):
         ppmw_in_melt: float = self.solubility.get_value(
             fugacity=fugacity,
             temperature=planet.surface_temperature,
-            fugacities_dict=system.fugacities_dict,
+            log10_fugacities_dict=system.log10_fugacities_dict,
         )
         mass_in_melt: float = prefactor * ppmw_in_melt * UnitConversion.ppm_to_fraction()
         moles_in_melt: float = mass_in_melt / self.molar_mass

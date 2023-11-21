@@ -8,7 +8,7 @@ from __future__ import annotations
 import functools
 import logging
 from collections import OrderedDict, abc
-from typing import Callable, Type, TypeVar
+from typing import Any, Callable, Type, TypeVar
 
 from molmass import Formula
 from scipy.constants import kilo, mega
@@ -27,7 +27,7 @@ def debug_decorator(logger: logging.Logger) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # logger.info(f"Executing {func.__name__}")
-            result = func(*args, **kwargs)
+            result: Any = func(*args, **kwargs)
             logger.debug("%s = %s", func.__name__, result)
             # logger.info(f"Finished executing {func.__name__}")
             return result
