@@ -23,9 +23,9 @@ T = TypeVar("T")
 def debug_decorator(logger: logging.Logger) -> Callable:
     """A decorator to print the result of a function to a debug logger."""
 
-    def decorator(func: Callable):
+    def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs) -> Any:
             # logger.info(f"Executing {func.__name__}")
             result: Any = func(*args, **kwargs)
             logger.debug("%s = %s", func.__name__, result)

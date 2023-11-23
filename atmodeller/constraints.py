@@ -11,6 +11,7 @@ import logging
 from abc import abstractmethod
 from collections import UserList
 from dataclasses import dataclass, field
+from typing import Union
 
 import numpy as np
 
@@ -136,51 +137,60 @@ class RedoxBuffer(ConstraintABC):
 
     Args:
         log10_shift: Log10 shift relative to the buffer
+        pressure: Optional constant pressure in bar to always use to evaluate the redox buffer.
+            Defaults to None, meaning that the input pressure is used instead.
     """
 
     log10_shift: float = 0
+    pressure: Union[float, None] = None
     name: str = field(init=False, default="fugacity")
 
     @abstractmethod
-    def get_buffer_log10_value(
-        self, *, temperature: float, pressure: float = 1, **kwargs
-    ) -> float:
+    def get_buffer_log10_value(self, *, temperature: float, pressure: float, **kwargs) -> float:
         """Log10 value at the buffer
 
         Args:
             temperature: Temperature
-            pressure: Pressure. Defaults to 1 bar.
+            pressure: Pressure
             **kwargs: Arbitrary keyword arguments
 
         Returns:
             log10 of the fugacity at the buffer
         """
 
-    def get_log10_value(self, **kwargs) -> float:
+    def get_log10_value(self, *, temperature: float, pressure: float, **kwargs) -> float:
         """Log10 value including any shift
 
         Args:
             temperature: Temperature
-            pressure: Pressure. Defaults to 1 bar.
+            pressure: Pressure
             **kwargs: Arbitrary keyword arguments
 
         Returns:
             Log10 of the fugacity including any shift
         """
-        log10_value: float = self.get_buffer_log10_value(**kwargs)
+        # Below the input pressure value is overridden if self.pressure is not None.
+        if self.pressure is not None:
+            pressure = self.pressure
+            logger.debug(
+                "Evaluate %s at constant pressure = %f", self.__class__.__name__, pressure
+            )
+        log10_value: float = self.get_buffer_log10_value(
+            temperature=temperature, pressure=pressure, **kwargs
+        )
         log10_value += self.log10_shift
         return log10_value
 
-    def get_value(self, **kwargs) -> float:
+    def get_value(self, *, temperature: float, pressure: float) -> float:
         """See base class"""
-        log10_value: float = self.get_log10_value(**kwargs)
+        log10_value: float = self.get_log10_value(temperature=temperature, pressure=pressure)
         value: float = 10**log10_value
         return value
 
 
 @dataclass(kw_only=True, frozen=True)
 class OxygenFugacityBuffer(RedoxBuffer):
-    """A mineral redox buffer that constraints oxygen fugacity as a function of temperature."""
+    """A mineral redox buffer that constrains oxygen fugacity as a function of temperature."""
 
     species: str = field(init=False, default="O2")
 
