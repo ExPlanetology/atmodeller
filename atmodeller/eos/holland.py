@@ -18,16 +18,18 @@ Real gas EOSs (class instances) in this module that can be imported:
     CH4_CORK_HP91: CORK corresponding states for CH4 in Holland and Powell (1991)
     H2_CORK_HP91: CORK corresponding states for H2 in Holland and Powell (1991)
     CO_CORK_HP91: CORK corresponding states for CO in Holland and Powell (1991)
+    N2_CORK_HP91: CORK corresponding states for N2 in Holland and Powell (1991)
     S2_CORK_HP11: CORK corresponding states for S2 in Holland and Powell (2011)
-    H2_CORK_SHP11: CORK corresponding states for H2S in Holland and Powell (2011)
-    H2O_MRK_HP91: MRK for H2O with critical behaviour in Holland and Powell (1991)
-    H2O_MRK_HP98: MRK for H2O with critical behaviour in Holland and Powell (1998)
+    H2S_CORK_HP11: CORK corresponding states for H2S in Holland and Powell (2011)
     CO2_MRK_HP91: Full MRK for CO2 in Holland and Powell (1991)
     CO2_MRK_HP98: Full MRK for CO2 in Holland and Powell (1998)
     CO2_MRK_simple_HP91: Simple MRK for CO2 in Holland and Powell (1991)
+    H2O_MRK_HP91: MRK for H2O with critical behaviour in Holland and Powell (1991)
+    H2O_MRK_HP98: MRK for H2O with critical behaviour in Holland and Powell (1998)
     CH4_MRK_HP91: MRK corresponding states for CH4 in Holland and Powell (1991)
     H2_MRK_HP91: MRK corresponding states for H2 in Holland and Powell (1991)
     CO_MRK_HP91: MRK corresponding states for CO in Holland and Powell (1991)
+    N2_MRK_HP91: MRK corresponding states for N2 in Holland and Powell (1991)
     S2_MRK_HP11: MRK corresponding states for S2 in Holland and Powell (2011)
     H2S_MRK_HP11: MRK corresponding states for H2S in Holland and Powell (2011)
 
@@ -64,9 +66,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Type
 
-from atmodeller import GAS_CONSTANT
+import numpy as np
+
 from atmodeller.eos.interfaces import (
     CORK,
     MRKCriticalBehaviour,
@@ -171,6 +173,7 @@ CO2_MRK_simple_HP91: RealGasABC = MRKCorrespondingStatesHP91.get_species("CO2")
 CH4_MRK_HP91: RealGasABC = MRKCorrespondingStatesHP91.get_species("CH4")
 H2_MRK_HP91: RealGasABC = MRKCorrespondingStatesHP91.get_species("H2_Holland")
 CO_MRK_HP91: RealGasABC = MRKCorrespondingStatesHP91.get_species("CO")
+N2_MRK_HP91: RealGasABC = MRKCorrespondingStatesHP91.get_species("N2")
 S2_MRK_HP11: RealGasABC = MRKCorrespondingStatesHP91.get_species("S2")
 H2S_MRK_HP11: RealGasABC = MRKCorrespondingStatesHP91.get_species("H2S")
 
@@ -179,8 +182,9 @@ CO2_CORK_simple_HP91: RealGasABC = CORKCorrespondingStatesHP91.get_species("CO2"
 CH4_CORK_HP91: RealGasABC = CORKCorrespondingStatesHP91.get_species("CH4")
 H2_CORK_HP91: RealGasABC = CORKCorrespondingStatesHP91.get_species("H2_Holland")
 CO_CORK_HP91: RealGasABC = CORKCorrespondingStatesHP91.get_species("CO")
+N2_CORK_HP91: RealGasABC = CORKCorrespondingStatesHP91.get_species("N2")
 S2_CORK_HP11: RealGasABC = CORKCorrespondingStatesHP91.get_species("S2")
-H2_CORK_SHP11: RealGasABC = CORKCorrespondingStatesHP91.get_species("H2S")
+H2S_CORK_HP11: RealGasABC = CORKCorrespondingStatesHP91.get_species("H2S")
 
 # endregion
 
@@ -214,24 +218,19 @@ class _MRKH2OLiquidHP91(MRKImplicitABC):
         """Temperature difference for the calculation of the a parameter"""
         return self.Ta - temperature
 
-    def initial_solution_volume(self, *args, **kwargs) -> float:
-        """Initial guess volume for the solution to ensure convergence to the correct root.
-
-        For the liquid phase a suitably low value must be chosen. See appendix in Holland and
-        Powell (1991).
+    def volume(self, *args, **kwargs) -> float:
+        """Volume
 
         Args:
-            *args: Unused positional arguments
-            **kwargs: Unused keyword arguments
+            *args: Positional arguments to pass to self.volume_roots
+            **kwargs: Keyword arguments to pass to self.volume_roots
 
         Returns:
-            Initial solution volume
+            Volume in m^3/mol
         """
-        del args
-        del kwargs
-        initial_volume = self.b / 2
+        volume_roots: np.ndarray = self.volume_roots(*args, **kwargs)
 
-        return initial_volume
+        return np.min(volume_roots)
 
 
 @dataclass(kw_only=True)
@@ -254,21 +253,19 @@ class _MRKH2OGasHP91(MRKImplicitABC):
         """Temperature difference for the calculation of the a parameter"""
         return self.Ta - temperature
 
-    def initial_solution_volume(self, temperature: float, pressure: float) -> float:
-        """Initial guess volume for the solution to ensure convergence to the correct root.
-
-        See appendix in Holland and Powell (1991)
+    def volume(self, *args, **kwargs) -> float:
+        """Volume
 
         Args:
-            temperature: Temperature in kelvin
-            pressure: Pressure in bar
+            *args: Positional arguments to pass to self.volume_roots
+            **kwargs: Keyword arguments to pass to self.volume_roots
 
         Returns:
-            Initial solution volume
+            Volume in m^3/mol
         """
-        initial_volume: float = GAS_CONSTANT * temperature / pressure + 10 * self.b
+        volume_roots: np.ndarray = self.volume_roots(*args, **kwargs)
 
-        return initial_volume
+        return np.max(volume_roots)
 
 
 @dataclass(kw_only=True)
@@ -292,24 +289,24 @@ class _MRKH2OFluidHP91(MRKImplicitABC):
         """Temperature difference for the calculation of the a parameter"""
         return temperature - self.Ta
 
-    def initial_solution_volume(self, temperature: float, pressure: float) -> float:
-        """Initial guess volume for the solution to ensure convergence to the correct root.
-
-        See appendix in Holland and Powell (1991)
+    def volume(self, *args, **kwargs) -> float:
+        """Volume
 
         Args:
-            temperature: Temperature in kelvin
-            pressure: Pressure in bar
+            *args: Positional arguments to pass to self.volume_roots
+            **kwargs: Keyword arguments to pass to self.volume_roots
 
         Returns:
-            Initial solution volume
+            Volume in m^3/mol
         """
-        if temperature >= self.Tc:
-            initial_volume: float = GAS_CONSTANT * temperature / pressure + self.b
-        else:
-            initial_volume = self.b / 2
+        volume_roots: np.ndarray = self.volume_roots(*args, **kwargs)
 
-        return initial_volume
+        # DJB: it appears that there is only ever a single root, even if Ta < temperature < Tc.
+        # Holland and Powell state that a single root exists if temperature > Tc, but this appears
+        # to be true if temperature > Ta.
+        assert volume_roots.size == 1
+
+        return volume_roots[0]
 
 
 @dataclass(kw_only=True)
@@ -324,19 +321,22 @@ class MRKCO2HP91(MRKImplicitABC):
     def delta_temperature_for_a(self, temperature: float) -> float:
         return temperature - self.Ta
 
-    def initial_solution_volume(self, temperature: float, pressure: float) -> float:
-        """Initial guess volume for the solution to ensure convergence to the correct root
+    def volume(self, *args, **kwargs) -> float:
+        """Volume
 
         Args:
-            temperature: Temperature in kelvin
-            pressure: Pressure in bar
+            *args: Positional arguments to pass to self.volume_roots
+            **kwargs: Keyword arguments to pass to self.volume_roots
 
         Returns:
-            Initial solution volume
+            Volume in m^3/mol
         """
-        initial_volume: float = GAS_CONSTANT * temperature / pressure + self.b
+        volume_roots: np.ndarray = self.volume_roots(*args, **kwargs)
 
-        return initial_volume
+        # In some cases there are more than a single root, in which case the maximum value
+        # maintains continuity/monotonicity with the single root cases. Furthermore, the max value
+        # passed the tests that were previously configured when Newton's method was used instead.
+        return np.max(volume_roots)
 
 
 CO2_MRK_HP91: RealGasABC = MRKCO2HP91()
@@ -431,7 +431,8 @@ def get_holland_eos_models() -> dict[str, RealGasABC]:
     models["CO2"] = CO2_CORK_HP98
     models["H2"] = H2_CORK_HP91
     models["H2O"] = H2O_CORK_HP98
-    models["H2S"] = H2_CORK_SHP11
+    models["H2S"] = H2S_CORK_HP11
+    models["N2"] = N2_CORK_HP91
     models["S2"] = S2_CORK_HP11
 
     return models
