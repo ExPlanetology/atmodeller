@@ -1,4 +1,4 @@
-"""Tests with sulfur.
+"""Tests with sulfur
 
 See the LICENSE file for licensing information.
 
@@ -27,7 +27,7 @@ from atmodeller.solubilities import (
 )
 
 logger: logging.Logger = debug_logger()
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 
 rtol: float = 1.0e-8
 atol: float = 1.0e-8

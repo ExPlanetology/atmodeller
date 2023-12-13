@@ -1,4 +1,4 @@
-"""Tests for simple SiHO interior-atmosphere systems.
+"""Tests for simple SiHO interior-atmosphere systems
 
 See the LICENSE file for licensing information.
 
@@ -6,7 +6,6 @@ Tests using the JANAF data for simple SiHO interior-atmosphere systems.
 """
 
 import logging
-from typing import Type
 
 import numpy as np
 
@@ -19,26 +18,18 @@ from atmodeller.constraints import (
     TotalPressureConstraint,
 )
 from atmodeller.eos.holland import get_holland_eos_models
-from atmodeller.interfaces import (
-    GasSpecies,
-    LiquidSpecies,
-    NoSolubility,
-    RealGasABC,
-    ThermodynamicData,
-    ThermodynamicDataBase,
-)
+from atmodeller.interfaces import GasSpecies, LiquidSpecies, NoSolubility, RealGasABC
 from atmodeller.interior_atmosphere import InteriorAtmosphereSystem, Planet, Species
 from atmodeller.solubilities import BasaltH2, PeridotiteH2O
 from atmodeller.utilities import earth_oceans_to_kg
 
-thermodynamic_data: Type[ThermodynamicDataBase] = ThermodynamicData
-
 eos_models: dict[str, RealGasABC] = get_holland_eos_models()
 
-rtol: float = 1.0e-8
-atol: float = 1.0e-8
+RTOL: float = 1.0e-8
+ATOL: float = 1.0e-8
 
 logger: logging.Logger = debug_logger()
+logger.setLevel(logging.INFO)
 
 
 def test_version():
@@ -85,7 +76,7 @@ def test_Si_O_H_gas_mass() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_Si_O_H_gas_liquid_fugacity() -> None:
@@ -126,7 +117,7 @@ def test_Si_O_H_gas_liquid_fugacity() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_Si_O_H_gas_liquid_totalpressure() -> None:
@@ -167,7 +158,7 @@ def test_Si_O_H_gas_liquid_totalpressure() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_Si_O_H_gas_liquid_mixed_nonideality() -> None:
@@ -213,7 +204,7 @@ def test_Si_O_H_gas_liquid_mixed_nonideality() -> None:
     initial_solution: np.ndarray = np.array([30, 250, 1e-4, 1, 5e-3, 1])
 
     system.solve(constraints, initial_solution=initial_solution)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_Si_O_H_gas_liquid_mixed_solubility() -> None:
@@ -257,7 +248,7 @@ def test_Si_O_H_gas_liquid_mixed_solubility() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_Si_O_H_gas_liquid_mixed_solubility_nonideality() -> None:
@@ -301,7 +292,7 @@ def test_Si_O_H_gas_liquid_mixed_solubility_nonideality() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Interior atmosphere system.
+"""Interior atmosphere system
 
 See the LICENSE file for licensing information.
 """
@@ -360,6 +360,7 @@ class ReactionNetwork:
         """
         gibbs_energy: float = 0
         for species_index, species in enumerate(self.species.data):
+            assert species.thermodynamic_data is not None
             gibbs_energy += self.reaction_matrix[
                 reaction_index, species_index
             ] * species.thermodynamic_data.get_formation_gibbs(
@@ -538,15 +539,15 @@ class ReactionNetwork:
 
 @dataclass(kw_only=True)
 class InteriorAtmosphereSystem:
-    """An interior-atmosphere system.
+    """An interior-atmosphere system
 
     Args:
-        species: A list of species.
-        planet: A planet. Defaults to a molten Earth.
+        species: A list of species
+        planet: A planet. Defaults to a molten Earth
 
     Attributes:
-        species: A list of species.
-        planet: A planet.
+        species: A list of species
+        planet: A planet
     """
 
     species: Species

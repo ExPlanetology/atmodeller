@@ -1,4 +1,4 @@
-"""Tests for simple CHO interior-atmosphere systems.
+"""Tests for simple CHO interior-atmosphere systems
 
 See the LICENSE file for licensing information.
 
@@ -19,8 +19,8 @@ from atmodeller.interior_atmosphere import InteriorAtmosphereSystem, Planet, Spe
 from atmodeller.solubilities import BasaltDixonCO2, PeridotiteH2O
 from atmodeller.utilities import earth_oceans_to_kg
 
-rtol: float = 1.0e-8
-atol: float = 1.0e-8
+RTOL: float = 1.0e-8
+ATOL: float = 1.0e-8
 
 logger: logging.Logger = debug_logger()
 logger.setLevel(logging.INFO)
@@ -62,7 +62,7 @@ def test_H_fO2() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_basalt_melt() -> None:
@@ -96,7 +96,7 @@ def test_H_basalt_melt() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_fO2_plus() -> None:
@@ -130,7 +130,7 @@ def test_H_fO2_plus() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_fO2_minus() -> None:
@@ -164,7 +164,7 @@ def test_H_fO2_minus() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_five_oceans() -> None:
@@ -198,7 +198,7 @@ def test_H_five_oceans() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_1500K() -> None:
@@ -234,7 +234,7 @@ def test_H_1500K() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_and_C() -> None:
@@ -275,7 +275,7 @@ def test_H_and_C() -> None:
     }
 
     system.solve(SystemConstraints(constraints))
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
 def test_H_and_C_total_pressure() -> None:
@@ -314,4 +314,4 @@ def test_H_and_C_total_pressure() -> None:
     }
 
     system.solve(constraints, factor=1)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)

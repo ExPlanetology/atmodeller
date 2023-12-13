@@ -5,7 +5,6 @@ See the LICENSE file for licensing information.
 
 
 import logging
-from typing import Type
 
 from atmodeller import __version__, debug_logger
 from atmodeller.constraints import (
@@ -16,20 +15,18 @@ from atmodeller.constraints import (
 from atmodeller.interfaces import (
     GasSpecies,
     SolidSpecies,
-    ThermodynamicData,
-    ThermodynamicDataBase,
-    ThermodynamicDataJANAF,
+    ThermodynamicDatasetABC,
+    ThermodynamicDatasetJANAF,
 )
 from atmodeller.interior_atmosphere import InteriorAtmosphereSystem, Planet, Species
 
-# This data uses the Holland and Powell data of preference, but then uses JANAF if species cannot
-# be found in Holland and Powell.
-thermodynamic_data: Type[ThermodynamicDataBase] = ThermodynamicDataJANAF  # ThermodynamicData
+thermodynamic_data: ThermodynamicDatasetABC = ThermodynamicDatasetJANAF()
 
-rtol: float = 1.0e-8
-atol: float = 1.0e-8
+RTOL: float = 1.0e-8
+ATOL: float = 1.0e-8
 
 logger: logging.Logger = debug_logger()
+logger.setLevel(logging.INFO)
 
 
 def test_version():
@@ -45,16 +42,16 @@ def test_graphite() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2", thermodynamic_class=thermodynamic_data),
-            GasSpecies(chemical_formula="H2O", thermodynamic_class=thermodynamic_data),
-            GasSpecies(chemical_formula="CO", thermodynamic_class=thermodynamic_data),
-            GasSpecies(chemical_formula="CO2", thermodynamic_class=thermodynamic_data),
-            GasSpecies(chemical_formula="CH4", thermodynamic_class=thermodynamic_data),
-            GasSpecies(chemical_formula="O2", thermodynamic_class=thermodynamic_data),
+            GasSpecies(chemical_formula="H2", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(chemical_formula="H2O", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(chemical_formula="CO", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(chemical_formula="CO2", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(chemical_formula="CH4", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(chemical_formula="O2", thermodynamic_dataset=thermodynamic_data),
             SolidSpecies(
                 chemical_formula="C",
                 name_in_thermodynamic_data="graphite",
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_data,
             ),  # Ideal activity by default.
         ]
     )
@@ -83,4 +80,4 @@ def test_graphite() -> None:
     }
 
     system.solve(constraints)
-    assert system.isclose(target_pressures, rtol=rtol, atol=atol)
+    assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)

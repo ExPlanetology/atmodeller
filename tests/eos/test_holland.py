@@ -4,7 +4,6 @@ See the LICENSE file for licensing information.
 """
 
 import logging
-from typing import Type
 
 import numpy as np
 
@@ -30,8 +29,8 @@ from atmodeller.interfaces import (
     IdealGas,
     NoSolubility,
     RealGasABC,
-    ThermodynamicData,
-    ThermodynamicDataBase,
+    ThermodynamicDataset,
+    ThermodynamicDatasetABC,
 )
 from atmodeller.interior_atmosphere import InteriorAtmosphereSystem, Planet, Species
 from atmodeller.solubilities import BasaltDixonCO2, BasaltH2, PeridotiteH2O
@@ -39,7 +38,7 @@ from atmodeller.utilities import UnitConversion, earth_oceans_to_kg
 
 logger: logging.Logger = debug_logger()
 
-thermodynamic_data: Type[ThermodynamicDataBase] = ThermodynamicData
+thermodynamic_dataset: ThermodynamicDatasetABC = ThermodynamicDataset()
 
 eos_models: dict[str, RealGasABC] = get_holland_eos_models()
 
@@ -61,7 +60,7 @@ def test_CORK_H2O_volume_1kbar(check_values) -> None:
 
 # Figure 7, Holland and Powell (1991)
 def test_CORK_CO2_volume_1kbar(check_values) -> None:
-    expected: float = 96.81673510069768
+    expected: float = 96.13326116472262
     expected = UnitConversion.cm3_to_m3(expected)
     check_values.volume(873, 1000, CO2_CORK_HP91, expected, rtol=RTOL, atol=ATOL)
 
@@ -156,14 +155,14 @@ def test_simple_CorkCO2(check_values) -> None:
 def test_CorkCO2_at_P0(check_values) -> None:
     """Below P0 so virial contribution excluded."""
     check_values.fugacity_coefficient(
-        2000, 2e3, eos_models["CO2"], 1.6063624424808558, rtol=RTOL, atol=ATOL
+        2000, 2e3, eos_models["CO2"], 1.5754570751655304, rtol=RTOL, atol=ATOL
     )
 
 
 def test_CorkCO2_above_P0(check_values) -> None:
     """Above P0 so virial contribution included."""
     check_values.fugacity_coefficient(
-        2000, 10e3, eos_models["CO2"], 7.4492345831832525, rtol=RTOL, atol=ATOL
+        2000, 10e3, eos_models["CO2"], 7.144759853226838, rtol=RTOL, atol=ATOL
     )
 
 
@@ -212,19 +211,19 @@ def test_H2_with_cork() -> None:
             GasSpecies(
                 chemical_formula="H2O",
                 solubility=PeridotiteH2O(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=IdealGas(),  # This is the default if nothing specified
             ),
             GasSpecies(
                 chemical_formula="H2",
                 solubility=NoSolubility(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["H2"],
             ),
             GasSpecies(
                 chemical_formula="O2",
                 solubility=NoSolubility(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=IdealGas(),  # This is the default if nothing specified
             ),
         ]
@@ -261,36 +260,36 @@ def test_non_ideal() -> None:
             GasSpecies(
                 chemical_formula="H2",
                 solubility=BasaltH2(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["H2"],
             ),
             GasSpecies(
                 chemical_formula="H2O",
                 solubility=PeridotiteH2O(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["H2O"],
             ),
             GasSpecies(
                 chemical_formula="O2",
                 solubility=NoSolubility(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
             ),
             GasSpecies(
                 chemical_formula="CO",
                 solubility=NoSolubility(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["CO"],
             ),
             GasSpecies(
                 chemical_formula="CO2",
                 solubility=BasaltDixonCO2(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["CO2"],
             ),
             GasSpecies(
                 chemical_formula="CH4",
                 solubility=NoSolubility(),
-                thermodynamic_class=thermodynamic_data,
+                thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["CH4"],
             ),
         ]
@@ -313,12 +312,12 @@ def test_non_ideal() -> None:
     system: InteriorAtmosphereSystem = InteriorAtmosphereSystem(species=species, planet=planet)
 
     target_pressures: dict[str, float] = {
-        "CH4": 10.402516906435752,
-        "CO": 275.92114750956955,
-        "CO2": 64.23450582493761,
-        "H2": 696.9742997262443,
-        "H2O": 933.3320305098492,
-        "O2": 9.862052864392796e-08,
+        "CH4": 10.374185001822335,
+        "CO": 275.1721430723753,
+        "CO2": 65.30951836095214,
+        "H2": 696.9435961399346,
+        "H2O": 933.3255567030764,
+        "O2": 9.862215541051231e-08,
     }
 
     # Initial solution (i.e. estimates) must correspond by position to the order in the species

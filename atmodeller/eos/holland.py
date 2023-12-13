@@ -318,7 +318,7 @@ class MRKCO2HP91(MRKImplicitABC):
 
     a_coefficients: tuple[float, ...] = field(
         init=False,
-        default=(741.2e-7, -0.10891e-7, -3.903e-11, 0),  # FIXME: Penultimate coeff wrong?
+        default=(741.2e-7, -0.10891e-7, -3.4203e-11, 0),
     )
     b0: float = field(init=False, default=3.057e-5)
 

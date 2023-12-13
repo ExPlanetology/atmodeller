@@ -566,6 +566,7 @@ class RhyoliteCO(Solubility):
         ppmw: float = UnitConversion.weight_percent_to_ppmw(CO_wtp)
         return ppmw
 
+
 class BasaltArmstrongCO(Solubility):
     """Armstrong et al. 2015. Solubility of volatiles in mafic melts under reduced conditions
 
