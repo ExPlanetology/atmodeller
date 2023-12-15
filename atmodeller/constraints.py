@@ -1,4 +1,4 @@
-"""Constraints for the system of equations.
+"""Constraints for the system of equations
 
 See the LICENSE file for licensing information.
 
@@ -11,7 +11,6 @@ import logging
 from abc import abstractmethod
 from collections import UserList
 from dataclasses import dataclass, field
-from typing import Union
 
 import numpy as np
 
@@ -58,11 +57,11 @@ class SystemConstraints(UserList):
     """A collection of constraints for an interior-atmosphere system.
 
     A collection of constraints that can be applied to an interior-atmosphere system. It provides
-    methods to filter constraints based on their types, such as fugacity, mass conservation,
-    pressure, and reaction network constraints.
+    methods to filter constraints based on their types, such as activity, fugacity, mass
+    conservation, pressure, and reaction network constraints.
 
-    Note that condensed species activity constraints are inherent to the species and are combined
-    with these user-prescribed constraints when the interior-atmosphere system is solved.
+    Note that condensed species activity constraints are inherent to the species and are appended
+    to this list of user-prescribed constraints before the interior-atmosphere system is solved.
 
     Args:
         initlist: Initial list of constraints. Defaults to None.
@@ -79,10 +78,10 @@ class SystemConstraints(UserList):
         """Filters the constraints by a given name.
 
         Args:
-            name: The filter string (e.g., fugacity, pressure, mass).
+            name: The filter string (e.g., activity, fugacity, pressure, mass)
 
         Returns:
-            A list of filtered constraints.
+            A list of filtered constraints
         """
         filtered: list = []
         for entry in self.data:
@@ -92,23 +91,28 @@ class SystemConstraints(UserList):
         return filtered
 
     @property
+    def activity_constraints(self) -> list[ConstraintABC]:
+        """Constraints related to activity"""
+        return self._filter_by_name("activity")
+
+    @property
     def fugacity_constraints(self) -> list[ConstraintABC]:
-        """Constraints related to fugacity."""
+        """Constraints related to fugacity"""
         return self._filter_by_name("fugacity")
 
     @property
     def mass_constraints(self) -> list[ConstraintABC]:
-        """Constraints related to mass conservation."""
+        """Constraints related to mass conservation"""
         return self._filter_by_name("mass")
 
     @property
     def pressure_constraints(self) -> list[ConstraintABC]:
-        """Constraints related to pressure."""
+        """Constraints related to pressure"""
         return self._filter_by_name("pressure")
 
     @property
     def total_pressure_constraint(self) -> list[ConstraintABC]:
-        """Total pressure constraint."""
+        """Total pressure constraint"""
         total_pressure: list[ConstraintABC] = self._filter_by_name("total_pressure")
         if len(total_pressure) > 1:
             msg: str = "You can only specify zero or one total pressure constraints"
@@ -119,15 +123,16 @@ class SystemConstraints(UserList):
 
     @property
     def reaction_network_constraints(self) -> list[ConstraintABC]:
-        """Constraints related to the reaction network."""
+        """Constraints related to the reaction network"""
         filtered_entries: list[ConstraintABC] = self.fugacity_constraints
         filtered_entries.extend(self.pressure_constraints)
+        filtered_entries.extend(self.activity_constraints)
 
         return filtered_entries
 
     @property
     def number_reaction_network_constraints(self) -> int:
-        """Number of constraints related to the reaction network."""
+        """Number of constraints related to the reaction network"""
         return len(self.reaction_network_constraints)
 
 
@@ -142,7 +147,7 @@ class RedoxBuffer(ConstraintABC):
     """
 
     log10_shift: float = 0
-    pressure: Union[float, None] = None
+    pressure: float | None = None
     name: str = field(init=False, default="fugacity")
 
     @abstractmethod

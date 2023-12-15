@@ -10,7 +10,6 @@ import pprint
 from collections import UserList
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Union
 
 import numpy as np
 from scipy.optimize import root
@@ -26,6 +25,7 @@ from atmodeller.interfaces import (
     NoSolubility,
     Solubility,
 )
+from atmodeller.output import Output
 from atmodeller.solubilities import composition_solubilities
 from atmodeller.utilities import filter_by_type
 
@@ -34,7 +34,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 @dataclass(kw_only=True)
 class Planet:
-    """The properties of a planet.
+    """The properties of a planet
 
     Defines the properties of a planet that are relevant for interior modeling. It provides default
     values suitable for modelling a fully molten Earth-like planet.
@@ -62,7 +62,7 @@ class Planet:
     core_mass_fraction: float = 0.295334691460966  # Earth's core mass fraction
     surface_radius: float = 6371000.0  # m, Earth's radius
     surface_temperature: float = 2000.0  # K
-    melt_composition: Union[str, None] = None
+    melt_composition: str | None = None
 
     def __post_init__(self):
         logger.info("Creating a new planet")
@@ -77,22 +77,22 @@ class Planet:
 
     @property
     def planet_mass(self) -> float:
-        """Mass of the planet in SI units."""
+        """Mass of the planet in SI units"""
         return self.mantle_mass / (1 - self.core_mass_fraction)
 
     @property
     def surface_area(self) -> float:
-        """Surface area of the planet in SI units."""
+        """Surface area of the planet in SI units"""
         return 4.0 * np.pi * self.surface_radius**2
 
     @property
     def surface_gravity(self) -> float:
-        """Surface gravity of the planet in SI units."""
+        """Surface gravity of the planet in SI units"""
         return GRAVITATIONAL_CONSTANT * self.planet_mass / self.surface_radius**2
 
 
 class Species(UserList):
-    """Collections of species for an interior-atmosphere system.
+    """Collections of species for an interior-atmosphere system
 
     A collection of species. It provides methods to filter species based on their phases (gas,
     condensed).
@@ -104,23 +104,23 @@ class Species(UserList):
         data: List of species contained in the system.
     """
 
-    def __init__(self, initlist: Union[list[ChemicalComponent], None] = None):
+    def __init__(self, initlist: list[ChemicalComponent] | None = None):
         self.data: list[ChemicalComponent]  # For typing.
         super().__init__(initlist)
 
     @property
     def number(self) -> int:
-        """Number of species."""
+        """Number of species"""
         return len(self.data)
 
     @property
     def gas_species(self) -> dict[int, GasSpecies]:
-        """Gas species."""
+        """Gas species"""
         return filter_by_type(self, GasSpecies)
 
     @property
     def number_gas_species(self) -> int:
-        """Number of gas species."""
+        """Number of gas species"""
         return len(self.gas_species)
 
     @property
@@ -130,12 +130,12 @@ class Species(UserList):
 
     @property
     def number_condensed_species(self) -> int:
-        """Number of condensed species."""
+        """Number of condensed species"""
         return len(self.condensed_species)
 
     @property
     def indices(self) -> dict[str, int]:
-        """Indices of the species."""
+        """Indices of the species"""
         return {
             chemical_formula: index
             for index, chemical_formula in enumerate(self.chemical_formulas)
@@ -143,7 +143,7 @@ class Species(UserList):
 
     @property
     def chemical_formulas(self) -> list[str]:
-        """Chemical formulas of the species."""
+        """Chemical formulas of the species"""
         return [species.chemical_formula for species in self.data]
 
     def conform_solubilities_to_planet_composition(self, planet: Planet) -> None:
@@ -180,12 +180,12 @@ class Species(UserList):
                     species.solubility = NoSolubility()
 
     def _species_sorter(self, species: ChemicalComponent) -> tuple[int, str]:
-        """Sorter for the species.
+        """Sorter for the species
 
         Sorts first by species complexity and second by species name.
 
         Args:
-            species: Species.
+            species: Species
 
         Returns:
             A tuple to sort first by number of elements and second by species name.
@@ -302,7 +302,7 @@ class ReactionNetwork:
 
     @cached_property
     def reactions(self) -> dict[int, str]:
-        """The reactions as a dictionary."""
+        """The reactions as a dictionary"""
         reactions: dict[int, str] = {}
         for reaction_index in range(self.number_reactions):
             reactants: str = ""
@@ -332,11 +332,11 @@ class ReactionNetwork:
 
         Args:
             reaction_index: Row index of the reaction as it appears in `self.reaction_matrix`.
-            temperature: Temperature.
-            pressure: Pressure.
+            temperature: Temperature
+            pressure: Pressure
 
         Returns:
-            log10 of the reaction equilibrium constant.
+            log10 of the reaction equilibrium constant
         """
         gibbs_energy: float = self.get_reaction_gibbs_energy_of_formation(
             reaction_index=reaction_index, temperature=temperature, pressure=pressure
@@ -351,12 +351,12 @@ class ReactionNetwork:
         """Gets the Gibb's free energy of formation for a reaction.
 
         Args:
-            reaction_index: Row index of the reaction as it appears in `self.reaction_matrix`.
-            temperature: Temperature.
-            pressure: Pressure.
+            reaction_index: Row index of the reaction as it appears in `self.reaction_matrix`
+            temperature: Temperature
+            pressure: Pressure
 
         Returns:
-            The Gibb's free energy of the reaction.
+            The Gibb's free energy of the reaction
         """
         gibbs_energy: float = 0
         for species_index, species in enumerate(self.species.data):
@@ -374,12 +374,12 @@ class ReactionNetwork:
         """Gets the equilibrium constant of a reaction Kf
 
         Args:
-            reaction_index: Row index of the reaction as it appears in `self.reaction_matrix`.
-            temperature: Temperature.
-            pressure: Pressure.
+            reaction_index: Row index of the reaction as it appears in `self.reaction_matrix`
+            temperature: Temperature
+            pressure: Pressure
 
         Returns:
-            The equilibrium constant of the reaction.
+            The equilibrium constant of the reaction
         """
         equilibrium_constant: float = 10 ** self.get_reaction_log10_equilibrium_constant(
             reaction_index=reaction_index, temperature=temperature, pressure=pressure
@@ -390,17 +390,13 @@ class ReactionNetwork:
         """Builds the coefficient matrix.
 
         Args:
-            constraints: Constraints for the system of equations.
+            constraints: Constraints for the system of equations
 
         Returns:
-            The coefficient matrix with the stoichiometry and constraints.
+            The coefficient matrix with the stoichiometry and constraints
         """
 
-        nrows: int = (
-            constraints.number_reaction_network_constraints
-            + self.number_reactions
-            + self.species.number_condensed_species
-        )
+        nrows: int = constraints.number_reaction_network_constraints + self.number_reactions
 
         if nrows == self.species.number:
             msg: str = "The necessary number of constraints will be applied to "
@@ -434,20 +430,16 @@ class ReactionNetwork:
         """Assembles the right-hand side vector of values for the system of equations.
 
         Args:
-            system: Interior atmosphere system.
-            constraints: Constraints for the system of equations.
+            system: Interior atmosphere system
+            constraints: Constraints for the system of equations
 
         Returns:
-            The right-hand side vector of values.
+            The right-hand side vector of values
         """
-        nrows: int = (
-            constraints.number_reaction_network_constraints
-            + self.number_reactions
-            + self.species.number_condensed_species
-        )
+        nrows: int = constraints.number_reaction_network_constraints + self.number_reactions
         rhs: np.ndarray = np.zeros(nrows, dtype=float)
 
-        # Reactions.
+        # Reactions
         for reaction_index in range(self.number_reactions):
             logger.info(
                 "Row %02d: Reaction %d: %s",
@@ -461,7 +453,7 @@ class ReactionNetwork:
                 pressure=system.total_pressure,
             )
 
-        # Constraints.
+        # Constraints
         for index, constraint in enumerate(constraints.reaction_network_constraints):
             row_index: int = self.number_reactions + index
             logger.info("Row %02d: Setting %s %s", row_index, constraint.species, constraint.name)
@@ -481,10 +473,10 @@ class ReactionNetwork:
         """Assembles the fugacity coefficient vector on the left-hand side of the equations.
 
         Args:
-            system: Interior atmosphere system.
+            system: Interior atmosphere system
 
         Returns:
-            The log10(fugacity coefficient) vector.
+            The log10(fugacity coefficient) vector
         """
 
         # Initialise to ideal behaviour.
@@ -513,12 +505,12 @@ class ReactionNetwork:
         """Returns the residual vector of the reaction network.
 
         Args:
-            system: Interior atmosphere system.
-            constraints: Constraints for the system of equations.
-            coefficient_matrix: Coefficient matrix.
+            system: Interior atmosphere system
+            constraints: Constraints for the system of equations
+            coefficient_matrix: Coefficient matrix
 
         Returns:
-            The residual vector of the reaction network.
+            The residual vector of the reaction network
         """
 
         rhs: np.ndarray = self.assemble_right_hand_side_values(
@@ -548,6 +540,7 @@ class InteriorAtmosphereSystem:
     Attributes:
         species: A list of species
         planet: A planet
+        output: All output data for this system. Access the dictionary by (calling) output().
     """
 
     species: Species
@@ -556,6 +549,7 @@ class InteriorAtmosphereSystem:
     # The solution is log10 of the partial pressure for gas phases and log10 of the activity for
     # condensed phases. The order aligns with the species.
     _log_solution: np.ndarray = field(init=False)
+    output: Output = field(init=False)
 
     def __post_init__(self):
         logger.info("Creating an interior-atmosphere system")
@@ -563,6 +557,7 @@ class InteriorAtmosphereSystem:
         self._reaction_network = ReactionNetwork(species=self.species)
         # Initialise solution to zero.
         self._log_solution = np.zeros_like(self.species, dtype=np.float_)
+        self.output = Output(self)
 
     @property
     def log_solution(self) -> np.ndarray:
@@ -576,7 +571,11 @@ class InteriorAtmosphereSystem:
 
     @property
     def solution_dict(self) -> dict[str, float]:
-        """Solution for all species in a dictionary."""
+        """Solution for all species in a dictionary.
+
+        This is convenient for a quick check of the solution, but in general you will want to use
+        `self.output()` to return a dictionary of all the data.
+        """
         output: dict[str, float] = {}
         for chemical_formula, solution in zip(self.species.chemical_formulas, self.solution):
             output[chemical_formula] = solution
@@ -626,22 +625,19 @@ class InteriorAtmosphereSystem:
 
         return mu_atmosphere
 
-    @property
-    def output(self) -> dict:
-        """Outputs for analysis."""
-        output_dict: dict = {}
-        output_dict["temperature"] = self.planet.surface_temperature
-        output_dict["total_pressure_in_atmosphere"] = self.total_pressure
-        output_dict["mean_molar_mass_in_atmosphere"] = self.atmospheric_mean_molar_mass
-        for species in self.species.data:
-            output_dict[species.chemical_formula] = species.output
-        # TODO: Dan to add elemental outputs as well.
-        return output_dict
-
     def isclose(
         self, target_dict: dict[str, float], rtol: float = 1.0e-5, atol: float = 1.0e-8
     ) -> np.bool_:
-        """Determines if the solution pressures are close to target values within a tolerance."""
+        """Determines if the solution pressures are close to target values within a tolerance.
+
+        Args:
+            target_dict: Dictionary of species and their target values
+            rtol: Relative tolerance
+            atol: Absolute tolerance
+
+        Returns:
+            True if the solution is close to the target, otherwise False
+        """
 
         if len(self.solution_dict) != len(target_dict):
             return np.bool_(False)
@@ -657,25 +653,22 @@ class InteriorAtmosphereSystem:
         self,
         constraints: SystemConstraints,
         *,
-        initial_solution: Union[np.ndarray, None] = None,
+        initial_solution: list[float] | np.ndarray | None = None,
         method: str = "hybr",
-        tol: Union[float, None] = None,
+        tol: float | None = None,
         **options,
     ) -> None:
-        """Solves the system to determine the partial pressures with provided constraints.
+        """Solves the system to determine the activities and partial pressures with constraints.
 
         Args:
             constraints: Constraints for the system of equations
-            initial_solution: Initial guess for the pressures. Defaults to None.
+            initial_solution: Initial guess for the solution. Defaults to None.
             method: Type of solver. Defaults to 'hybr'.
             tol: Tolerance for termination. Defaults to None.
             **options: Keyword arguments for solver options. Available keywords depend on method.
-
-        Returns:
-            The pressures in bar
         """
 
-        constraints = self._assemble_constraints(constraints)
+        self._assemble_constraints(constraints)
         self._log_solution = self._solve(
             constraints=constraints,
             initial_solution=initial_solution,
@@ -698,81 +691,54 @@ class InteriorAtmosphereSystem:
                 )
             )
 
+        self.output.add(constraints)
         logger.info(pprint.pformat(self.solution_dict))
 
-    def _assemble_constraints(self, constraints: SystemConstraints) -> SystemConstraints:
-        """Combines the user-prescribed constraints with intrinsic constraints (condensed species
-        activities).
+    def _assemble_constraints(self, constraints: SystemConstraints) -> None:
+        """Combines user-prescribed constraints with intrinsic (activity) constraints.
 
         Args:
-            constraints: Constraints as prescribed by the user.
-
-        Returns:
-            Constraints including condensed species activities.
+            constraints: Constraints as prescribed by the user, which are updated in place.
         """
         logger.info("Assembling constraints")
         for condensed_species in self.species.condensed_species.values():
             constraints.append(condensed_species.activity)
         logger.info("Constraints: %s", pprint.pformat(constraints))
 
-        return constraints
-
-    def _conform_initial_solution_to_condensed_activities(
-        self, initial_solution: np.ndarray
-    ) -> None:
-        """Conforms the initial solution (estimate) to the condensed species activities.
-
-        Condensed activities are known a priori so they can be included as solutions in the initial
-        solution estimate.
-
-        Args:
-            initial_solution: Initial estimate of the solution.
-        """
-        for index, condensed_species in self.species.condensed_species.items():
-            logger.debug("Setting %s %d", condensed_species.chemical_formula, index)
-            initial_solution[index] = np.log10(
-                condensed_species.activity.get_value(
-                    temperature=self.planet.surface_temperature, pressure=self.total_pressure
-                )
-            )
-        logger.debug("Conforming initial solution to condensed activities = %s", initial_solution)
-
-    def _conform_initial_solution_to_constraints(
-        self, initial_solution: np.ndarray, constraints: SystemConstraints
-    ) -> None:
-        """Conforms the initial solution (estimate) to pressure and fugacity constraints.
+    def _conform_initial_solution_to_constraints(self, constraints: SystemConstraints) -> None:
+        """Conforms the initial solution (estimate) to activity, pressure and fugacity constraints.
 
         Pressure and fugacity constraints can be imposed directly on the initial solution
         estimate. For simplicity we impose both as pressure constraints.
 
         Args:
-            initial_solution: Initial estimate of the solution.
-            constraints: Constraints for the system of equations.
+            constraints: Constraints for the system of equations
         """
         for constraint in constraints.reaction_network_constraints:
             index: int = self.species.indices[constraint.species]
             logger.debug("Setting %s %d", constraint.species, index)
-            initial_solution[index] = np.log10(
+            self._log_solution[index] = np.log10(
                 constraint.get_value(
                     temperature=self.planet.surface_temperature, pressure=self.total_pressure
                 )
             )
-        logger.debug("Conforming initial solution to constraints = %s", initial_solution)
+        logger.debug("total_pressure = %s", self.total_pressure)
+        logger.debug("Conforming initial solution to constraints = %s", self._log_solution)
 
     def _solve(
         self,
         *,
         constraints: SystemConstraints,
-        initial_solution: Union[np.ndarray, None],
+        initial_solution: list[float] | np.ndarray | None,
         method: str,
-        tol: Union[float, None],
+        tol: float | None,
         **options,
     ) -> np.ndarray:
         """Solves the non-linear system of equations.
 
         Args:
             constraints: Constraints for the system of equations
-            initial_solution: Initial guess for the pressures
+            initial_solution: Initial guess for the solution
             method: Type of solver
             tol: Tolerance for termination
             **options: Keyword arguments for solver options. Available keywords depend on method.
@@ -782,12 +748,11 @@ class InteriorAtmosphereSystem:
         """
         # Initial guess for gas species, if not specified, is 1 log10 unit, i.e. 10 bar.
         if initial_solution is None:
-            initial_solution = np.ones_like(self.species, dtype=np.float_)
+            self._log_solution = np.ones_like(self.species, dtype=np.float_)
         else:
-            initial_solution = np.log10(initial_solution)
+            self._log_solution = np.log10(np.array(initial_solution))
 
-        self._conform_initial_solution_to_condensed_activities(initial_solution)
-        self._conform_initial_solution_to_constraints(initial_solution, constraints)
+        self._conform_initial_solution_to_constraints(constraints)
 
         coefficient_matrix: np.ndarray = self._reaction_network.get_coefficient_matrix(
             constraints=constraints
@@ -795,7 +760,7 @@ class InteriorAtmosphereSystem:
 
         sol = root(
             self._objective_func,
-            initial_solution,
+            self._log_solution,
             args=(constraints, coefficient_matrix),
             method=method,
             tol=tol,
@@ -804,6 +769,7 @@ class InteriorAtmosphereSystem:
 
         logger.info("sol = %s", sol)
 
+        # TODO: Raise a more descriptive exception.
         if not sol.success:
             raise SystemExit()
 
@@ -813,22 +779,22 @@ class InteriorAtmosphereSystem:
 
     def _objective_func(
         self,
-        log10_pressures: np.ndarray,
+        log_solution: np.ndarray,
         constraints: SystemConstraints,
         coefficient_matrix: np.ndarray,
     ) -> np.ndarray:
         """Objective function for the non-linear system.
 
         Args:
-            log10_pressures: Log10 of the pressures of each species.
-            constraints: Constraints for the system of equations.
-            coefficient_matrix: Coefficient matrix.
+            log_solution: Log10 of the activities and pressures of each species
+            constraints: Constraints for the system of equations
+            coefficient_matrix: Coefficient matrix
 
         Returns:
-            The solution, which is the log10 of the pressures for each species.
+            The solution, which is the log10 of the activities and pressures for each species
         """
-        logger.debug("log10_pressures = %s", log10_pressures)
-        self._log_solution = log10_pressures
+        logger.debug("log_solution = %s", log_solution)
+        self._log_solution = log_solution
 
         # Compute residual for the reaction network.
         residual_reaction: np.ndarray = self._reaction_network.get_residual(

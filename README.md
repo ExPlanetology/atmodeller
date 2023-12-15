@@ -142,3 +142,19 @@ where the path name is updated according to where *docs* is on your system and t
 ## Tests
 
 You can confirm that all tests pass by running `pytest` in the root directory. Please add more tests if you add new features.
+
+## Troubleshooting
+
+At its core, *atmodeller* assembles and solves a system of non-linear equations and is therefore subject to the same considerations when solving any system of non-linear equations. *atmodeller* uses `scipy.optimize.root` to select and drive the behaviour of the solver. Arguments can be passed to this function by specifiying arguments when you call `solve()` on an instance of `InteriorAtmosphereSystem`. The default solver is `hybr`, but you can experiment with other solvers as well as the tolerance parameter `tol`.
+
+The following provides some guidance if you are facing challenges with obtaining a solution to your interior-atmosphere system:
+
+1. Confirm that a solution exists. Although *atmodeller* allows you to build a system of arbitrary user-imposed constraints (pressure, fugacity, mass, etc.) this does not necessarily mean that there is a physical solution to the system. If *atmodeller* cannot find a solution it might simply be because a solution does not exist for your imposed constraints. In this regard, it can help to impose a total pressure constraint to first uncover the general behaviour of the solution before imposing pressure or fugacity constraints on individual species.
+
+1. Confirm that the species chosen for your reaction network are appropriate for the pressure and temperature conditions of interest. We recall that *atmodeller* does not perform any internal tests to determine whether or not the species you have chosen are thermodynamically stable at the specified conditions. Hence prior knowledge, intuition, or calculations with a Gibbs minimiser are required to guide the choice of species. Related, if the dynamic range of the species abundances is too large then you may encounter problems.
+
+1. Numerical overflow can occur when the solver steps to a region of parameter space that causes the pressure to become too large. This is because the reaction network component of the non-linear system is formulated in terms of log10(pressure), but the actual pressure is required for mass balance and hence 10**log10(pressure) is computed. In this regard, reducing the `factor` parameter can prevent the solver from stepping too far [(read more)](https://docs.scipy.org/docs/scipy/reference/optimize.root-hybr.html).
+
+1. Simplify your system by systematically removing species and/or removing non-linear dependences. For example, oxygen fugacity buffers, real gas equations of state, and solubility relations can depend on the total pressure, which adds an additional pressure coupling between the system of equations compared to simpler ideal-gas only systems. Swapping mass constraints for pressure constraints can also help, as long as the pressure constraints are compatible with a solution (see point 1 above). In short, starting with a simple ideal-gas only reaction network and adding incremental complexity is a good approach narrow down reasons why a solution cannot be found.
+
+1. Choose an appropriate initial guess. Providing an initial guess closer to the true solution will improve the chances that the solver can locate and converge to the correct (global) minimum. You can specify the initial guess using the `initial_solution` argument of `solve()` on an instance of `InteriorAtmosphereSystem`. If you are systematically iterating over a set of parameters, you can often use the previous solution to the system as the initial guess for the next system with perturbed parameters.

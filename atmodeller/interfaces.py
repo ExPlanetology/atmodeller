@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import cached_property, wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol
 
 import numpy as np
 import pandas as pd
@@ -18,6 +18,7 @@ from molmass import Formula
 from thermochem import janaf
 
 from atmodeller import DATA_ROOT_PATH, GAS_CONSTANT, GAS_CONSTANT_BAR
+from atmodeller.output import CondensedSpeciesOutput, GasSpeciesOutput
 from atmodeller.utilities import UnitConversion, debug_decorator
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -284,8 +285,8 @@ class ConstraintABC(GetValueABC):
     """A constraint to apply to an interior-atmosphere system.
 
     Args:
-        name: The name of the constraint, which should be one of: 'fugacity', 'pressure', or
-            'mass'.
+        name: The name of the constraint, which should be one of: 'activity', 'fugacity',
+            'pressure', or 'mass'.
         species: The species to constrain, typically representing a species for 'pressure' or
             'fugacity' constraints or an element for 'mass' constraints.
 
@@ -300,11 +301,11 @@ class ConstraintABC(GetValueABC):
 
 @dataclass(kw_only=True, frozen=True)
 class ConstantConstraint(ConstraintABC):
-    """A constraint of a constant value.
+    """A constraint of a constant value
 
     Args:
-        name: The name of the constraint, which should be one of: 'fugacity', 'pressure', or
-            'mass'.
+        name: The name of the constraint, which should be one of: 'activity', 'fugacity',
+            'pressure', or 'mass'.
         species: The species to constrain, typically representing a species for 'pressure' or
             'fugacity' constraints or an element for 'mass' constraints.
         value: The constant value, which is usually in kg for masses and bar for pressures or
@@ -325,27 +326,24 @@ class ConstantConstraint(ConstraintABC):
 
 
 @dataclass(kw_only=True, frozen=True)
-class IdealityConstant(ConstantConstraint):
-    """A constant activity.
-
-    The constructor must accept no arguments to enable it to be used as a default factory when the
-    user does not specify an activity model for a condensed species. Therefore, the name and
-    species arguments are set to empty strings because they are not used.
+class ActivityConstant(ConstantConstraint):
+    """A constant activity
 
     Args:
-        value: The constant value. Defaults to 1 (i.e. ideal behaviour)
+        species: The species to constrain
+        value: The constant value. Defaults to unity for ideal behaviour.
 
     Attributes:
+        species: The species to constrain
         value: The constant value
     """
 
-    name: str = field(init=False, default="")
-    species: str = field(init=False, default="")
+    name: str = field(init=False, default="activity")
     value: float = 1.0
 
 
 # Solubility limiter applied universally
-MAXIMUM_PPMW: float = UnitConversion.weight_percent_to_ppmw(10)  # 10% by weight.
+MAXIMUM_PPMW: float = UnitConversion.weight_percent_to_ppmw(10)  # 10% by weight
 
 
 def limit_solubility(bound: float = MAXIMUM_PPMW) -> Callable:
@@ -488,9 +486,7 @@ class ThermodynamicDatasetABC(ABC):
     _STANDARD_STATE_PRESSURE: float = 1  # bar
 
     @abstractmethod
-    def get_data(
-        self, species: ChemicalComponent
-    ) -> Union[ThermodynamicDataForSpeciesProtocol, None]:
+    def get_data(self, species: ChemicalComponent) -> ThermodynamicDataForSpeciesProtocol | None:
         """Gets the thermodynamic data for a species, otherwise None if not available
 
         Args:
@@ -524,14 +520,12 @@ class ThermodynamicDatasetJANAF(ThermodynamicDatasetABC):
     _ENTHALPY_REFERENCE_TEMPERATURE: float = 298.15  # K
     _STANDARD_STATE_PRESSURE: float = 1  # bar
 
-    def get_data(
-        self, species: ChemicalComponent
-    ) -> Union[ThermodynamicDataForSpeciesProtocol, None]:
+    def get_data(self, species: ChemicalComponent) -> ThermodynamicDataForSpeciesProtocol | None:
         """See base class"""
 
         db: janaf.Janafdb = janaf.Janafdb()
 
-        def get_phase_data(phases: list[str]) -> Union[janaf.JanafPhase, None]:
+        def get_phase_data(phases: list[str]) -> janaf.JanafPhase | None:
             """Gets the phase data for a list of phases in order of priority.
 
             Args:
@@ -541,7 +535,7 @@ class ThermodynamicDatasetJANAF(ThermodynamicDatasetABC):
                 Phase data if it exists in JANAF, otherwise None
             """
             try:
-                phase_data: Union[janaf.JanafPhase, None] = db.getphasedata(
+                phase_data: janaf.JanafPhase | None = db.getphasedata(
                     formula=species.modified_hill_formula, phase=phases[0]
                 )
             except ValueError:
@@ -642,11 +636,9 @@ class ThermodynamicDatasetHollandAndPowell(ThermodynamicDatasetABC):
         self.data = self.data.loc[:, :"Vmax"]
         self.data = self.data.astype(float)
 
-    def get_data(
-        self, species: ChemicalComponent
-    ) -> Union[ThermodynamicDataForSpeciesProtocol, None]:
+    def get_data(self, species: ChemicalComponent) -> ThermodynamicDataForSpeciesProtocol | None:
         try:
-            phase_data: Union[pd.Series, None] = self.data.loc[species.name_in_thermodynamic_data]
+            phase_data: pd.Series | None = self.data.loc[species.name_in_thermodynamic_data]
             msg = "Thermodynamic data for %s (%s) = %s" % (
                 species.name_in_thermodynamic_data,
                 species.modified_hill_formula,
@@ -830,28 +822,6 @@ class ThermodynamicDatasetHollandAndPowell(ThermodynamicDatasetABC):
             return integral_VP
 
 
-@dataclass(kw_only=True)
-class GasSpeciesOutput:
-    """Output for a gas species."""
-
-    mass_in_atmosphere: float  # kg
-    mass_in_solid: float  # kg
-    mass_in_melt: float  # kg
-    moles_in_atmosphere: float  # moles
-    moles_in_melt: float  # moles
-    moles_in_solid: float  # moles
-    ppmw_in_solid: float  # ppm by weight
-    ppmw_in_melt: float  # ppm by weight
-    fugacity: float  # bar
-    fugacity_coefficient: float  # dimensionless
-    pressure_in_atmosphere: float  # bar
-    volume_mixing_ratio: float  # dimensionless
-    mass_in_total: float = field(init=False)
-
-    def __post_init__(self):
-        self.mass_in_total = self.mass_in_atmosphere + self.mass_in_melt + self.mass_in_solid
-
-
 def _mass_decorator(func) -> Callable:
     """A decorator to return the mass of either the gas species or one of its elements."""
 
@@ -892,7 +862,7 @@ class ThermodynamicDataset(ThermodynamicDatasetABC):
 
     def __init__(
         self,
-        datasets: Union[list[ThermodynamicDatasetABC], None] = None,
+        datasets: list[ThermodynamicDatasetABC] | None = None,
     ):
         if datasets is None:
             self.datasets: list[ThermodynamicDatasetABC] = []
@@ -928,19 +898,20 @@ class ThermodynamicDataset(ThermodynamicDatasetABC):
 
 @dataclass(kw_only=True)
 class ChemicalComponent(ABC):
-    """A chemical component and its properties.
+    """A chemical component and its properties
 
     Args:
-        chemical_formula: Chemical formula (e.g., CO2, C, CH4, etc.).
-        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data.
-        thermodynamic_dataset: The thermodynamic dataset. Defaults to JANAF.
+        chemical_formula: Chemical formula (e.g., CO2, C, CH4, etc.)
+        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data
+        thermodynamic_dataset: The thermodynamic dataset. Defaults to JANAF
 
     Attributes:
-        chemical_formula: Chemical formula.
-        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data.
-        formula: Formula object derived from the chemical formula.
-        thermodynamic_dataset: The thermodynamic dataset.
-        thermodynamic_data: Thermodynamic data for this chemical component.
+        chemical_formula: Chemical formula
+        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data
+        formula: Formula object derived from the chemical formula
+        thermodynamic_dataset: The thermodynamic dataset
+        thermodynamic_data: Thermodynamic data for this chemical component
+        output: Stores calculated values for output
     """
 
     chemical_formula: str
@@ -950,7 +921,7 @@ class ChemicalComponent(ABC):
     )
     formula: Formula = field(init=False)
     output: Any = field(init=False, default=None)
-    thermodynamic_data: Union[ThermodynamicDataForSpeciesProtocol, None] = field(init=False)
+    thermodynamic_data: ThermodynamicDataForSpeciesProtocol | None = field(init=False)
 
     def __post_init__(self):
         logger.info(
@@ -1017,11 +988,11 @@ class ChemicalComponent(ABC):
 
 @dataclass(kw_only=True)
 class GasSpecies(ChemicalComponent):
-    """A gas species.
+    """A gas species
 
     Args:
         chemical_formula: Chemical formula (e.g. CO2, C, CH4, etc.)
-        thermodynamic_class: The class for thermodynamic data. Defaults to JANAF
+        thermodynamic_dataset: The thermodynamic dataset. Defaults to JANAF.
         solubility: Solubility model. Defaults to no solubility
         solid_melt_distribution_coefficient: Distribution coefficient between solid and melt.
             Defaults to 0
@@ -1031,8 +1002,8 @@ class GasSpecies(ChemicalComponent):
         chemical_formula: Chemical formula
         name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data
         formula: Formula object derived from the chemical formula
-        thermodynamic_class: The class for thermodynamic data
-        thermodynamic_data: Instance of thermodynamic_class for this chemical component
+        thermodynamic_dataset: The thermodynamic dataset
+        thermodynamic_data: Thermodynamic data for this chemical component
         solubility: Solubility model
         solid_melt_distribution_coefficient: Distribution coefficient between solid and melt
         eos: A gas equation of state
@@ -1042,7 +1013,7 @@ class GasSpecies(ChemicalComponent):
     name_in_thermodynamic_data: str = field(init=False)
     solubility: Solubility = field(default_factory=NoSolubility)
     solid_melt_distribution_coefficient: float = 0
-    output: Union[GasSpeciesOutput, None] = field(init=False, default=None)
+    output: GasSpeciesOutput | None = field(init=False, default=None)
     eos: RealGasABC = field(default_factory=IdealGas)
 
     def __post_init__(self):
@@ -1113,7 +1084,7 @@ class GasSpecies(ChemicalComponent):
             ppmw_in_melt=ppmw_in_melt,
             fugacity=fugacity,
             fugacity_coefficient=fugacity_coefficient,
-            pressure_in_atmosphere=pressure,
+            pressure=pressure,
             volume_mixing_ratio=volume_mixing_ratio,
         )
 
@@ -1121,39 +1092,37 @@ class GasSpecies(ChemicalComponent):
 
 
 @dataclass(kw_only=True)
-class CondensedSpeciesOutput:
-    """Output for a condensed species."""
+class CondensedSpecies(ChemicalComponent):
+    """A condensed species
 
-    activity: float
+    Args:
+        chemical_formula: Chemical formula (e.g., C, SiO2, etc.)
+        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data
+        thermodynamic_dataset: The thermodynamic dataset. Defaults to JANAF
+
+    Attributes:
+        chemical_formula: Chemical formula
+        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data
+        formula: Formula object derived from the chemical formula
+        thermodynamic_dataset: The thermodynamic dataset
+        thermodynamic_data: Thermodynamic data for this chemical component
+        activity: Activity, which is ideal.
+        output: Stores calculated values for output
+    """
+
+    output: CondensedSpeciesOutput | None = field(init=False, default=None)
+    activity: ConstraintABC = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.activity = ActivityConstant(species=self.chemical_formula)
 
 
 @dataclass(kw_only=True)
-class CondensedSpecies(ChemicalComponent):
-    """A condensed species.
-
-    Args:
-        chemical_formula: Chemical formula (e.g., C, SiO2, etc.).
-        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data.
-        thermodynamic_class: The class for thermodynamic data. Defaults to JANAF.
-        activity: Activity object. Defaults to ideal (i.e. unity).
-
-    Attributes:
-        chemical_formula: Chemical formula.
-        name_in_thermodynamic_data: Name for locating Gibbs data in the thermodynamic data.
-        formula: Formula object derived from the chemical formula.
-        thermodynamic_class: The class for thermodynamic data.
-        thermodynamic_data: Instance of thermodynamic_class for this chemical component.
-        activity: Activity object.
-        output: Stores calculated values for output.
-    """
-
-    output: Union[CondensedSpeciesOutput, None] = field(init=False, default=None)
-    activity: ConstraintABC = field(default_factory=IdealityConstant)
-
-
 class SolidSpecies(CondensedSpecies):
     """Solid species"""
 
 
+@dataclass(kw_only=True)
 class LiquidSpecies(CondensedSpecies):
     """Liquid species"""

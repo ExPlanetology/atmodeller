@@ -7,9 +7,7 @@ Tests using the JANAF data for simple SiHO interior-atmosphere systems.
 
 import logging
 
-import numpy as np
-
-from atmodeller import __version__, debug_logger
+from atmodeller import __version__, debug_file_logger
 from atmodeller.constraints import (
     FugacityConstraint,
     IronWustiteBufferConstraintHirschmann,
@@ -28,8 +26,8 @@ eos_models: dict[str, RealGasABC] = get_holland_eos_models()
 RTOL: float = 1.0e-8
 ATOL: float = 1.0e-8
 
-logger: logging.Logger = debug_logger()
-logger.setLevel(logging.INFO)
+logger: logging.Logger = debug_file_logger()
+# logger.setLevel(logging.INFO)
 
 
 def test_version():
@@ -201,9 +199,7 @@ def test_Si_O_H_gas_liquid_mixed_nonideality() -> None:
         "OSi": 168.14557222531593,
     }
 
-    initial_solution: np.ndarray = np.array([30, 250, 1e-4, 1, 5e-3, 1])
-
-    system.solve(constraints, initial_solution=initial_solution)
+    system.solve(constraints)
     assert system.isclose(target_pressures, rtol=RTOL, atol=ATOL)
 
 
@@ -296,9 +292,9 @@ def test_Si_O_H_gas_liquid_mixed_solubility_nonideality() -> None:
 
 
 if __name__ == "__main__":
-    test_Si_O_H_gas_mass()
-    test_Si_O_H_gas_liquid_fugacity()
-    test_Si_O_H_gas_liquid_totalpressure()
+    # test_Si_O_H_gas_mass()
+    # test_Si_O_H_gas_liquid_fugacity()
+    # test_Si_O_H_gas_liquid_totalpressure()
     test_Si_O_H_gas_liquid_mixed_nonideality()
-    test_Si_O_H_gas_liquid_mixed_solubility()
-    test_Si_O_H_gas_liquid_mixed_solubility_nonideality()
+    # test_Si_O_H_gas_liquid_mixed_solubility()
+    # test_Si_O_H_gas_liquid_mixed_solubility_nonideality()
