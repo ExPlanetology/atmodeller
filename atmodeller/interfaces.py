@@ -31,10 +31,11 @@ class GetValueABC(ABC):
     """An object with a get_value method."""
 
     @abstractmethod
-    def get_value(self, **kwargs) -> float:
+    def get_value(self, *args, **kwargs) -> float:
         """Computes the value for given input arguments.
 
         Args:
+            *args: Positional arguments only
             **kwargs: Keyword arguments only
 
         Returns:
@@ -42,16 +43,17 @@ class GetValueABC(ABC):
         """
         ...
 
-    def get_log10_value(self, **kwargs) -> float:
+    def get_log10_value(self, *args, **kwargs) -> float:
         """Computes the log10 value for given input arguments.
 
         Args:
+            *args: Positional arguments only
             **kwargs: Keyword arguments only
 
         Returns:
             An evaluation of the log10 value based on the provided arguments
         """
-        return np.log10(self.get_value(**kwargs))
+        return np.log10(self.get_value(*args, **kwargs))
 
 
 @dataclass(kw_only=True)
@@ -297,6 +299,17 @@ class ConstraintABC(GetValueABC):
 
     name: str
     species: str
+
+    @property
+    def full_name(self) -> str:
+        """Combines the species name and constraint name to give a unique descriptive name."""
+        if self.species:
+            full_name: str = f"{self.species}_"
+        else:
+            full_name = ""
+        full_name += self.name
+
+        return full_name
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -793,7 +806,7 @@ class ThermodynamicDatasetHollandAndPowell(ThermodynamicDatasetABC):
             Returns:
                 Bulk modulus in bar
             """
-            K = self.data["K"]  # Bulk modulus in bar.
+            K = self.data["K"]  # Bulk modulus in bar
             bulk_modulus_T: float = K * (
                 1 + self.dKdT_factor * (temperature - self.enthalpy_reference_temperature)
             )

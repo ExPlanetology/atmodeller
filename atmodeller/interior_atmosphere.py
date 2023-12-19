@@ -13,9 +13,11 @@ from functools import cached_property
 
 import numpy as np
 from scipy.optimize import root
+from sklearn.metrics import mean_squared_error
 
 from atmodeller import GAS_CONSTANT, GRAVITATIONAL_CONSTANT
 from atmodeller.constraints import SystemConstraints
+from atmodeller.initial_condition import InitialConditionABC, InitialConditionConstant
 from atmodeller.interfaces import (
     ChemicalComponent,
     CondensedSpecies,
@@ -240,7 +242,9 @@ class ReactionNetwork:
                  [2, 0, 1]]
             if the columns represent the elements H, C, and O, respectively.
         """
-        matrix: np.ndarray = np.zeros((self.species.number, self.number_unique_elements))
+        matrix: np.ndarray = np.zeros(
+            (self.species.number, self.number_unique_elements), dtype=int
+        )
         for species_index, species in enumerate(self.species):
             for element_index, element in enumerate(self.unique_elements):
                 try:
@@ -273,7 +277,7 @@ class ReactionNetwork:
             if augmented_matrix[i, i] == 0:
                 # Swap rows to get a non-zero pivot element.
                 nonzero_row: int = np.nonzero(augmented_matrix[i:, i])[0][0] + i
-                augmented_matrix[[i, nonzero_row]] = augmented_matrix[[nonzero_row, i]]
+                augmented_matrix[[i, nonzero_row], :] = augmented_matrix[[nonzero_row, i], :]
             # Perform row operations to eliminate values below the pivot.
             for j in range(i + 1, self.species.number):
                 ratio: float = augmented_matrix[j, i] / augmented_matrix[i, i]
@@ -401,19 +405,19 @@ class ReactionNetwork:
         if nrows == self.species.number:
             msg: str = "The necessary number of constraints will be applied to "
             msg += "the reaction network to solve the system"
-            logger.info(msg)
+            logger.debug(msg)
         else:
             num: int = self.species.number - nrows
             # Logger convention is to avoid f-string. pylint: disable=consider-using-f-string
             msg = "%d additional (mass) constraint(s) are necessary " % num
             msg += "to solve the system"
-            logger.info(msg)
+            logger.debug(msg)
 
         coeff: np.ndarray = np.zeros((nrows, self.species.number))
         coeff[0 : self.number_reactions] = self.reaction_matrix.copy()
 
         for index, constraint in enumerate(constraints.reaction_network_constraints):
-            logger.info("Apply %s constraint for %s", constraint.name, constraint.species)
+            logger.debug("Apply %s constraint for %s", constraint.name, constraint.species)
             row_index: int = self.number_reactions + index
             species_index: int = self.species.indices[constraint.species]
             logger.debug("Row %02d: Setting %s coefficient", row_index, constraint.species)
@@ -441,7 +445,7 @@ class ReactionNetwork:
 
         # Reactions
         for reaction_index in range(self.number_reactions):
-            logger.info(
+            logger.debug(
                 "Row %02d: Reaction %d: %s",
                 reaction_index,
                 reaction_index,
@@ -456,7 +460,7 @@ class ReactionNetwork:
         # Constraints
         for index, constraint in enumerate(constraints.reaction_network_constraints):
             row_index: int = self.number_reactions + index
-            logger.info("Row %02d: Setting %s %s", row_index, constraint.species, constraint.name)
+            logger.debug("Row %02d: Setting %s %s", row_index, constraint.species, constraint.name)
             rhs[row_index] = constraint.get_log10_value(
                 temperature=system.planet.surface_temperature, pressure=system.total_pressure
             )
@@ -536,6 +540,7 @@ class InteriorAtmosphereSystem:
     Args:
         species: A list of species
         planet: A planet. Defaults to a molten Earth
+        initial_condition: Initial condition. Defaults to a constant for all species.
 
     Attributes:
         species: A list of species
@@ -545,19 +550,26 @@ class InteriorAtmosphereSystem:
 
     species: Species
     planet: Planet = field(default_factory=Planet)
+    initial_condition: InitialConditionABC = field(default_factory=InitialConditionConstant)
+    output: Output = field(init=False)
     _reaction_network: ReactionNetwork = field(init=False)
+    # Convenient to set and update on this instance.
+    _constraints: SystemConstraints = field(init=False, default_factory=SystemConstraints)
     # The solution is log10 of the partial pressure for gas phases and log10 of the activity for
     # condensed phases. The order aligns with the species.
     _log_solution: np.ndarray = field(init=False)
-    output: Output = field(init=False)
 
     def __post_init__(self):
         logger.info("Creating an interior-atmosphere system")
         self.species.conform_solubilities_to_planet_composition(self.planet)
         self._reaction_network = ReactionNetwork(species=self.species)
-        # Initialise solution to zero.
         self._log_solution = np.zeros_like(self.species, dtype=np.float_)
         self.output = Output(self)
+
+    @property
+    def constraints(self) -> SystemConstraints:
+        """Constraints"""
+        return self._constraints
 
     @property
     def log_solution(self) -> np.ndarray:
@@ -613,7 +625,7 @@ class InteriorAtmosphereSystem:
     def total_pressure(self) -> float:
         """Total pressure."""
         indices: list[int] = list(self.species.gas_species.keys())
-        return sum(self.solution[indices])
+        return sum(float(self.solution[index]) for index in indices)
 
     @property
     def atmospheric_mean_molar_mass(self) -> float:
@@ -667,10 +679,8 @@ class InteriorAtmosphereSystem:
             tol: Tolerance for termination. Defaults to None.
             **options: Keyword arguments for solver options. Available keywords depend on method.
         """
-
-        self._assemble_constraints(constraints)
+        self.set_constraints(constraints)
         self._log_solution = self._solve(
-            constraints=constraints,
             initial_solution=initial_solution,
             method=method,
             tol=tol,
@@ -692,29 +702,31 @@ class InteriorAtmosphereSystem:
             )
 
         self.output.add(constraints)
+
+        self.initial_condition.update(self.output)
+
         logger.info(pprint.pformat(self.solution_dict))
 
-    def _assemble_constraints(self, constraints: SystemConstraints) -> None:
+    def set_constraints(self, constraints: SystemConstraints) -> None:
         """Combines user-prescribed constraints with intrinsic (activity) constraints.
 
-        Args:
-            constraints: Constraints as prescribed by the user, which are updated in place.
+        Args;
+            constraints: Constraints for the system of equations
         """
-        logger.info("Assembling constraints")
-        for condensed_species in self.species.condensed_species.values():
-            constraints.append(condensed_species.activity)
-        logger.info("Constraints: %s", pprint.pformat(constraints))
+        logger.info("Set constraints")
+        self._constraints = constraints
 
-    def _conform_initial_solution_to_constraints(self, constraints: SystemConstraints) -> None:
+        for condensed_species in self.species.condensed_species.values():
+            self._constraints.append(condensed_species.activity)
+        logger.debug("Constraints: %s", pprint.pformat(self._constraints))
+
+    def _conform_initial_solution_to_constraints(self) -> None:
         """Conforms the initial solution (estimate) to activity, pressure and fugacity constraints.
 
         Pressure and fugacity constraints can be imposed directly on the initial solution
         estimate. For simplicity we impose both as pressure constraints.
-
-        Args:
-            constraints: Constraints for the system of equations
         """
-        for constraint in constraints.reaction_network_constraints:
+        for constraint in self.constraints.reaction_network_constraints:
             index: int = self.species.indices[constraint.species]
             logger.debug("Setting %s %d", constraint.species, index)
             self._log_solution[index] = np.log10(
@@ -728,8 +740,7 @@ class InteriorAtmosphereSystem:
     def _solve(
         self,
         *,
-        constraints: SystemConstraints,
-        initial_solution: list[float] | np.ndarray | None,
+        initial_solution: list[float] | np.ndarray | None = None,
         method: str,
         tol: float | None,
         **options,
@@ -737,7 +748,6 @@ class InteriorAtmosphereSystem:
         """Solves the non-linear system of equations.
 
         Args:
-            constraints: Constraints for the system of equations
             initial_solution: Initial guess for the solution
             method: Type of solver
             tol: Tolerance for termination
@@ -746,28 +756,37 @@ class InteriorAtmosphereSystem:
         Returns:
             The solution array
         """
-        # Initial guess for gas species, if not specified, is 1 log10 unit, i.e. 10 bar.
-        if initial_solution is None:
-            self._log_solution = np.ones_like(self.species, dtype=np.float_)
-        else:
-            self._log_solution = np.log10(np.array(initial_solution))
 
-        self._conform_initial_solution_to_constraints(constraints)
+        # Manual override trumps self.initial_condition
+        if initial_solution is not None:
+            self._log_solution = np.log10(np.array(initial_solution))
+        else:
+            constraints_eval: np.ndarray = self.constraints.evaluate_log10_values(self)
+            log10_value: float | np.ndarray = self.initial_condition.get_log10_value(
+                constraints_eval
+            )
+            self._log_solution = log10_value * np.ones(self.species.number)
+
+        self._conform_initial_solution_to_constraints()
+
+        # For outputting to the logger below.
+        initial_guess: np.ndarray = self._log_solution.copy()
 
         coefficient_matrix: np.ndarray = self._reaction_network.get_coefficient_matrix(
-            constraints=constraints
+            constraints=self.constraints
         )
 
         sol = root(
             self._objective_func,
             self._log_solution,
-            args=(constraints, coefficient_matrix),
+            args=(coefficient_matrix,),
             method=method,
             tol=tol,
             options=options,
         )
 
-        logger.info("sol = %s", sol)
+        logger.info(sol["message"])
+        logger.debug("sol = %s", sol)
 
         # TODO: Raise a more descriptive exception.
         if not sol.success:
@@ -775,19 +794,24 @@ class InteriorAtmosphereSystem:
 
         sol = sol.x
 
+        logger.debug("Initial guess solution = %s", initial_guess)
+        logger.debug("Actual solution = %s", sol)
+        error: np.ndarray = np.sqrt(mean_squared_error(sol, initial_guess))
+        logger.info(
+            "%s: RMSE (actual vs initial) = %s", self.initial_condition.__class__.__name__, error
+        )
+
         return sol
 
     def _objective_func(
         self,
         log_solution: np.ndarray,
-        constraints: SystemConstraints,
         coefficient_matrix: np.ndarray,
     ) -> np.ndarray:
         """Objective function for the non-linear system.
 
         Args:
             log_solution: Log10 of the activities and pressures of each species
-            constraints: Constraints for the system of equations
             coefficient_matrix: Coefficient matrix
 
         Returns:
@@ -798,12 +822,14 @@ class InteriorAtmosphereSystem:
 
         # Compute residual for the reaction network.
         residual_reaction: np.ndarray = self._reaction_network.get_residual(
-            system=self, constraints=constraints, coefficient_matrix=coefficient_matrix
+            system=self, constraints=self.constraints, coefficient_matrix=coefficient_matrix
         )
 
         # Compute residual for the mass balance (if relevant).
-        residual_mass: np.ndarray = np.zeros(len(constraints.mass_constraints), dtype=np.float_)
-        for constraint_index, constraint in enumerate(constraints.mass_constraints):
+        residual_mass: np.ndarray = np.zeros(
+            len(self.constraints.mass_constraints), dtype=np.float_
+        )
+        for constraint_index, constraint in enumerate(self.constraints.mass_constraints):
             for species in self.species.gas_species.values():
                 residual_mass[constraint_index] += species.mass(
                     planet=self.planet,
@@ -818,10 +844,10 @@ class InteriorAtmosphereSystem:
 
         # Compute residual for the total pressure (if relevant).
         residual_total_pressure: np.ndarray = np.zeros(
-            len(constraints.total_pressure_constraint), dtype=np.float_
+            len(self.constraints.total_pressure_constraint), dtype=np.float_
         )
-        if len(constraints.total_pressure_constraint):
-            constraint: ConstraintABC = constraints.total_pressure_constraint[0]
+        if len(self.constraints.total_pressure_constraint):
+            constraint: ConstraintABC = self.constraints.total_pressure_constraint[0]
             residual_total_pressure[0] += (
                 np.log10(self.total_pressure) - constraint.get_log10_value()
             )
