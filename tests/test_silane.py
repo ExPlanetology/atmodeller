@@ -7,7 +7,7 @@ Tests using the JANAF data for simple SiHO interior-atmosphere systems.
 
 import logging
 
-from atmodeller import __version__, debug_file_logger
+from atmodeller import __version__, debug_logger
 from atmodeller.constraints import (
     FugacityConstraint,
     IronWustiteBufferConstraintHirschmann,
@@ -26,7 +26,7 @@ eos_models: dict[str, RealGasABC] = get_holland_eos_models()
 RTOL: float = 1.0e-8
 ATOL: float = 1.0e-8
 
-logger: logging.Logger = debug_file_logger()
+logger: logging.Logger = debug_logger()
 # logger.setLevel(logging.INFO)
 
 
