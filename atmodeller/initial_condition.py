@@ -6,10 +6,9 @@ See the LICENSE file for licensing information.
 from __future__ import annotations
 
 import logging
-import pickle
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import pandas as pd
@@ -21,6 +20,9 @@ from sklearn.preprocessing import StandardScaler
 
 from atmodeller.interfaces import GetValueABC
 from atmodeller.output import Output
+
+if TYPE_CHECKING:
+    from atmodeller.interior_atmosphere import Species
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -70,11 +72,40 @@ class InitialConditionABC(GetValueABC):
 
 
 @dataclass
+class InitialConditionConstant(InitialConditionABC):
+    """A constant value for the initial condition
+
+    This only needs to return a reasonable initial guess for the pressure of gas species. The
+    activity of condensed phases is included by InteriorAtmosphereSystem and therefore does not
+    need to be considered here.
+
+    The default value, which is applied to each gas species individually, is chosen to be within
+    an order of magnitude of the solar system rocky planets, i.e. 10 bar.
+
+    Args:
+        value: A constant pressure for the initial condition in bar. Defaults to 10.
+    """
+
+    value: float = 10
+
+    def get_value(self, *args, **kwargs) -> float:
+        del args
+        del kwargs
+        logger.debug("%s: value = %s", self.__class__.__name__, self.value)
+
+        return self.value
+
+
+@dataclass
 class InitialConditionRegressor(InitialConditionABC):
     """A regressor to compute the initial condition.
 
     Args:
-        output: Output
+        output: Output for building the first trained regressor
+        species: Species in the new interior atmosphere model. Defaults to None, meaning that the
+            species in the output are assumed to also be the species in the new model.
+        species_fill: Dictionary of missing species and their initial values. Defaults to an empty
+            dictionary.
         fit: Fit the regressor during the model run. This will replace the original regressor by a
             regressor trained only on the data from the current model. Defaults to True.
         fit_batch_size: Number of solutions to calculate before fitting model data if fit = True.
@@ -84,7 +115,9 @@ class InitialConditionRegressor(InitialConditionABC):
             regressor. Defaults to 50.
 
     Attributes:
-        output: Output
+        output: Output for building the first trained regressor
+        species: Species in the new interior atmosphere model
+        species_fill: Dictionary of missing species and their initial values
         fit: Fit the regressor during the model run. This will replace the original regressor by a
             regressor trained only on the data from the current model.
         fit_batch_size: Number of solutions to calculate before fitting model data if fit = True.
@@ -96,6 +129,8 @@ class InitialConditionRegressor(InitialConditionABC):
 
     output: Output
     _: KW_ONLY
+    species: Species | None = None
+    species_fill: dict[str, float] = field(default_factory=dict)
     fit: bool = True
     fit_batch_size: int = 50
     partial_fit: bool = True
@@ -111,6 +146,7 @@ class InitialConditionRegressor(InitialConditionABC):
         # Ensure consistency of arguments and correct handling of fit versus partial refit.
         if not self.fit:
             self.fit_batch_size = 0
+        self._conform_output_to_species()
         self._fit(self.output)
 
     @classmethod
@@ -130,6 +166,44 @@ class InitialConditionRegressor(InitialConditionABC):
         output: Output = Output.read_pickle(pickle_file)
 
         return cls(output, *args, **kwargs)
+
+    def _conform_output_to_species(self) -> None:
+        """Conforms the output (initial regressor data) to the species for the new model.
+
+        This ensures that the column order is correct when initialising the regressor for the new
+        model. It fills in initial values for missing species with user-prescribed data and
+        excludes species that are not in the new model.
+        """
+        output_dataframes: dict[str, pd.DataFrame] = self.output.to_dataframes()
+        solution_df: pd.DataFrame = output_dataframes["solution"]
+
+        if self.species is None:
+            # Species of the new interior atmosphere are unknown so do nothing. This assumes that
+            # the species list and species order is identical in the output as the new model.
+            return
+
+        else:
+            # Create a DataFrame with missing species and their user-prescribed values
+            missing_df: pd.DataFrame = pd.DataFrame(
+                {
+                    col: [self.species_fill[col]] * len(solution_df)
+                    for col in self.species_fill
+                    if col not in solution_df.columns  # columns in output are used by priority
+                }
+            )
+            logger.debug("missing_df = %s", missing_df)
+
+        # Concatenate the original DataFrame and the DataFrame with the missing species
+        conformed_solution_df = pd.concat([missing_df, solution_df], axis=1)
+
+        # Reorder the columns based on the order of the species for the new model
+        conformed_solution_df = conformed_solution_df[self.species.formulas]
+        logger.debug("conformed_solution_df = %s", conformed_solution_df)
+
+        assert self.species.formulas == list(conformed_solution_df.columns)
+
+        # Set the conformed solution to the output so it is used to construct the initial regressor
+        self.output["solution"] = conformed_solution_df.to_dict(orient="records")
 
     def _fit(
         self,
@@ -157,6 +231,8 @@ class InitialConditionRegressor(InitialConditionABC):
         )
 
         solution: pd.DataFrame = output_dataframes["solution"]
+        logger.debug("solution = %s", solution)
+
         if start_index is not None and end_index is not None:
             solution = solution.iloc[start_index:end_index]
         solution_log10_values: np.ndarray = np.log10(solution.values)
@@ -276,31 +352,6 @@ class InitialConditionRegressor(InitialConditionABC):
             self._partial_fit(
                 output, start_index=action_partial_fit[0], end_index=action_partial_fit[1]
             )
-
-
-@dataclass
-class InitialConditionConstant(InitialConditionABC):
-    """A constant value for the initial condition
-
-    This only needs to return a reasonable initial guess for the pressure of gas species. The
-    activity of condensed phases is included by InteriorAtmosphereSystem and therefore does not
-    need to be considered here.
-
-    The default value, which is applied to each gas species individually, is chosen to be within
-    an order of magnitude of the solar system rocky planets, i.e. 10 bar.
-
-    Args:
-        value: A constant pressure for the initial condition in bar. Defaults to 10.
-    """
-
-    value: float = 10
-
-    def get_value(self, *args, **kwargs) -> float:
-        del args
-        del kwargs
-        logger.debug("%s: value = %s", self.__class__.__name__, self.value)
-
-        return self.value
 
 
 class InitialConditionSwitchRegressor(InitialConditionABC):
