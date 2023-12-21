@@ -209,19 +209,19 @@ def test_H2_with_cork() -> None:
     species: Species = Species(
         [
             GasSpecies(
-                chemical_formula="H2O",
+                formula="H2O",
                 solubility=PeridotiteH2O(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=IdealGas(),  # This is the default if nothing specified
             ),
             GasSpecies(
-                chemical_formula="H2",
+                formula="H2",
                 solubility=NoSolubility(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["H2"],
             ),
             GasSpecies(
-                chemical_formula="O2",
+                formula="O2",
                 solubility=NoSolubility(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=IdealGas(),  # This is the default if nothing specified
@@ -258,36 +258,36 @@ def test_non_ideal() -> None:
     species: Species = Species(
         [
             GasSpecies(
-                chemical_formula="H2",
+                formula="H2",
                 solubility=BasaltH2(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["H2"],
             ),
             GasSpecies(
-                chemical_formula="H2O",
+                formula="H2O",
                 solubility=PeridotiteH2O(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["H2O"],
             ),
             GasSpecies(
-                chemical_formula="O2",
+                formula="O2",
                 solubility=NoSolubility(),
                 thermodynamic_dataset=thermodynamic_dataset,
             ),
             GasSpecies(
-                chemical_formula="CO",
+                formula="CO",
                 solubility=NoSolubility(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["CO"],
             ),
             GasSpecies(
-                chemical_formula="CO2",
+                formula="CO2",
                 solubility=BasaltDixonCO2(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["CO2"],
             ),
             GasSpecies(
-                chemical_formula="CH4",
+                formula="CH4",
                 solubility=NoSolubility(),
                 thermodynamic_dataset=thermodynamic_dataset,
                 eos=eos_models["CH4"],

@@ -42,17 +42,17 @@ def test_graphite() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2", thermodynamic_dataset=thermodynamic_data),
-            GasSpecies(chemical_formula="H2O", thermodynamic_dataset=thermodynamic_data),
-            GasSpecies(chemical_formula="CO", thermodynamic_dataset=thermodynamic_data),
-            GasSpecies(chemical_formula="CO2", thermodynamic_dataset=thermodynamic_data),
-            GasSpecies(chemical_formula="CH4", thermodynamic_dataset=thermodynamic_data),
-            GasSpecies(chemical_formula="O2", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(formula="H2", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(formula="H2O", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(formula="CO", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(formula="CO2", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(formula="CH4", thermodynamic_dataset=thermodynamic_data),
+            GasSpecies(formula="O2", thermodynamic_dataset=thermodynamic_data),
             SolidSpecies(
-                chemical_formula="C",
-                name_in_thermodynamic_data="graphite",
+                formula="C",
                 thermodynamic_dataset=thermodynamic_data,
-            ),  # Ideal activity by default.
+                name_in_dataset="graphite",
+            ),
         ]
     )
 

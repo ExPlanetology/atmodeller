@@ -18,6 +18,9 @@ GAS_CONSTANT_BAR: float = GAS_CONSTANT * 1.0e-5  # m^3 bar/K/mol
 GRAVITATIONAL_CONSTANT: float = constants.gravitational_constant  # m^3/kg/s^2
 ATMOSPHERE: float = constants.atmosphere / constants.bar  # bar
 
+# Used to determine the JANAF reference state
+NOBLE_GASES: list[str] = ["He", "Ne", "Ar", "Kr", "Xe", "Rn"]
+
 OCEAN_MOLES: float = 7.68894973907177e22  # Moles of H2 (or H2O) in one present-day Earth ocean.
 
 DATA_ROOT_PATH = importlib.resources.files("%s.data" % __package__)

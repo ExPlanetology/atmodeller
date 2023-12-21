@@ -138,15 +138,12 @@ class Species(UserList):
     @property
     def indices(self) -> dict[str, int]:
         """Indices of the species"""
-        return {
-            chemical_formula: index
-            for index, chemical_formula in enumerate(self.chemical_formulas)
-        }
+        return {formula: index for index, formula in enumerate(self.formulas)}
 
     @property
-    def chemical_formulas(self) -> list[str]:
+    def formulas(self) -> list[str]:
         """Chemical formulas of the species"""
-        return [species.chemical_formula for species in self.data]
+        return [species.formula for species in self.data]
 
     def conform_solubilities_to_planet_composition(self, planet: Planet) -> None:
         """Ensure that the solubilities of the species are consistent with the planet composition.
@@ -171,14 +168,14 @@ class Species(UserList):
 
             for species in self.gas_species.values():
                 try:
-                    species.solubility = solubilities[species.chemical_formula]
+                    species.solubility = solubilities[species.formula]
                     logger.info(
                         "Found solubility law for %s: %s",
-                        species.chemical_formula,
+                        species.formula,
                         species.solubility.__class__.__name__,
                     )
                 except KeyError:
-                    logger.info("No solubility law for %s", species.chemical_formula)
+                    logger.info("No solubility law for %s", species.formula)
                     species.solubility = NoSolubility()
 
     def _species_sorter(self, species: ChemicalComponent) -> tuple[int, str]:
@@ -192,7 +189,7 @@ class Species(UserList):
         Returns:
             A tuple to sort first by number of elements and second by species name.
         """
-        return (species.formula.atoms, species.chemical_formula)
+        return (species.atoms, species.formula)
 
 
 @dataclass(kw_only=True)
@@ -212,7 +209,7 @@ class ReactionNetwork:
 
     def __post_init__(self):
         logger.info("Creating a reaction network")
-        logger.info("Species = %s", self.species.chemical_formulas)
+        logger.info("Species = %s", self.species.formulas)
         self.species_matrix: np.ndarray = self.find_matrix()
         self.reaction_matrix: np.ndarray = self.partial_gaussian_elimination()
         logger.info("Reactions = \n%s", pprint.pformat(self.reactions))
@@ -228,8 +225,8 @@ class ReactionNetwork:
     @cached_property
     def unique_elements(self) -> list[str]:
         elements: list[str] = []
-        for species in self.species:
-            elements.extend(list(species.formula.composition().keys()))
+        for species in self.species.data:
+            elements.extend(list(species.composition().keys()))
         unique_elements: list[str] = list(set(elements))
         return unique_elements
 
@@ -245,10 +242,10 @@ class ReactionNetwork:
         matrix: np.ndarray = np.zeros(
             (self.species.number, self.number_unique_elements), dtype=int
         )
-        for species_index, species in enumerate(self.species):
+        for species_index, species in enumerate(self.species.data):
             for element_index, element in enumerate(self.unique_elements):
                 try:
-                    count: int = species.formula.composition()[element].count
+                    count: int = species.composition()[element].count
                 except KeyError:
                     count = 0
                 matrix[species_index, element_index] = count
@@ -311,13 +308,13 @@ class ReactionNetwork:
         for reaction_index in range(self.number_reactions):
             reactants: str = ""
             products: str = ""
-            for species_index, species in enumerate(self.species):
+            for species_index, species in enumerate(self.species.data):
                 coeff: float = self.reaction_matrix[reaction_index, species_index]
                 if coeff != 0:
                     if coeff < 0:
-                        reactants += f"{abs(coeff)} {species.chemical_formula} + "
+                        reactants += f"{abs(coeff)} {species.formula} + "
                     else:
-                        products += f"{coeff} {species.chemical_formula} + "
+                        products += f"{coeff} {species.formula} + "
 
             reactants = reactants.rstrip(" + ")  # Removes the extra + at the end.
             products = products.rstrip(" + ")  # Removes the extra + at the end.
@@ -364,10 +361,10 @@ class ReactionNetwork:
         """
         gibbs_energy: float = 0
         for species_index, species in enumerate(self.species.data):
-            assert species.thermodynamic_data is not None
+            assert species._thermodynamic_data is not None
             gibbs_energy += self.reaction_matrix[
                 reaction_index, species_index
-            ] * species.thermodynamic_data.get_formation_gibbs(
+            ] * species._thermodynamic_data.get_formation_gibbs(
                 temperature=temperature, pressure=pressure
             )
         return gibbs_energy
@@ -423,7 +420,7 @@ class ReactionNetwork:
             logger.debug("Row %02d: Setting %s coefficient", row_index, constraint.species)
             coeff[row_index, species_index] = 1
 
-        logger.debug("Species = %s", self.species.chemical_formulas)
+        logger.debug("Species = %s", self.species.formulas)
         logger.debug("Coefficient matrix = \n%s", coeff)
 
         return coeff
@@ -545,13 +542,14 @@ class InteriorAtmosphereSystem:
     Attributes:
         species: A list of species
         planet: A planet
+        initial_condition: Initial condition. Defaults to a constant for all species.
         output: All output data for this system. Access the dictionary by (calling) output().
     """
 
     species: Species
     planet: Planet = field(default_factory=Planet)
     initial_condition: InitialConditionABC = field(default_factory=InitialConditionConstant)
-    output: Output = field(init=False)
+    output: Output = field(init=False, default_factory=Output)
     _reaction_network: ReactionNetwork = field(init=False)
     # Convenient to set and update on this instance.
     _constraints: SystemConstraints = field(init=False, default_factory=SystemConstraints)
@@ -564,7 +562,11 @@ class InteriorAtmosphereSystem:
         self.species.conform_solubilities_to_planet_composition(self.planet)
         self._reaction_network = ReactionNetwork(species=self.species)
         self._log_solution = np.zeros_like(self.species, dtype=np.float_)
-        self.output = Output(self)
+
+    @property
+    def number_of_solves(self) -> int:
+        """The total number of systems solved"""
+        return self.output.size
 
     @property
     def constraints(self) -> SystemConstraints:
@@ -589,7 +591,7 @@ class InteriorAtmosphereSystem:
         `self.output()` to return a dictionary of all the data.
         """
         output: dict[str, float] = {}
-        for chemical_formula, solution in zip(self.species.chemical_formulas, self.solution):
+        for chemical_formula, solution in zip(self.species.formulas, self.solution):
             output[chemical_formula] = solution
 
         return output
@@ -598,7 +600,7 @@ class InteriorAtmosphereSystem:
     def log10_fugacity_coefficients_dict(self) -> dict[str, float]:
         """Fugacity coefficients (relevant for gas species only) in a dictionary."""
         output: dict[str, float] = {
-            species.chemical_formula: species.eos.get_log10_value(
+            species.formula: species.eos.get_log10_value(
                 temperature=self.planet.surface_temperature, pressure=self.total_pressure
             )
             for species in self.species.gas_species.values()
@@ -655,7 +657,7 @@ class InteriorAtmosphereSystem:
             return np.bool_(False)
 
         target_pressures: np.ndarray = np.array(
-            [target_dict[species.formula.formula] for species in self.species]
+            [target_dict[species.formula] for species in self.species.data]
         )
         isclose: np.bool_ = np.isclose(target_pressures, self.solution, rtol=rtol, atol=atol).all()
 
@@ -665,6 +667,7 @@ class InteriorAtmosphereSystem:
         self,
         constraints: SystemConstraints,
         *,
+        extra_output: dict[str, float] | None = None,
         initial_solution: list[float] | np.ndarray | None = None,
         method: str = "hybr",
         tol: float | None = None,
@@ -674,11 +677,13 @@ class InteriorAtmosphereSystem:
 
         Args:
             constraints: Constraints for the system of equations
+            extra_ouput: Extra data to write to the output
             initial_solution: Initial guess for the solution. Defaults to None.
             method: Type of solver. Defaults to 'hybr'.
             tol: Tolerance for termination. Defaults to None.
             **options: Keyword arguments for solver options. Available keywords depend on method.
         """
+        logger.info("Solving system number %d", self.number_of_solves)
         self.set_constraints(constraints)
         self._log_solution = self._solve(
             initial_solution=initial_solution,
@@ -695,13 +700,13 @@ class InteriorAtmosphereSystem:
                 system=self,
             )
         for species in self.species.condensed_species.values():
-            species.output = CondensedSpeciesOutput(
+            species._output = CondensedSpeciesOutput(
                 activity=species.activity.get_value(
                     temperature=self.planet.surface_temperature, pressure=self.total_pressure
                 )
             )
 
-        self.output.add(constraints)
+        self.output.add(self, extra_output)
 
         self.initial_condition.update(self.output)
 
@@ -713,7 +718,7 @@ class InteriorAtmosphereSystem:
         Args;
             constraints: Constraints for the system of equations
         """
-        logger.info("Set constraints")
+        logger.debug("Set constraints")
         self._constraints = constraints
 
         for condensed_species in self.species.condensed_species.values():

@@ -9,7 +9,7 @@ import logging
 import pickle
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
@@ -74,9 +74,7 @@ class InitialConditionRegressor(InitialConditionABC):
     """A regressor to compute the initial condition.
 
     Args:
-        pickle_file: Pickle file of the output from a previous (or similar) model run. Importantly,
-            the reaction network must be the same (same number of species in the same order) and
-            the constraints must be the same (also in the same order).
+        output: Output
         fit: Fit the regressor during the model run. This will replace the original regressor by a
             regressor trained only on the data from the current model. Defaults to True.
         fit_batch_size: Number of solutions to calculate before fitting model data if fit = True.
@@ -86,7 +84,7 @@ class InitialConditionRegressor(InitialConditionABC):
             regressor. Defaults to 50.
 
     Attributes:
-        pickle_file: Pickle file
+        output: Output
         fit: Fit the regressor during the model run. This will replace the original regressor by a
             regressor trained only on the data from the current model.
         fit_batch_size: Number of solutions to calculate before fitting model data if fit = True.
@@ -96,7 +94,7 @@ class InitialConditionRegressor(InitialConditionABC):
         species_names: Names of the species (and their order) in the output
     """
 
-    pickle_file: Path | str
+    output: Output
     _: KW_ONLY
     fit: bool = True
     fit_batch_size: int = 50
@@ -113,28 +111,43 @@ class InitialConditionRegressor(InitialConditionABC):
         # Ensure consistency of arguments and correct handling of fit versus partial refit.
         if not self.fit:
             self.fit_batch_size = 0
-        with open(self.pickle_file, "rb") as handle:
-            output_data: dict[str, pd.DataFrame] = pickle.load(handle)
+        self._fit(self.output)
 
-        logger.info("%s: Reading data from %s", self.__class__.__name__, self.pickle_file)
-        self._fit(output_data)
+    @classmethod
+    def from_pickle(cls, pickle_file: Path | str, *args, **kwargs) -> Self:
+        """Creates a regressor from output read from a pickle file.
+
+        Args:
+            pickle_file: Pickle file of the output from a previous (or similar) model run.
+                Importantly, the reaction network must be the same (same number of species in the
+                same order) and the constraints must be the same (also in the same order).
+            *args: Arbitrary positional arguments to pass through to cls constructor
+            **kwargs: Arbitrary keyword arguments to pass through to cls constructor
+
+        Returns:
+            A regressor
+        """
+        output: Output = Output.read_pickle(pickle_file)
+
+        return cls(output, *args, **kwargs)
 
     def _fit(
         self,
-        output_data: dict[str, pd.DataFrame],
+        output: Output,
         start_index: int | None = None,
         end_index: int | None = None,
     ) -> None:
-        """Fits the regressor
+        """Fits and sets the regressor.
 
         Args:
-            output_data: Output data
+            output: Output
             start_index: Start index for fit. Defaults to None, meaning use all available data.
             end_index: End index for fit. Defaults to None, meaning use all available data.
         """
         logger.info("%s: Fit (%s, %s)", self.__class__.__name__, start_index, end_index)
+        output_dataframes: dict[str, pd.DataFrame] = output.to_dataframes()
 
-        constraints: pd.DataFrame = output_data["constraints"]
+        constraints: pd.DataFrame = output_dataframes["constraints"]
         if start_index is not None and end_index is not None:
             constraints = constraints.iloc[start_index:end_index]
         constraints_log10_values: np.ndarray = np.log10(constraints.values)
@@ -143,7 +156,7 @@ class InitialConditionRegressor(InitialConditionABC):
             constraints_log10_values
         )
 
-        solution: pd.DataFrame = output_data["solution"]
+        solution: pd.DataFrame = output_dataframes["solution"]
         if start_index is not None and end_index is not None:
             solution = solution.iloc[start_index:end_index]
         solution_log10_values: np.ndarray = np.log10(solution.values)
@@ -159,33 +172,34 @@ class InitialConditionRegressor(InitialConditionABC):
 
         base_regressor: SGDRegressor = SGDRegressor()
         multi_output_regressor: MultiOutputRegressor = MultiOutputRegressor(base_regressor)
-        multi_output_regressor.partial_fit(constraints_scaled, solution_scaled)
+        multi_output_regressor.fit(constraints_scaled, solution_scaled)
 
         self._reg = multi_output_regressor
 
     def _partial_fit(
         self,
-        output_data: dict[str, pd.DataFrame],
+        output: Output,
         start_index: int,
         end_index: int,
     ) -> None:
-        """Partial fits the regressor
+        """Partial fits the regressor.
 
         Args:
-            output_data: Output data
+            output: Output
             start_index: Start index for partial fit
             end_index: End index for partial fit
         """
         logger.info("%s: Partial fit (%d, %d)", self.__class__.__name__, start_index, end_index)
+        output_dataframes: dict[str, pd.DataFrame] = output.to_dataframes()
 
-        constraints: pd.DataFrame = output_data["constraints"].iloc[start_index:end_index]
+        constraints: pd.DataFrame = output_dataframes["constraints"].iloc[start_index:end_index]
         logger.debug(constraints)
         constraints_log10_values: np.ndarray = np.log10(constraints.values)
         constraints_scaled: np.ndarray | spmatrix = self._constraints_scalar.transform(
             constraints_log10_values
         )
 
-        solution: pd.DataFrame = output_data["solution"].iloc[start_index:end_index]
+        solution: pd.DataFrame = output_dataframes["solution"].iloc[start_index:end_index]
         logger.debug(solution)
         solution_log10_values: np.ndarray = np.log10(solution.values)
         solution_scaled: np.ndarray | spmatrix = self._solution_scalar.transform(
@@ -256,13 +270,11 @@ class InitialConditionRegressor(InitialConditionABC):
         action_partial_fit: tuple[int, int] | None = self.action_partial_fit(output)
 
         if action_fit is not None:
-            output_data: dict[str, pd.DataFrame] = output.as_dict()
-            self._fit(output_data, start_index=action_fit[0], end_index=action_fit[1])
+            self._fit(output, start_index=action_fit[0], end_index=action_fit[1])
 
         if action_partial_fit is not None:
-            output_data: dict[str, pd.DataFrame] = output.as_dict()
             self._partial_fit(
-                output_data, start_index=action_partial_fit[0], end_index=action_partial_fit[1]
+                output, start_index=action_partial_fit[0], end_index=action_partial_fit[1]
             )
 
 
@@ -301,15 +313,13 @@ class InitialConditionSwitchRegressor(InitialConditionABC):
     """
 
     def __init__(self, value: float, *args, **kwargs):
-        self._ic_constant: InitialConditionConstant = InitialConditionConstant(value)
+        self._ic: InitialConditionABC = InitialConditionConstant(value)
         # Store to instantiate regressor once the switch occurs.
         self._ic_regressor_args: tuple[Any, ...] = args
         self._ic_regressor_kwargs: dict[str, Any] = kwargs
-        self._ic_regressor: InitialConditionRegressor  # For typing
         # fit_batch_size argument of InitialConditionRegressor controls how much data must be
         # present before switching to the regressor
         self._switch: int = kwargs["fit_batch_size"]
-        self._ic: InitialConditionABC = self._ic_constant
 
     def get_value(self, *args, **kwargs) -> ndarray | float:
         """See base class."""
@@ -324,15 +334,10 @@ class InitialConditionSwitchRegressor(InitialConditionABC):
         """
         # Determine whether to switch from constant to regressor.
         if output.size == self._switch:
-            file_prefix: Path | str = Path("atmodeller_switch_regressor_restart")
-            output.to_pickle(file_prefix)
-            filename = file_prefix.with_suffix(".pkl")
             # All data is fit when the regressor is instantiated (this is effectively the 'update')
             # so we do not need to call the update method (hence the if-else block).
-            self._ic_regressor = InitialConditionRegressor(
-                filename, *self._ic_regressor_args, **self._ic_regressor_kwargs
+            self._ic = InitialConditionRegressor(
+                output, *self._ic_regressor_args, **self._ic_regressor_kwargs
             )
-            filename.unlink()
-            self._ic = self._ic_regressor
         else:
             self._ic.update(output, *args, **kwargs)

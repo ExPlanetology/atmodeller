@@ -27,7 +27,7 @@ RTOL: float = 1.0e-8
 ATOL: float = 1.0e-8
 
 logger: logging.Logger = debug_logger()
-# logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
 
 
 def test_version():
@@ -40,11 +40,11 @@ def test_Si_O_H_gas_mass() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="OSi", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H4Si", solubility=NoSolubility()),
+            GasSpecies(formula="H2O", solubility=NoSolubility()),
+            GasSpecies(formula="H2", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OSi", solubility=NoSolubility()),
+            GasSpecies(formula="H4Si", solubility=NoSolubility()),
         ]
     )
 
@@ -82,15 +82,12 @@ def test_Si_O_H_gas_liquid_fugacity() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O"),
-            GasSpecies(chemical_formula="H2"),
-            GasSpecies(chemical_formula="O2"),
-            GasSpecies(chemical_formula="OSi"),
-            GasSpecies(chemical_formula="H4Si"),
-            LiquidSpecies(
-                chemical_formula="O2Si",
-                name_in_thermodynamic_data="O2Si(l)",
-            ),
+            GasSpecies(formula="H2O"),
+            GasSpecies(formula="H2"),
+            GasSpecies(formula="O2"),
+            GasSpecies(formula="OSi"),
+            GasSpecies(formula="H4Si"),
+            LiquidSpecies(formula="SiO2"),
         ]
     )
 
@@ -110,7 +107,7 @@ def test_Si_O_H_gas_liquid_fugacity() -> None:
         "H2O": 26.693346714050723,
         "H4Si": 0.004943884250250349,
         "O2": 0.00025211504915767703,
-        "O2Si": 1.0,
+        "SiO2": 1.0,
         "OSi": 168.14661280978274,
     }
 
@@ -123,15 +120,12 @@ def test_Si_O_H_gas_liquid_totalpressure() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="OSi", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H4Si", solubility=NoSolubility()),
-            LiquidSpecies(
-                chemical_formula="O2Si",
-                name_in_thermodynamic_data="O2Si(l)",
-            ),
+            GasSpecies(formula="H2O", solubility=NoSolubility()),
+            GasSpecies(formula="H2", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OSi", solubility=NoSolubility()),
+            GasSpecies(formula="H4Si", solubility=NoSolubility()),
+            LiquidSpecies(formula="SiO2"),
         ]
     )
 
@@ -151,7 +145,7 @@ def test_Si_O_H_gas_liquid_totalpressure() -> None:
         "H2O": 26.693346714045386,
         "H4Si": 0.004943884250248337,
         "O2": 0.00025211504915767833,
-        "O2Si": 1.0,
+        "SiO2": 1.0,
         "OSi": 168.14661280978257,
     }
 
@@ -164,15 +158,12 @@ def test_Si_O_H_gas_liquid_mixed_nonideality() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=NoSolubility(), eos=eos_models["H2O"]),
-            GasSpecies(chemical_formula="H2", solubility=NoSolubility(), eos=eos_models["H2"]),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="OSi", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H4Si", solubility=NoSolubility()),
-            LiquidSpecies(
-                chemical_formula="O2Si",
-                name_in_thermodynamic_data="O2Si(l)",
-            ),
+            GasSpecies(formula="H2O", solubility=NoSolubility(), eos=eos_models["H2O"]),
+            GasSpecies(formula="H2", solubility=NoSolubility(), eos=eos_models["H2"]),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OSi", solubility=NoSolubility()),
+            GasSpecies(formula="H4Si", solubility=NoSolubility()),
+            LiquidSpecies(formula="SiO2"),
         ]
     )
 
@@ -195,7 +186,7 @@ def test_Si_O_H_gas_liquid_mixed_nonideality() -> None:
         "H2O": 27.537256752879383,
         "H4Si": 0.0053801913454906555,
         "O2": 0.0002521181696420575,
-        "O2Si": 1.0,
+        "SiO2": 1.0,
         "OSi": 168.14557222531593,
     }
 
@@ -208,15 +199,12 @@ def test_Si_O_H_gas_liquid_mixed_solubility() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=PeridotiteH2O()),
-            GasSpecies(chemical_formula="H2", solubility=BasaltH2()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="OSi", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H4Si", solubility=NoSolubility()),
-            LiquidSpecies(
-                chemical_formula="O2Si",
-                name_in_thermodynamic_data="O2Si(l)",
-            ),
+            GasSpecies(formula="H2O", solubility=PeridotiteH2O()),
+            GasSpecies(formula="H2", solubility=BasaltH2()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OSi", solubility=NoSolubility()),
+            GasSpecies(formula="H4Si", solubility=NoSolubility()),
+            LiquidSpecies(formula="SiO2"),
         ]
     )
 
@@ -239,7 +227,7 @@ def test_Si_O_H_gas_liquid_mixed_solubility() -> None:
         "H2O": 0.10919784748492806,
         "H4Si": 8.445645240340669e-08,
         "O2": 0.0002495327483804572,
-        "O2Si": 1.0,
+        "SiO2": 1.0,
         "OSi": 169.01440984074077,
     }
 
@@ -252,15 +240,12 @@ def test_Si_O_H_gas_liquid_mixed_solubility_nonideality() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=PeridotiteH2O(), eos=eos_models["H2O"]),
-            GasSpecies(chemical_formula="H2", solubility=BasaltH2(), eos=eos_models["H2"]),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="OSi", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="H4Si", solubility=NoSolubility()),
-            LiquidSpecies(
-                chemical_formula="O2Si",
-                name_in_thermodynamic_data="O2Si(l)",
-            ),
+            GasSpecies(formula="H2O", solubility=PeridotiteH2O(), eos=eos_models["H2O"]),
+            GasSpecies(formula="H2", solubility=BasaltH2(), eos=eos_models["H2"]),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OSi", solubility=NoSolubility()),
+            GasSpecies(formula="H4Si", solubility=NoSolubility()),
+            LiquidSpecies(formula="SiO2"),
         ]
     )
 
@@ -283,7 +268,7 @@ def test_Si_O_H_gas_liquid_mixed_solubility_nonideality() -> None:
         "H2O": 0.10874845128110579,
         "H4Si": 8.446481184634864e-08,
         "O2": 0.00024953259986850617,
-        "O2Si": 1.0,
+        "SiO2": 1.0,
         "OSi": 169.0144601360852,
     }
 

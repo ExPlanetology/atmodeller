@@ -43,9 +43,9 @@ def test_S2_SO_Sulfide_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2_Sulfide()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2_Sulfide()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
         ]
     )
 
@@ -75,10 +75,10 @@ def test_AllS_Sulfide_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2_Sulfide()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2_Sulfide()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
         ]
     )
 
@@ -110,10 +110,10 @@ def test_AllS_Sulfate_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2_Sulfate()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2_Sulfate()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
         ]
     )
 
@@ -145,10 +145,10 @@ def test_AllS_TotalSolubility_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
         ]
     )
 
@@ -180,10 +180,10 @@ def test_AllS_TotalSolubility_IWp3() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
         ]
     )
 
@@ -215,10 +215,10 @@ def test_AllS_TotalSolubility_IWm3() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
         ]
     )
 
@@ -250,12 +250,12 @@ def test_HOS_Species_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=BasaltDixonH2O()),
-            GasSpecies(chemical_formula="H2", solubility=BasaltH2()),
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="H2O", solubility=BasaltDixonH2O()),
+            GasSpecies(formula="H2", solubility=BasaltH2()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
         ]
     )
 
@@ -293,15 +293,15 @@ def test_CHONS_Species_IW_MixConstraints() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=BasaltDixonH2O()),
-            GasSpecies(chemical_formula="H2", solubility=BasaltH2()),
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="CO", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="CO2", solubility=BasaltDixonCO2()),
-            GasSpecies(chemical_formula="N2", solubility=BasaltLibourelN2()),
+            GasSpecies(formula="H2O", solubility=BasaltDixonH2O()),
+            GasSpecies(formula="H2", solubility=BasaltH2()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="CO", solubility=NoSolubility()),
+            GasSpecies(formula="CO2", solubility=BasaltDixonCO2()),
+            GasSpecies(formula="N2", solubility=BasaltLibourelN2()),
         ]
     )
 
@@ -344,12 +344,12 @@ def test_COS_Species_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="CO", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="CO2", solubility=BasaltDixonCO2()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="CO", solubility=NoSolubility()),
+            GasSpecies(formula="CO2", solubility=BasaltDixonCO2()),
         ]
     )
 
@@ -386,14 +386,14 @@ def test_CHOS_Species_IW() -> None:
 
     species: Species = Species(
         [
-            GasSpecies(chemical_formula="H2O", solubility=BasaltDixonH2O()),
-            GasSpecies(chemical_formula="H2", solubility=BasaltH2()),
-            GasSpecies(chemical_formula="OS", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="S2", solubility=BasaltS2()),
-            GasSpecies(chemical_formula="O2", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="O2S", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="CO", solubility=NoSolubility()),
-            GasSpecies(chemical_formula="CO2", solubility=BasaltDixonCO2()),
+            GasSpecies(formula="H2O", solubility=BasaltDixonH2O()),
+            GasSpecies(formula="H2", solubility=BasaltH2()),
+            GasSpecies(formula="OS", solubility=NoSolubility()),
+            GasSpecies(formula="S2", solubility=BasaltS2()),
+            GasSpecies(formula="O2", solubility=NoSolubility()),
+            GasSpecies(formula="O2S", solubility=NoSolubility()),
+            GasSpecies(formula="CO", solubility=NoSolubility()),
+            GasSpecies(formula="CO2", solubility=BasaltDixonCO2()),
         ]
     )
 
