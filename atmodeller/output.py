@@ -105,6 +105,7 @@ class Output(UserDict):
         self._add_constraints(interior_atmosphere)
         self._add_planet(interior_atmosphere)
         self._add_gas_species(interior_atmosphere)
+        self._add_residual(interior_atmosphere)
         self._add_solution(interior_atmosphere)
         if extra_output is not None:
             data_list: list[dict[str, float]] = self.data.setdefault("extra", [])
@@ -157,6 +158,15 @@ class Output(UserDict):
             assert species.output is not None
             data_list: list[dict[str, float]] = self.data.setdefault(species.formula, [])
             data_list.append(asdict(species.output))
+
+    def _add_residual(self, interior_atmosphere: InteriorAtmosphereSystem):
+        """Adds the residual.
+
+        Args:
+            interior_atmosphere: Interior atmosphere system
+        """
+        data_list: list[dict[str, float]] = self.data.setdefault("residual", [])
+        data_list.append(interior_atmosphere.residual_dict)
 
     def _add_solution(self, interior_atmosphere: InteriorAtmosphereSystem):
         """Adds the solution.

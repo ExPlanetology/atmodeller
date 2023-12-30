@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 import numpy as np
-from scipy.optimize import root
+from scipy.optimize import OptimizeResult, root
 from sklearn.metrics import mean_squared_error
 
 from atmodeller import GAS_CONSTANT, GRAVITATIONAL_CONSTANT
@@ -556,6 +556,7 @@ class InteriorAtmosphereSystem:
     # The solution is log10 of the partial pressure for gas phases and log10 of the activity for
     # condensed phases. The order aligns with the species.
     _log_solution: np.ndarray = field(init=False)
+    _residual: np.ndarray = field(init=False)
 
     def __post_init__(self):
         logger.info("Creating an interior-atmosphere system")
@@ -582,6 +583,30 @@ class InteriorAtmosphereSystem:
     def solution(self) -> np.ndarray:
         """Solution."""
         return 10**self.log_solution
+
+    @property
+    def residual_dict(self) -> dict[str, float]:
+        """Residual of the objective function.
+
+        The order of the constraints must align with the order in which they are assembled.
+        """
+        output: dict[str, float] = {}
+        for index, reaction in enumerate(self._reaction_network.reactions.values()):
+            output[reaction] = self._residual[index]
+        for index, constraint in enumerate(self.constraints.reaction_network_constraints):
+            row_index: int = self._reaction_network.number_reactions + index
+            output[constraint.full_name] = self._residual[row_index]
+        for index, constraint in enumerate(self.constraints.mass_constraints):
+            row_index = (
+                self._reaction_network.number_reactions
+                + self.constraints.number_reaction_network_constraints
+                + index
+            )
+            output[constraint.full_name] = self._residual[row_index]
+        for index, constraint in enumerate(self.constraints.total_pressure_constraint):
+            output[constraint.full_name] = self._residual[-1]  # Always last index if applied
+
+        return output
 
     @property
     def solution_dict(self) -> dict[str, float]:
@@ -685,12 +710,15 @@ class InteriorAtmosphereSystem:
         """
         logger.info("Solving system number %d", self.number_of_solves)
         self.set_constraints(constraints)
-        self._log_solution = self._solve(
+        result: OptimizeResult = self._solve(
             initial_solution=initial_solution,
             method=method,
             tol=tol,
             **options,
         )
+
+        self._log_solution = result.x
+        self._residual = result.fun
 
         # Recompute quantities that depend on the solution, since species.mass is not called for
         # the reaction network but this sets the solution for the gas phase.
@@ -749,7 +777,7 @@ class InteriorAtmosphereSystem:
         method: str,
         tol: float | None,
         **options,
-    ) -> np.ndarray:
+    ) -> OptimizeResult:
         """Solves the non-linear system of equations.
 
         Args:
@@ -759,7 +787,7 @@ class InteriorAtmosphereSystem:
             **options: Keyword arguments for solver options. Available keywords depend on method.
 
         Returns:
-            The solution array
+            The result
         """
 
         # Manual override trumps self.initial_condition
@@ -797,11 +825,9 @@ class InteriorAtmosphereSystem:
         if not sol.success:
             raise SystemExit()
 
-        sol = sol.x
-
         logger.debug("Initial guess solution = %s", initial_guess)
-        logger.debug("Actual solution = %s", sol)
-        error: np.ndarray = np.sqrt(mean_squared_error(sol, initial_guess))
+        logger.debug("Actual solution = %s", sol.x)
+        error: np.ndarray = np.sqrt(mean_squared_error(sol.x, initial_guess))
         logger.info(
             "%s: RMSE (actual vs initial) = %s", self.initial_condition.__class__.__name__, error
         )
@@ -841,10 +867,14 @@ class InteriorAtmosphereSystem:
                     system=self,
                     element=constraint.species,
                 )
+            # Below was previously used to compute the mass residual.
             # Mass values are constant so no need to pass any arguments to get_value().
-            residual_mass[constraint_index] -= constraint.get_value()
+            # residual_mass[constraint_index] -= constraint.get_value()
             # Normalise by target mass to compute a relative residual.
-            residual_mass[constraint_index] /= constraint.get_value()
+            # residual_mass[constraint_index] /= constraint.get_value()
+            # Instead, now we use log mass
+            residual_mass[constraint_index] = np.log10(residual_mass[constraint_index])
+            residual_mass[constraint_index] -= constraint.get_log10_value()
         logger.debug("Residual_mass = %s", residual_mass)
 
         # Compute residual for the total pressure (if relevant).

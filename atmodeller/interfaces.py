@@ -132,7 +132,7 @@ class RealGasABC(GetValueABC):
 
         return Z
 
-    @debug_decorator(logger)
+    # @debug_decorator(logger)
     def get_value(self, *, temperature: float, pressure: float) -> float:
         """Evaluates the fugacity coefficient at temperature and pressure.
 
@@ -147,7 +147,7 @@ class RealGasABC(GetValueABC):
 
         return fugacity_coefficient
 
-    @debug_decorator(logger)
+    # @debug_decorator(logger)
     def ln_fugacity(self, temperature: float, pressure: float) -> float:
         """Natural log of the fugacity
 
@@ -167,7 +167,7 @@ class RealGasABC(GetValueABC):
 
         return ln_fugacity
 
-    @debug_decorator(logger)
+    # @debug_decorator(logger)
     def fugacity(self, temperature: float, pressure: float) -> float:
         """Fugacity
 
@@ -185,7 +185,7 @@ class RealGasABC(GetValueABC):
 
         return fugacity
 
-    @debug_decorator(logger)
+    # @debug_decorator(logger)
     def fugacity_coefficient(self, temperature: float, pressure: float) -> float:
         """Fugacity coefficient
 
@@ -660,11 +660,11 @@ class ThermodynamicDatasetJANAF(ThermodynamicDatasetABC):
             del pressure
             gibbs: float = self.data.DeltaG(temperature)
 
-            logger.debug(
-                "Species = %s, standard Gibbs energy of formation = %f",
-                self.species.name_in_dataset,
-                gibbs,
-            )
+            # logger.debug(
+            #    "Species = %s, standard Gibbs energy of formation = %f",
+            #    self.species.name_in_dataset,
+            #    gibbs,
+            # )
 
             return gibbs
 

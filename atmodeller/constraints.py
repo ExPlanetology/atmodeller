@@ -163,7 +163,7 @@ class SystemConstraints(UserList):
             The log10 evaluated constraints in the same order as the underlying list.
         """
 
-        return np.log10(list(self.evaluate(interior_atmosphere).values()))
+        return np.log10(np.array(list(self.evaluate(interior_atmosphere).values())))
 
     def _filter_by_name(self, name: str) -> list[ConstraintABC]:
         """Filters the constraints by a given name.
