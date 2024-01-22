@@ -9,6 +9,7 @@ import logging
 
 import numpy as np
 
+from atmodeller import GAS_CONSTANT
 from atmodeller.interfaces import Solubility, limit_solubility
 from atmodeller.utilities import UnitConversion
 
@@ -169,10 +170,8 @@ class BasaltDixonCO2(Solubility):
         pressure: float,
     ) -> float:
         del log10_fugacities_dict
-        del pressure
-        ppmw: float = (3.8e-7) * fugacity * np.exp(-23 * (fugacity - 1) / (83.15 * temperature))
+        ppmw: float = (3.8e-7) * fugacity * np.exp(-23 * (pressure - 1) / (83.15 * temperature))
         ppmw = 1.0e4 * (4400 * ppmw) / (36.6 - 44 * ppmw)
-
         return ppmw
 
 
@@ -247,6 +246,77 @@ class BasaltLibourelN2(Solubility):
         constant: float = ((10 ** log10_fugacities_dict["O2"]) ** -0.75) * 5.97e-10
         ppmw += self.power_law(fugacity, constant, 0.5)
 
+        return ppmw
+
+
+class BasaltDasguptaN2(Solubility):
+    """Dasgupta et al. 2022. Solubility of N in silicate melts.
+
+    https://ui.adsabs.harvard.edu/abs/2022GeCoA.336..291D/abstract
+
+    Using Equation 10, composition parameters from Table 3 of Libourel et a. 2003 (CM-1), and
+    Iron-wustite buffer (logIW_fugacity) from O'Neill and Pownceby (1993) and Hirschmann et al. (2008).
+
+    Performed experiments on 80:20 synthetic basalt-Si3N4 mixture at 1.5-3.0 GPa and 1300-1600 C
+    fO2 from ~IW-3 to IW-4
+    Combined this high pressure data with lower pressure studies to derive their N solubility law
+    """
+
+    def _solubility(
+        self,
+        fugacity: float,
+        temperature: float,
+        log10_fugacities_dict: dict[str, float],
+        pressure: float,
+    ) -> float:
+        XSiO2: float = 0.582
+        XAl2O3: float = 0.157
+        XTiO2: float = 0.018
+        fugacity_GPa: float = UnitConversion.bar_to_GPa(fugacity)
+        pressure_GPa: float = UnitConversion.bar_to_GPa(pressure)
+        logIW_fugacity: float = (
+            -28776.8 / temperature
+            + 14.057
+            + 0.055 * (pressure - 1) / temperature
+            - 0.8853 * np.log(temperature)
+        )
+        fO2_shift = log10_fugacities_dict["O2"] - logIW_fugacity
+        ppmw: float = (fugacity_GPa**0.5) * np.exp(
+            (5908.0 * (pressure_GPa**0.5) / temperature) - (1.6 * fO2_shift)
+        )
+        ppmw += fugacity_GPa * np.exp(4.67 + (7.11 * XSiO2) - (13.06 * XAl2O3) - (120.67 * XTiO2))
+        return ppmw
+
+
+class BasaltBernadouN2(Solubility):
+    """Bernadou et al. 2021.Solubility of Nitrogen in basaltic silicate melt
+
+    https://ui.adsabs.harvard.edu/abs/2021ChGeo.57320192B/abstract
+
+    Equation 18 and using Equations 19-20 and the values for the thermodynamic constants from Table 6
+    Experiments on basaltic samples at fluid saturation in C-H-O-N system, pressure range: 0.8-10 kbar,
+    temperature range: 1200-1300 C; fO2 range: IW+4.9 to IW-4.7
+    Using their experimental results and a database for N concentrations at fluid saturation from 1 bar to 10 kbar,
+    calibrated their solubility law
+    """
+
+    def _solubility(
+        self,
+        fugacity: float,
+        temperature: float,
+        log10_fugacities_dict: dict[str, float],
+        pressure: float,
+    ) -> float:
+        K13: float = np.exp(
+            -(29344 + 121 * temperature + 4 * pressure) / (GAS_CONSTANT * temperature)
+        )
+        K14: float = np.exp(
+            -(183733 + 172 * temperature - 5 * pressure) / (GAS_CONSTANT * temperature)
+        )
+        molfrac: float = (K13 * fugacity) + (
+            ((10 ** log10_fugacities_dict["O2"]) ** (-3 / 4)) * K14 * (fugacity**0.5)
+        )
+        ppmw: float = UnitConversion.fraction_to_ppm(molfrac)
         return ppmw
 
 
@@ -524,7 +594,7 @@ class BasaltCO(Solubility):
 
     Experiments on carbon solubility in silicate melts (Fe-free) coexisting with graphite and
     CO-CO2 fluid phase at 3 GPa and 1500 C
-    Henry's Law, their expression for solubility of CO in MORB in the abstract.
+    Log-scale linear expression for solubility of CO in MORB in the abstract.
     """
 
     def _solubility(
@@ -708,7 +778,7 @@ basalt_solubilities: dict[str, Solubility] = {
     "H2O": BasaltDixonH2O(),
     "CO2": BasaltDixonCO2(),
     "H2": BasaltH2(),
-    "N2": BasaltLibourelN2(),
+    "N2": BasaltDasguptaN2(),
     "S2": BasaltS2(),
     "CO": BasaltCO(),
     "He": BasaltHe(),
