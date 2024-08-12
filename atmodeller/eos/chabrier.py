@@ -128,12 +128,23 @@ class Chabrier(RealGas):
         return volume
 
     @override
-    def volume_integral(self, temperature: float, pressure: float) -> float:
+    def volume_integral(self, temperature: float, pressure: float) -> float: # type: ignore
         # For loop for the first part of the integral
         pressures = np.logspace(
             np.log10(self.standard_state_pressure), np.log10(pressure), num=1000
         )
-        volumes = np.array([self.volume(temperature, pressure) for pressure in pressures])
+        log10temperatures = np.full_like(pressures, np.log10(temperature))
+        log10pressures_GPa = np.log10(UnitConversion.bar_to_GPa(pressures))
+ 
+        log10densities_gcc = self.log10density_func.ev(log10temperatures, log10pressures_GPa)
+
+        # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H2 = 2.016 g H2)
+        molar_densities = 10**log10densities_gcc / (
+            UnitConversion.cm3_to_m3(1) * 2.016
+        )
+        
+        volumes = 1 / molar_densities
+
         volume_integral = trapezoid(volumes, pressures)
         volume_integral = UnitConversion.m3_bar_to_J(volume_integral)
 
