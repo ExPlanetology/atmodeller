@@ -80,7 +80,7 @@ class Chabrier(RealGas):
     """Filename of the density-T-P data"""
     standard_state_pressure: float = field(init=False, default=1)
     """Standard state pressure with the appropriate units. Set to 1 bar"""
-    log10density_func: RectBivariateSpline = field(init=False)
+    log10density_func: RectBivariateSpline = field(init=False, repr=False)
     """Spline to evaluate the density"""
 
     def __post_init__(self):
@@ -129,7 +129,7 @@ class Chabrier(RealGas):
 
     @override
     def volume_integral(self, temperature: float, pressure: float) -> float: # type: ignore
-        # For loop for the first part of the integral
+        # Calculate density for the integral
         pressures = np.logspace(
             np.log10(self.standard_state_pressure), np.log10(pressure), num=1000
         )
@@ -139,20 +139,24 @@ class Chabrier(RealGas):
         log10densities_gcc = self.log10density_func.ev(log10temperatures, log10pressures_GPa)
 
         # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H2 = 2.016 g H2)
-        molar_densities = 10**log10densities_gcc / (
+        molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
             UnitConversion.cm3_to_m3(1) * 2.016
         )
         
-        volumes = 1 / molar_densities
+        volumes = np.reciprocal(molar_densities, out=molar_densities)
 
         volume_integral = trapezoid(volumes, pressures)
         volume_integral = UnitConversion.m3_bar_to_J(volume_integral)
 
         return volume_integral
 
+# Precompute the spline and store it
+precomputed_spline = Chabrier(filename=Path("TABLE_H_TP_v1")).log10density_func
 
 H2_CD21: RealGas = Chabrier(filename=Path("TABLE_H_TP_v1"))
 """H2 :cite:p:`CD21`"""
+# Use the precomputed spline for new instances of Chabrier
+H2_CD21.log10density_func = precomputed_spline
 
 
 def get_chabrier_eos_models() -> dict[str, RealGas]:
