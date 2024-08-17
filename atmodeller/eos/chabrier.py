@@ -107,7 +107,7 @@ class Chabrier(RealGas):
             )
         df.columns = columns
         pivot_table: pd.DataFrame = df.pivot(
-            index="#log T [K]", columns="log P [GPa]", values="log rho [g/cc]"
+            index=df.columns[0], columns=df.columns[1], values=df.columns[2]
         )
         self.log10density_func: RectBivariateSpline = RectBivariateSpline(
             pivot_table.index.to_numpy(), pivot_table.columns.to_numpy(), pivot_table.to_numpy()
@@ -150,14 +150,35 @@ class Chabrier(RealGas):
 
         return volume_integral
 
-# Precompute the spline and store it
-precomputed_spline = Chabrier(filename=Path("TABLE_H_TP_v1")).log10density_func
-
+# H2
+precomputed_spline_H2 = Chabrier(filename=Path("TABLE_H_TP_v1")).log10density_func
 H2_CD21: RealGas = Chabrier(filename=Path("TABLE_H_TP_v1"))
 """H2 :cite:p:`CD21`"""
-# Use the precomputed spline for new instances of Chabrier
-H2_CD21.log10density_func = precomputed_spline
+H2_CD21.log10density_func = precomputed_spline_H2
 
+# He
+precomputed_spline_He = Chabrier(filename=Path("TABLE_HE_TP_v1")).log10density_func
+He_CD21: RealGas = Chabrier(filename=Path("TABLE_HE_TP_v1"))
+"""He :cite:p:`CD21`"""
+He_CD21.log10density_func = precomputed_spline_He
+
+# H2 He mix: He = 0.275
+precomputed_spline_H2HeY0275 = Chabrier(filename=Path("TABLEEOS_2021_TP_Y0275_v1")).log10density_func
+H2HeY0275_CD21: RealGas = Chabrier(filename=Path("TABLEEOS_2021_TP_Y0275_v1"))
+"""H2HeY0275 :cite:p:`CD21`"""
+H2HeY0275_CD21.log10density_func = precomputed_spline_H2HeY0275
+
+# H2 He mix: He = 0.292
+precomputed_spline_H2HeY0292 = Chabrier(filename=Path("TABLEEOS_2021_TP_Y0292_v1")).log10density_func
+H2HeY0292_CD21: RealGas = Chabrier(filename=Path("TABLEEOS_2021_TP_Y0292_v1"))
+"""H2HeY0292 :cite:p:`CD21`"""
+H2HeY0292_CD21.log10density_func = precomputed_spline_H2HeY0292
+
+# H2 He mix: He = 0.297
+precomputed_spline_H2HeY0297 = Chabrier(filename=Path("TABLEEOS_2021_TP_Y0297_v1")).log10density_func
+H2HeY0297_CD21: RealGas = Chabrier(filename=Path("TABLEEOS_2021_TP_Y0297_v1"))
+"""H2HeY0297 :cite:p:`CD21`"""
+H2HeY0297_CD21.log10density_func = precomputed_spline_H2HeY0297
 
 def get_chabrier_eos_models() -> dict[str, RealGas]:
     """Gets a dictionary of the preferred Chabrier and colleagues EOS models for each species.
@@ -169,5 +190,9 @@ def get_chabrier_eos_models() -> dict[str, RealGas]:
     """
     models: dict[str, RealGas] = {}
     models["H2"] = H2_CD21
+    models["He"] = He_CD21
+    models["H2HeY0275"] = H2HeY0275_CD21
+    models["H2HeY0292"] = H2HeY0292_CD21
+    models["H2HeY0297"] = H2HeY0297_CD21
 
     return models
