@@ -30,6 +30,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 class RedoxBufferProtocol(Protocol):
 
+    log10_shift: float
+
     def __init__(self, *args, **kwargs): ...
 
     def get_log10_value(self, temperature: float, pressure: float, **kwargs) -> float: ...

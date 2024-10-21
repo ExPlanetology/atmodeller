@@ -25,6 +25,8 @@ from typing import Type
 
 import numpy as np
 
+from scipy.optimize import bisect
+
 from atmodeller import GAS_CONSTANT
 from atmodeller.interfaces import ExperimentalCalibration
 from atmodeller.thermodata.interfaces import RedoxBufferProtocol
@@ -391,3 +393,60 @@ class IronWustiteBufferFischer(_RedoxBuffer):
 
 
 IronWustiteBuffer: Type[RedoxBufferProtocol] = IronWustiteBufferHirschmann
+
+def solve_for_log10_dIW(
+    target_fugacity: float, temperature: float, pressure: float = 1.0, **kwargs
+) -> float:
+    """Solves for the log10 shift relative to the default Iron-wustite buffer
+
+    The shift is report relative to the standard state defined at temperature and 1 bar pressure.
+    If desired, the shift can be reported relative to a standard state defined at an alternative
+    pressure.
+
+    Args:
+        target_fugacity: Target fugacity in bar
+        temperature: Temperature in K
+        pressure: Pressure defining the standard state in bar. Defaults to 1 bar.
+        **kwargs: Arbitrary keyword arguments
+
+    Returns:
+        The required log10_shift to match the target fugacity
+    """
+    buffer: RedoxBufferProtocol = IronWustiteBuffer()
+
+    def objective_function(log10_shift: float, args):
+        """Objective function
+
+        Args:
+            log10_shift: Log10 shift
+            args: Optional arguments (not used)
+
+        Returns:
+            Residual of the objective function
+        """
+        del args
+        buffer.log10_shift = log10_shift
+        calculated_log10_fugacity: float = buffer.get_log10_value(
+            temperature, pressure, penalty=False, **kwargs
+        )
+
+        return calculated_log10_fugacity - np.log10(target_fugacity)
+
+    # solver = optx.Bisection(rtol=1.0e-8, atol=1.0e-8)
+    # sol = optx.root_find(
+    #     objective_function, solver, jnp.array(-20.0), options=dict(lower=-100, upper=100)
+    # )
+
+    sol = bisect(
+        objective_function, -100, 100, xtol=1.0e-8, rtol=1.0e-8
+    )
+
+    return sol
+
+    # # Success is indicated by no message
+    # if optx.RESULTS[sol.result] == "":
+    #     value: float = sol.value.item()
+    # else:
+    #     raise ValueError("Root finding did not converge")
+
+    # return value
