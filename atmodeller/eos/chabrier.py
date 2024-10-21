@@ -119,10 +119,31 @@ class Chabrier(RealGas):
         log10density_gcc = self.log10density_func(
             np.log10(temperature), np.log10(UnitConversion.bar_to_GPa(pressure))
         )
-        # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H2 = 2.016 g H2)
-        molar_density: float = np.power(10, log10density_gcc.item()) / (
-            UnitConversion.cm3_to_m3(1) * 2.016
-        )
+        if "TABLE_H_TP_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H2 = 2.01588 g H2)
+            molar_density: float = np.power(10, log10density_gcc.item()) / (
+                UnitConversion.cm3_to_m3(1) * 2.01588
+            )
+        elif "TABLE_HE_TP_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3 for He (1e6 cm3 = 1 m3; 1 mol He = 4.00262 g He)
+            molar_density: float = np.power(10, log10density_gcc.item()) / (
+                UnitConversion.cm3_to_m3(1) * 4.00262
+            )
+        elif "TABLEEOS_2021_TP_Y0275_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3
+            molar_density: float = np.power(10, log10density_gcc.item()) / (
+                UnitConversion.cm3_to_m3(1) * (4.00262 * 0.275 + 2.01588 * (1-0.275))
+            )
+        elif "TABLEEOS_2021_TP_Y0292_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3
+            molar_density: float = np.power(10, log10density_gcc.item()) / (
+                UnitConversion.cm3_to_m3(1) * (4.00262 * 0.292 + 2.01588 * (1-0.292))
+            )
+        elif "TABLEEOS_2021_TP_Y0297_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3
+            molar_density: float = np.power(10, log10density_gcc.item()) / (
+                UnitConversion.cm3_to_m3(1) * (4.00262 * 0.297 + 2.01588 * (1-0.297))
+            )
         volume: float = 1 / molar_density
 
         return volume
@@ -131,17 +152,38 @@ class Chabrier(RealGas):
     def volume_integral(self, temperature: float, pressure: float) -> float: # type: ignore
         # Calculate density for the integral
         pressures = np.logspace(
-            np.log10(self.standard_state_pressure), np.log10(pressure), num=1000
+            np.log10(self.standard_state_pressure), np.log10(pressure), num=50
         )
         log10temperatures = np.full_like(pressures, np.log10(temperature))
         log10pressures_GPa = np.log10(UnitConversion.bar_to_GPa(pressures))
  
         log10densities_gcc = self.log10density_func.ev(log10temperatures, log10pressures_GPa)
 
-        # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H2 = 2.016 g H2)
-        molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
-            UnitConversion.cm3_to_m3(1) * 2.016
-        )
+        if "TABLE_H_TP_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H = 2.01588 g H2)
+            molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
+                UnitConversion.cm3_to_m3(1) * 2.01588
+            )
+        elif "TABLE_HE_TP_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3 for He (1e6 cm3 = 1 m3; 1 mol He = 4.00262 g He)
+            molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
+                UnitConversion.cm3_to_m3(1) * 4.00262
+            )
+        elif "TABLEEOS_2021_TP_Y0275_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3
+            molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
+                UnitConversion.cm3_to_m3(1) * (4.00262 * 0.275 + 2.01588 * (1-0.275))
+            )
+        elif "TABLEEOS_2021_TP_Y0292_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3
+            molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
+                UnitConversion.cm3_to_m3(1) * (4.00262 * 0.292 + 2.01588 * (1-0.292))
+            )
+        elif "TABLEEOS_2021_TP_Y0297_v1" in str(self.filename):
+            # Convert units: g/cm3 to mol/cm3 to mol/m3
+            molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
+                UnitConversion.cm3_to_m3(1) * (4.00262 * 0.297 + 2.01588 * (1-0.297))
+            )
         
         volumes = np.reciprocal(molar_densities, out=molar_densities)
 
