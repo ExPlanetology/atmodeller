@@ -160,7 +160,7 @@ class Chabrier(RealGas):
         log10densities_gcc = self.log10density_func.ev(log10temperatures, log10pressures_GPa)
 
         if "TABLE_H_TP_v1" in str(self.filename):
-            # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H = 2.01588 g H2)
+            # Convert units: g/cm3 to mol/cm3 to mol/m3 for H2 (1e6 cm3 = 1 m3; 1 mol H2 = 2.01588 g H2)
             molar_densities = np.power(10, log10densities_gcc, out=log10densities_gcc) / (
                 UnitConversion.cm3_to_m3(1) * 2.01588
             )
