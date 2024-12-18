@@ -36,9 +36,10 @@ jobs:
         run: poetry install --no-interaction --no-root
         
       - name: Install project
-        run: poetry install --no-interaction
+        run: | 
+          poetry install --no-interaction
+          echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
 
       - name: Run pre-commit hooks
         run: |
-          source $VENV
           pre-commit run --all-files
