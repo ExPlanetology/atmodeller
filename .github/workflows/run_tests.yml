@@ -21,13 +21,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Load cached Poetry installation
+        id: cached-poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.local  # the path depends on the OS
+          key: poetry-0  # increment to reset cache
+
       - name: Install Poetry
+        if: steps.cached-poetry.outputs.cache-hit != 'true'
         uses: snok/install-poetry@v1
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
-          virtualenvs-path: .venv
-          installer-parallel: true
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -43,11 +49,13 @@ jobs:
       - name: Install project
         run: poetry install --no-interaction
 
-      - name: Set path for pyright pre-commit
-        run: echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
+      #- name: Set path for pyright pre-commit
+      #  run: echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
 
       - name: Checks with pre-commit
-        uses: pre-commit/action@v3.0.1
+        run: |
+          source .venv/bin/activate
+          pre-commit run --all-files
 
       - name: Run tests
         run: pytest
