@@ -12,6 +12,4 @@
     "reportIncompatibleMethodOverride": "none",
     "venvPath": ".",
     "venv": ".venv"
-    "venvPath": ".",
-    "venv": ".venv"
 }
