@@ -1,12 +1,17 @@
 {
     "include": [
         "atmodeller",
-        "tests"
+        "tests",
+    ],
+    "exclude":[
+        "docs"
     ],
     "typeCheckingMode": "standard",
     "pythonVersion": "3.10",
     "pythonPlatform": "All",
     "reportIncompatibleMethodOverride": "none",
+    "venvPath": ".",
+    "venv": ".venv"
     "venvPath": ".",
     "venv": ".venv"
 }
