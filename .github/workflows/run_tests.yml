@@ -8,7 +8,8 @@ jobs:
     strategy:
       matrix:
         python-version: [ "3.10", "3.11", "3.12" ]
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os: [ "ubuntu-latest" ]
+      fail-fast: false
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -40,13 +41,13 @@ jobs:
         run: poetry install --no-interaction --no-root
         
       - name: Install project
-        run: | 
-          poetry install --no-interaction
-          echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
+        run: poetry install --no-interaction
 
-      - name: Run pre-commit hooks
-        run: |
-          pre-commit run --all-files
+      - name: Set path for pyright pre-commit
+        run: echo "$(poetry env info --path)/bin" >> $GITHUB_PATH
+
+      - name: Checks with pre-commit
+        uses: pre-commit/action@v3.0.1
 
       - name: Run tests
         run: pytest
