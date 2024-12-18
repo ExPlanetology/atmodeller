@@ -58,4 +58,6 @@ jobs:
           pre-commit run --all-files
 
       - name: Run tests
-        run: pytest
+        run: |
+          source .venv/bin/activate
+          pytest
