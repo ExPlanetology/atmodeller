@@ -7,4 +7,6 @@
     "pythonVersion": "3.10",
     "pythonPlatform": "All",
     "reportIncompatibleMethodOverride": "none",
+    "venvPath": ".",
+    "venv": ".venv"
 }
