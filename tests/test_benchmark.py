@@ -33,7 +33,7 @@ from atmodeller.constraints import (
 )
 from atmodeller.core import GasSpecies, LiquidSpecies, SolidSpecies
 from atmodeller.interior_atmosphere import InteriorAtmosphereSystem, Planet, Species
-from atmodeller.thermodata.redox_buffers import IronWustiteBuffer
+from atmodeller.thermodata.redox_buffers2 import IronWustiteBuffer
 from atmodeller.utilities import earth_oceans_to_kg
 
 logger: logging.Logger = debug_logger()

@@ -42,7 +42,7 @@ from atmodeller.solubility.sulfur_species import (
     S2_sulfate_basalt_boulliung,
     S2_sulfide_basalt_boulliung,
 )
-from atmodeller.thermodata.redox_buffers import IronWustiteBuffer
+from atmodeller.thermodata.redox_buffers2 import IronWustiteBuffer
 
 RTOL: float = 1.0e-8
 """Relative tolerance"""

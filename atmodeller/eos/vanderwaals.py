@@ -208,6 +208,18 @@ CHN_Lide_vanderwaals: RealGas = vanderWaals(
     calibration=ExperimentalCalibration(100, 1000, 0.1, 1000),
 )
 """HCN van der Waals :cite:p:`L05`"""
+# H4Si_Isham_vanderwaals: RealGas = vanderWaals(
+#     a=2.478e-6,
+#     b=3.275e-5,
+#     calibration=ExperimentalCalibration(100, 1000, 0.1, 1000),
+# )
+# """SiH4 van der Waals :cite:p:`L05`"""
+# OSi_Isham_vanderwaals: RealGas = vanderWaals(
+#     a=8.698e-6,
+#     b=8.582e-6,
+#     calibration=ExperimentalCalibration(100, 1000, 0.1, 1000),
+# )
+# """SiH4 van der Waals :cite:p:`L05`"""
 
 def get_vanderwaals_eos_models() -> dict[str, RealGas]:
     """Gets a dictionary of the preferred van der Waals EOS models for each species.

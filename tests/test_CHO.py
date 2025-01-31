@@ -41,7 +41,7 @@ from atmodeller.solubility.hydrogen_species import (
     H2O_peridotite_sossi,
 )
 from atmodeller.thermodata.holland import ThermodynamicDatasetHollandAndPowell
-from atmodeller.thermodata.redox_buffers import IronWustiteBuffer
+from atmodeller.thermodata.redox_buffers2 import IronWustiteBuffer
 from atmodeller.utilities import earth_oceans_to_kg
 
 RTOL: float = 1.0e-8
