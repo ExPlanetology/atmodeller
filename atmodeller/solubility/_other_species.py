@@ -26,7 +26,7 @@ from jax import Array, jit
 from jax.tree_util import register_pytree_node_class
 from jax.typing import ArrayLike
 
-from atmodeller.constants import GAS_CONSTANT
+from atmodeller.constants import GAS_CONSTANT_BAR
 from atmodeller.interfaces import SolubilityProtocol
 from atmodeller.solubility.classes import Solubility, SolubilityPowerLaw, power_law
 from atmodeller.solubility.core import fO2_temperature_correction
@@ -154,13 +154,12 @@ class _N2_basalt_bernadou21(PyTreeNoData, Solubility):
         pressure: ArrayLike,
         fO2: ArrayLike,
     ) -> Array:
-        # TODO: Should this be GAS_CONSTANT or GAS_CONSTANT_BAR?
+        # Numerator and denominator of k13 and k14 should both have units of J/mol so that k13 and k14 are unitless
         k13: Array = jnp.exp(
-            -(29344 + 121 * temperature + 4 * pressure) / (GAS_CONSTANT * temperature)
+            -(29344 + 121 * temperature + 4 * pressure) / (GAS_CONSTANT_BAR * 1.0e5 * temperature)
         )
-        # TODO: Should this be GAS_CONSTANT or GAS_CONSTANT_BAR?
         k14: Array = jnp.exp(
-            -(183733 + 172 * temperature - 5 * pressure) / (GAS_CONSTANT * temperature)
+            -(183733 + 172 * temperature - 5 * pressure) / (GAS_CONSTANT_BAR * 1.0e5 * temperature)
         )
         molfrac: Array = (k13 * fugacity) + ((fO2 ** (-3 / 4)) * k14 * (fugacity**0.5))
         ppmw: Array = molfrac * unit_conversion.fraction_to_ppm
