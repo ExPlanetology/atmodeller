@@ -44,16 +44,16 @@ from atmodeller.solubility._hydrogen_species import (
     H2O_peridotite_sossi23,
 )
 from atmodeller.solubility._other_species import (
+    Ar_basalt_jambon86,
     Cl2_ano_dio_for_thomas21,
     Cl2_basalt_thomas21,
     He_basalt_jambon86,
+    Kr_basalt_jambon86,
     N2_basalt_bernadou21,
     N2_basalt_dasgupta22,
     N2_basalt_libourel03,
     Ne_basalt_jambon86,
-    Ar_basalt_jambon86,
     Xe_basalt_jambon86,
-    Kr_basalt_jambon86,
 )
 from atmodeller.solubility._sulfur_species import (
     S2_andesite_boulliung23,
@@ -97,8 +97,6 @@ def get_solubility_models() -> dict[str, SolubilityProtocol]:
     # Sulfur species
     models["S2_andesite_boulliung23"] = S2_andesite_boulliung23
     models["S2_basalt_boulliung23"] = S2_basalt_boulliung23
-    # TODO: The Namur model needs debugging, so commented out
-    # models["S2_mercury_magma_namur16"] = S2_mercury_magma_namur16
     models["S2_sulfate_andesite_boulliung23"] = S2_sulfate_andesite_boulliung23
     models["S2_sulfate_basalt_boulliung23"] = S2_sulfate_basalt_boulliung23
     models["S2_sulfate_trachybasalt_boulliung23"] = S2_sulfate_trachybasalt_boulliung23

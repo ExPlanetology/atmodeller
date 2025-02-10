@@ -68,8 +68,6 @@ def test_Chabrier_H2_volume_1000kbar(check_values) -> None:
     )
 
 
-# TODO: The fugacity coefficient seems extremely large. If this P-T range is beyond the calibration
-# the test should be updated to more reasonable P-T estimates.
 def test_Chabrier_H2_fugacity_coefficient_1000kbar(check_values) -> None:
     """Tests Chabrier fugacity coefficient at 1000 kbar"""
     # Assumes 1000 integration steps

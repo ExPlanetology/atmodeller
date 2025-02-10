@@ -30,6 +30,7 @@ from atmodeller.constants import GAS_CONSTANT_BAR
 from atmodeller.interfaces import SolubilityProtocol
 from atmodeller.solubility.classes import Solubility, SolubilityPowerLaw, power_law
 from atmodeller.solubility.core import fO2_temperature_correction
+from atmodeller.thermodata import IronWustiteBuffer
 from atmodeller.utilities import PyTreeNoData, unit_conversion
 
 if sys.version_info < (3, 12):
@@ -196,6 +197,8 @@ class _N2_basalt_dasgupta22(Solubility):
         self.xsio2: float = xsio2
         self.xal2o3: float = xal2o3
         self.xtio2: float = xtio2
+        # The buffer is evaluated at the pressure of interest, not the default of 1 bar
+        self._buffer: RedoxBufferProtocol = IronWustiteBuffer(evaluation_pressure=None)
 
     @override
     @jit
@@ -209,18 +212,13 @@ class _N2_basalt_dasgupta22(Solubility):
     ) -> Array:
         fugacity_gpa: ArrayLike = fugacity * unit_conversion.bar_to_GPa
         pressure_gpa: ArrayLike = pressure * unit_conversion.bar_to_GPa
-        # TODO: Check. Should this be hard-coded or be self-consistent with any imposed buffer that
-        # the interior-atmosphere system uses?
-        logiw_fugacity: ArrayLike = (
-            -28776.8 / temperature
-            + 14.057
-            + 0.055 * (pressure - 1) / temperature
-            - 0.8853 * jnp.log(temperature)
+
+        fo2_shift: Array = jnp.log10(fO2) - self._buffer.log10_fugacity_buffer(
+            temperature, pressure
         )
-        fo2_shift: Array = jnp.log10(fO2) - logiw_fugacity
-        ppmw: Array = jnp.exp((5908.0 * (pressure_gpa**0.5) / temperature) - (1.6 * fo2_shift)) * (
-            fugacity_gpa**0.5
-        )
+        ppmw: Array = jnp.exp(
+            (5908.0 * jnp.sqrt(pressure_gpa) / temperature) - (1.6 * fo2_shift)
+        ) * jnp.sqrt(fugacity_gpa)
         ppmw = ppmw + fugacity_gpa * jnp.exp(
             4.67 + (7.11 * self.xsio2) - (13.06 * self.xal2o3) - (120.67 * self.xtio2)
         )
@@ -261,7 +259,14 @@ class _N2_basalt_libourel03(PyTreeNoData, Solubility):
     @override
     @jit
     def concentration(
-        self, fugacity: ArrayLike, *, temperature: ArrayLike, pressure: ArrayLike, fO2: ArrayLike, RTOL=4, ATOL=4,
+        self,
+        fugacity: ArrayLike,
+        *,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        fO2: ArrayLike,
+        RTOL=4,
+        ATOL=4,
     ) -> Array:
         # Libourel performed the experiment at 1698 K and fitted for fO2 at this temperature hence
         # a correction is necessary.

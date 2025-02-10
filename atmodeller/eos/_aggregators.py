@@ -272,9 +272,14 @@ class CombinedRealGas(CombinedRealGasABC):
     the solver. Physically, it is reasonable to extend the lower bound using the ideal gas law and
     the upper bound assuming a linear pressure dependence of the compressibility factor.
 
+    There is no bounding for temperature; hence it is assumed that the extrapolation
+    behaviour of temperature is reasonable. This is practically useful because the calibrations are
+    often restricted to a lower temperature range than the high temperatures that are typically of
+    interest for hot rocks and magma ocean planets.
+
     Args:
         real_gases: Real gases to combine
-        calibrations: Experimental calibrations that correspond to `real_gases`.
+        calibrations: Experimental calibrations that correspond to `real_gases`
         dzdp: Constant compressibility (pressure) gradient for the upper bound extrapolation (if
             relevant). Defaults to 0.
         extrapolate: Extrapolate the EOS to have reasonable behaviour below the minimum and above
@@ -387,7 +392,6 @@ class CombinedRealGas(CombinedRealGasABC):
         # jax.debug.print("total_integral after lax.fori_loop = {out}", out=total_integral)
 
         def add_final_integral(total_integral: Array) -> Array:
-            # FIXME: Feel like this is wrong and is creating negative estimates
             # Account for the first integral, which thus far has not been included for index > 0.
             pressure_high = lax.dynamic_index_in_dim(
                 self._upper_pressure_bounds, 0, keepdims=False

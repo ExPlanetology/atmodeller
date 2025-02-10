@@ -876,14 +876,14 @@ mean that every virial coefficient has been multiplied by 1e-2 compared to the v
 
 experimental_calibration_holland91: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=373,
-    temperature_max=4000,  # TODO: Should be 1873 K, but may be some extrapolation is OK?
+    temperature_max=1873,
     pressure_min=1,
     pressure_max=50e3,
 )
 """Experimental calibration for :cite:`HP91,HP11` models"""
 experimental_calibration_holland98: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=373,
-    temperature_max=4000,  # TODO: Should be 1873 K, but may be some extrapolation is OK?
+    temperature_max=1873,
     pressure_min=1,
     pressure_max=120e3,
 )

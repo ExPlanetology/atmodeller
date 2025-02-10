@@ -38,44 +38,56 @@ from atmodeller.utilities import ExperimentalCalibration
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+calibration_chabrier21: ExperimentalCalibration = ExperimentalCalibration(
+    temperature_min=100, temperature_max=1.0e8, pressure_min=None, pressure_max=1.0e17
+)
+"""Calibration for :cite:t:`CD21`"""
 H2_chabrier21: RealGasProtocol = Chabrier(Path("TABLE_H_TP_v1"))
-"""H2 Chabrier :cite:p:`CD21`"""
+"""H2 :cite:p:`CD21`"""
 H2_chabrier21_bounded: RealGasProtocol = CombinedRealGas(
     [H2_chabrier21],
-    [
-        ExperimentalCalibration(
-            temperature_min=100, temperature_max=1.0e8, pressure_min=None, pressure_max=1.0e17
-        )
-    ],
+    [calibration_chabrier21],
 )
+"""H2 bounded :cite:p:`CD21`"""
 He_chabrier21: RealGasProtocol = Chabrier(Path("TABLE_HE_TP_v1"))
 """He :cite:p:`CD21`"""
+He_chabrier21_bounded: RealGasProtocol = CombinedRealGas([He_chabrier21], [calibration_chabrier21])
+"""He bounded :cite:p:`CD21`"""
 H2_He_Y0275_chabrier21: RealGasProtocol = Chabrier(Path("TABLEEOS_2021_TP_Y0275_v1"))
 """H2HeY0275 :cite:p:`CD21`"""
+H2_He_Y0275_chabrier21_bounded: RealGasProtocol = CombinedRealGas(
+    [H2_He_Y0275_chabrier21], [calibration_chabrier21]
+)
+"""H2HeY0275 bounded :cite:p:`CD21`"""
 H2_He_Y0292_chabrier21: RealGasProtocol = Chabrier(Path("TABLEEOS_2021_TP_Y0292_v1"))
 """H2HeY0292 :cite:p:`CD21`"""
+H2_He_Y0292_chabrier21_bounded: RealGasProtocol = CombinedRealGas(
+    [H2_He_Y0292_chabrier21], [calibration_chabrier21]
+)
+"""H2HeY0292 bounded :cite:p:`CD21`"""
 H2_He_Y0297_chabrier21: RealGasProtocol = Chabrier(Path("TABLEEOS_2021_TP_Y0297_v1"))
 """H2HeY0297 :cite:p:`CD21`"""
+H2_He_Y0297_chabrier21_bounded: RealGasProtocol = CombinedRealGas(
+    [H2_He_Y0297_chabrier21], [calibration_chabrier21]
+)
+"""H2HeY0297 bounded :cite:p:`CD21`"""
 
 
 def get_eos_models() -> dict[str, RealGasProtocol]:
     """Gets a dictionary of EOS models
 
     The naming convention is as follows:
-        [species]_[eos model]_[citation], with an optional suffix of 'bounded'
-
-    'cs' refers to corresponding states and `bounded` means that the EOS is reasonably well-behaved
-    outside its calibrated range to mitigate the solver throwing inf/nans.
+        [species]_[eos model]_[citation]
 
     Returns:
         Dictionary of EOS models
     """
     eos_models: dict[str, RealGasProtocol] = {}
     eos_models["H2_chabrier21"] = H2_chabrier21_bounded
-    eos_models["H2_He_Y0275_chabrier21"] = H2_He_Y0275_chabrier21  # TODO: Bound
-    eos_models["H2_He_Y0292_chabrier21"] = H2_He_Y0292_chabrier21  # TODO: Bound
-    eos_models["H2_He_Y0297_chabrier21"] = H2_He_Y0297_chabrier21  # TODO: Bound
-    eos_models["He_chabrier21"] = He_chabrier21  # TODO: Bound
+    eos_models["H2_He_Y0275_chabrier21"] = H2_He_Y0275_chabrier21_bounded
+    eos_models["H2_He_Y0292_chabrier21"] = H2_He_Y0292_chabrier21_bounded
+    eos_models["H2_He_Y0297_chabrier21"] = H2_He_Y0297_chabrier21_bounded
+    eos_models["He_chabrier21"] = He_chabrier21_bounded
 
     # Merge Holley models
     eos_models |= get_holley_eos_models()
