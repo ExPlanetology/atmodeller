@@ -274,7 +274,6 @@ class Chabrier(RealGas):
         self._He_molar_mass_g_mol: float = He_molar_mass_g_mol
         self._integration_steps: int = integration_steps
 
-<<<<<<< HEAD
     @classmethod
     def create(cls, filename: Path, integration_steps: int = 1000) -> Self:
         """Creates a Chabrier instance
@@ -410,9 +409,6 @@ class Chabrier(RealGas):
         children: tuple = ()
         aux_data = {
             "log10_density_func": self._log10_density_func,
-        children = (self._log10_density_func,)  # Store the interpolator as a child
-        aux_data = {
-            "filename": self._filename,
             "He_fraction": self._He_fraction,
             "H2_molar_mass_g_mol": self._H2_molar_mass_g_mol,
             "He_molar_mass_g_mol": self._He_molar_mass_g_mol,
@@ -423,12 +419,5 @@ class Chabrier(RealGas):
 
     @classmethod
     def tree_unflatten(cls, aux_data, children) -> Self:
-        obj = cls.__new__(cls)  # Avoids calling __init__
-        obj._log10_density_func = children[0]  # Restore the interpolator
-        obj._filename = aux_data["filename"]
-        obj._He_fraction = aux_data["He_fraction"]
-        obj._H2_molar_mass_g_mol = aux_data["H2_molar_mass_g_mol"]
-        obj._He_molar_mass_g_mol = aux_data["He_molar_mass_g_mol"]
-        obj._integration_steps = aux_data["integration_steps"]
-
-        return obj
+        del children
+        return cls(**aux_data)
