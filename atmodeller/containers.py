@@ -157,7 +157,9 @@ class SolutionArguments:
         base_log_number_density = np.expand_dims(base_log_number_density, axis=0)
         base_log_stability = np.expand_dims(base_log_stability, axis=0)
         logger.debug("base_log_number_density.shape = %s", base_log_number_density.shape)
+        logger.debug("base_log_number_density = %s", base_log_number_density)
         logger.debug("base_log_stability.shape = %s", base_log_stability.shape)
+        logger.debug("base_log_stability = %s", base_log_stability)
 
         # Multistart runs each simulation multiple times with different initial conditions.
         base_log_number_density = np.repeat(base_log_number_density, multistart, axis=0)
@@ -184,8 +186,10 @@ class SolutionArguments:
             log_number_density = base_log_number_density
             log_stability = base_log_stability
 
-        logger.debug("base_log_number_density.shape = %s", base_log_number_density.shape)
-        logger.debug("base_log_stability.shape = %s", base_log_stability.shape)
+        logger.debug("log_number_density.shape = %s", log_number_density.shape)
+        logger.debug("log_number_density = %s", log_number_density)
+        logger.debug("log_stability.shape = %s", log_stability.shape)
+        logger.debug("log_stability = %s", log_stability)
 
         fugacity_constraints_: FugacityConstraints = FugacityConstraints.create(
             fugacity_constraints
@@ -1038,7 +1042,7 @@ class SolverParameters(eqx.Module):
     """Relative tolerance"""
     linear_solver: Type[AbstractLinearSolver] = QR
     """Linear solver"""
-    norm: Callable = optx.rms_norm
+    norm: Callable = optx.max_norm
     """Norm""" ""
     throw: bool = False
     """How to report any failures"""

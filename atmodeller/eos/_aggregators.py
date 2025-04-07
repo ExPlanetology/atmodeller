@@ -99,7 +99,7 @@ class CombinedRealGasABC(RealGas, ABC):
         return jnp.array(upper_pressure_bounds)
 
     @jit
-    def _get_index(self, pressure: ArrayLike) -> int:
+    def _get_index(self, pressure: ArrayLike) -> Array:
         """Gets the index of the appropriate EOS model based on `pressure`.
 
         Args:
@@ -108,17 +108,8 @@ class CombinedRealGasABC(RealGas, ABC):
         Returns:
             Index of the relevant EOS model
         """
-
-        def body_fun(carry: int, i: int) -> tuple[int, int]:
-            pressure_high: Array = lax.dynamic_index_in_dim(
-                self._upper_pressure_bounds, i, keepdims=False
-            )
-            condition: Array = jnp.greater_equal(pressure, pressure_high)
-            new_index: int = lax.cond(condition, lambda _: i + 1, lambda _: carry, None)
-            return new_index, new_index
-
-        initial_carry: int = 0
-        index, _ = lax.scan(body_fun, initial_carry, jnp.arange(len(self._upper_pressure_bounds)))  # type:ignore
+        index: Array = jnp.searchsorted(self._upper_pressure_bounds, pressure, side="right")
+        # jax.debug.print("pressure = {pressure}, index = {index}", pressure=pressure, index=index)
 
         return index
 

@@ -30,11 +30,13 @@ from typing import Any, Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from jax import Array
 from jax.tree_util import tree_map
 from jax.typing import ArrayLike
 from molmass import Formula
+from openpyxl.styles import PatternFill
 from scipy.constants import mega
 
 from atmodeller.constants import AVOGADRO
@@ -114,6 +116,11 @@ class Output:
     def condensed_species_indices(self) -> Array:
         """Condensed species indices"""
         return jnp.array(self._species.get_condensed_species_indices(), dtype=int)
+
+    @property
+    def successful_solves(self) -> npt.NDArray[np.bool_]:
+        """Cases that solved successfully"""
+        return np.array(self._first_valid_index != -1, dtype=np.bool_)
 
     @property
     def gas_species_indices(self) -> Array:
@@ -389,7 +396,7 @@ class Output:
         out: dict[str, Array] = self._get_number_density_output(
             number_density_condensed, molar_mass_condensed, "total_"
         )
-        out["molar_mass"] = molar_mass
+        out["molar_mass"] = molar_mass_condensed
         out["activity"] = activity_condensed
 
         split_dict: list[dict[str, Array]] = split_dict_by_columns(out)
@@ -822,51 +829,94 @@ class Output:
         """
         return jnp.exp(self.log_stability)
 
-    def to_dataframes(self) -> dict[str, pd.DataFrame]:
+    def _drop_unsuccessful_solves(
+        self, dataframes: dict[str, pd.DataFrame]
+    ) -> dict[str, pd.DataFrame]:
+        """Drops unsuccessful solves
+
+        Args:
+            dataframes: Dataframes from which to drop unsuccessful models
+
+        Returns:
+            Dictionary of dataframes without unsuccessful models
+        """
+        return {key: df.loc[self.successful_solves] for key, df in dataframes.items()}
+
+    def to_dataframes(self, drop_unsuccessful: bool = False) -> dict[str, pd.DataFrame]:
         """Gets the output in a dictionary of dataframes.
+
+        Args:
+            drop_unsuccessful: Drop models that did not solve. Defaults to False.
 
         Returns:
             Output in a dictionary of dataframes
         """
         if self._cached_dataframes is not None:
             logger.debug("Returning cached to_dataframes output")
-            return self._cached_dataframes  # Return cached result
+            dataframes: dict[str, pd.DataFrame] = self._cached_dataframes  # Return cached result
+        else:
+            logger.info("Computing to_dataframes output")
+            dataframes = nested_dict_to_dataframes(self.asdict())
+            self._cached_dataframes = dataframes
+            logger.debug("to_dataframes = %s", self._cached_dataframes)
 
-        logger.info("Computing to_dataframes output")
-        self._cached_dataframes = nested_dict_to_dataframes(self.asdict())
+        if drop_unsuccessful:
+            logger.info("Dropping models that did not solve")
+            dataframes: dict[str, pd.DataFrame] = self._drop_unsuccessful_solves(dataframes)
 
-        logger.debug("to_dataframes = %s", self._cached_dataframes)
+        return dataframes
 
-        return self._cached_dataframes
-
-    def to_excel(self, file_prefix: Path | str = "new_atmodeller_out") -> None:
+    def to_excel(
+        self, file_prefix: Path | str = "new_atmodeller_out", drop_unsuccessful: bool = False
+    ) -> None:
         """Writes the output to an Excel file.
 
         Args:
             file_prefix: Prefix of the output file. Defaults to new_atmodeller_out.
+            drop_unsuccessful: Drop models that did not solve. Defaults to False.
         """
         logger.info("Writing output to excel")
-        out: dict[str, pd.DataFrame] = self.to_dataframes()
+        out: dict[str, pd.DataFrame] = self.to_dataframes(drop_unsuccessful)
         output_file: Path = Path(f"{file_prefix}.xlsx")
+
+        # Convenient to highlight rows where the solver failed to find a solution for follow-up
+        # analysis
+        # Define a fill color for highlighting rows (e.g., yellow)
+        highlight_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+
+        # Get the indices where the successful_solves mask is False
+        unsuccessful_indices: npt.NDArray[np.int_] = np.where(self.successful_solves == False)[0]  # noqa: E712
 
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             for df_name, df in out.items():
                 df.to_excel(writer, sheet_name=df_name, index=True)
+                sheet = writer.sheets[df_name]
+
+                # Apply highlighting to the rows where the solver failed to find a solution
+                for idx in unsuccessful_indices:
+                    # Highlight the entire row (starting from index 2 to skip header row)
+                    for col in range(1, len(df.columns) + 2):
+                        # row=idx+2 because Excel is 1-indexed and row 1 is the header
+                        cell = sheet.cell(row=idx + 2, column=col)
+                        cell.fill = highlight_fill
 
         logger.info("Output written to %s", output_file)
 
-    def to_pickle(self, file_prefix: Path | str = "new_atmodeller_out") -> None:
+    def to_pickle(
+        self, file_prefix: Path | str = "new_atmodeller_out", drop_unsuccessful: bool = False
+    ) -> None:
         """Writes the output to a pickle file.
 
         Args:
             file_prefix: Prefix of the output file. Defaults to new_atmodeller_out.
+            drop_unsuccessful: Drop models that did not solve. Defaults to False.
         """
         logger.info("Writing output to pickle")
+        out: dict[str, pd.DataFrame] = self.to_dataframes(drop_unsuccessful)
         output_file: Path = Path(f"{file_prefix}.pkl")
-        dataframes: dict[str, pd.DataFrame] = self.to_dataframes()
 
         with open(output_file, "wb") as handle:
-            pickle.dump(dataframes, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         logger.info("Output written to %s", output_file)
 

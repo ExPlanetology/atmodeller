@@ -119,6 +119,7 @@ def select_valid_solutions(
         solver_steps = solver_steps[:, None]  # (multistarts, 1)
 
     # Find the first valid index per simulation using jnp.argmax
+    # If all multistarts failed for a given case, this will return the first index
     first_valid_index: Array = jnp.argmax(solver_status, axis=0)  # (simulations,)
     # jax.debug.print("first_valid_index = {out}", out=first_valid_index)
 
@@ -127,6 +128,14 @@ def select_valid_solutions(
     selected_steps: Array = solver_steps[first_valid_index, jnp.arange(simulations)]
     # jax.debug.print("selected_solutions = {out}", out=selected_solutions)
     # jax.debug.print("selected_steps = {out}", out=selected_steps)
+
+    # Find if there is any valid solution. This allows us to maintain the same array size
+    # (important for computing the output) whilst at the same time keeping tracking of failed cases
+    # with a -1 index. These failed cases can then later be filtered out during output, if the user
+    # desires.
+    has_valid_solution: Array = jnp.any(solver_status, axis=0)  # (simulations,)
+    first_valid_index = jnp.where(has_valid_solution, first_valid_index, -1)
+    selected_steps = jnp.where(has_valid_solution, selected_steps, 0)
 
     # Keep the same dimensions for all output, so below line is commented out
     # if not is_3d:

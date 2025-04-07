@@ -160,7 +160,31 @@ class InteriorAtmosphere:
             traced_parameters,
         )
 
-        logger.info("Solve complete")
+        num_total_models: int = len(first_valid_index)
+        num_successful_models: int = jnp.count_nonzero(first_valid_index != -1).item()
+        num_failed_models: int = jnp.count_nonzero(first_valid_index == -1).item()
+        max_valid_index: int = jnp.max(first_valid_index).item()
+
+        logger.info(f"Attempted to solve {num_total_models} models")
+
+        if num_failed_models > 0:
+            logger.warning(
+                f"Solve complete: {num_successful_models} successful models but "
+                f"{num_failed_models} models failed.\n"
+                "Try increasing 'multistart', for example:\n"
+                "    solver_parameters = SolverParameters(multistart=5)\n"
+                "and then pass solver_parameters to the solve method.\n"
+                "You can also adjust 'multistart_perturbation', for example:\n"
+                "    solver_parameters = SolverParameters(multistart=5, "
+                "multistart_perturbation=20.0)"
+            )
+        else:
+            required_multistarts: int = max(max_valid_index + 1, 1)  # Ensure it's at least 1
+            logger.info(
+                f"Solve complete: {num_successful_models} successful models\n"
+                f"The number of multistarts required was {required_multistarts}, "
+                "which can depend on the choice of the random seed"
+            )
 
     def solve_fast(
         self,
@@ -174,8 +198,7 @@ class InteriorAtmosphere:
         """Solves the system and initialises an Output instance for processing the result
 
         The idea is that this method is faster than the solve method because it does not recompile
-        the solver function each time it is called. In reality though this might not save much time
-        and benchmarking and comparison with the solve method is required.
+        the solver function each time it is called.
 
         Args:
             planet: Planet. Defaults to None.
