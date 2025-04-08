@@ -542,7 +542,12 @@ class Planet(eqx.Module):
     @property
     def mantle_mass(self) -> ArrayLike:
         """Mantle mass"""
-        return self.planet_mass * (1.0 - self.core_mass_fraction)
+        return self.planet_mass * self.mantle_mass_fraction
+
+    @property
+    def mantle_mass_fraction(self) -> ArrayLike:
+        """Mantle mass fraction"""
+        return 1 - self.core_mass_fraction
 
     @property
     def mantle_melt_mass(self) -> ArrayLike:
