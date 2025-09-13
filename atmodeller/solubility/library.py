@@ -56,6 +56,7 @@ from atmodeller.solubility._other_species import (
     N2_basalt_bernadou21,
     N2_basalt_dasgupta22,
     N2_basalt_libourel03,
+    N2_h_bearing_solubility,
     Ne_basalt_jambon86,
     Xe_basalt_jambon86,
 )
@@ -118,6 +119,7 @@ def get_solubility_models() -> dict[str, Solubility]:
     models["N2_basalt_bernadou21"] = N2_basalt_bernadou21
     models["N2_basalt_dasgupta22"] = N2_basalt_dasgupta22
     models["N2_basalt_libourel03"] = N2_basalt_libourel03
+    models["N2_h_bearing_solubility"] = N2_h_bearing_solubility
     models["Ne_basalt_jambon86"] = Ne_basalt_jambon86
     models["Ar_basalt_jambon86"] = Ar_basalt_jambon86
     models["Xe_basalt_jambon86"] = Xe_basalt_jambon86

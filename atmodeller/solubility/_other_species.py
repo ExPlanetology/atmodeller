@@ -25,6 +25,7 @@ from jaxmod.constants import GAS_CONSTANT_BAR
 from jaxmod.units import unit_conversion
 from jaxmod.utils import power_law, safe_exp
 from jaxtyping import Array, ArrayLike
+from typing import Optional
 
 from atmodeller import override
 from atmodeller.interfaces import RedoxBufferProtocol
@@ -272,4 +273,73 @@ N2_basalt_libourel03: Solubility = _N2_basalt_libourel03()
 :cite:t:`LMH03{Equation 23}`, includes dependencies on fN2 and fO2. Experiments conducted at 1
 atm and 1425 C (two experiments at 1400 C), fO2 from IW-8.3 to IW+8.7 using mixtures of CO, CO2
 and N2 gases.
+"""
+
+
+class _N2_h_bearing_solubility(Solubility):
+    """H-bearing N solubility law
+    
+    Implementation of the H-bearing nitrogen solubility law from:
+    https://pubs.acs.org/doi/full/10.1021/acsearthspacechem.5c00074
+    
+    This law accounts for the effect of hydrogen on nitrogen solubility in silicate melts.
+    Note: You need to implement the actual equation from the paper by replacing the placeholder
+    implementation below with the correct coefficients and functional form.
+    """
+
+    @override
+    def concentration(
+        self,
+        fugacity: ArrayLike,
+        *,
+        temperature: Optional[ArrayLike] = None,
+        pressure: Optional[ArrayLike] = None,
+        fO2: Optional[ArrayLike] = None,
+        **kwargs
+    ) -> Array:
+        """
+        Calculate N concentration in ppmw based on H-bearing solubility law
+        
+        Args:
+            fugacity: N2 fugacity in bar
+            temperature: Temperature in K
+            pressure: Pressure in bar (optional)
+            fO2: log10 fO2 in bar (optional)
+            
+        Returns:
+            Nitrogen concentration in ppmw
+        """
+        # TODO: Replace this placeholder with the actual equation from the paper
+        # https://pubs.acs.org/doi/full/10.1021/acsearthspacechem.5c00074
+        
+        # Placeholder implementation - you need to extract the actual equation from the paper
+        # This is just a simple power law as an example
+        temperature = temperature if temperature is not None else jnp.array(1600.0)
+        
+        # Example structure (replace with actual equation from paper):
+        # The paper likely has an equation of the form:
+        # log(C_N) = A + B/T + C*log(fN2) + D*log(fH2O) + E*log(fO2) + ...
+        
+        # Placeholder coefficients - replace with actual values from the paper
+        A = -5.0  # Replace with actual constant from paper
+        B = 10000.0  # Replace with actual temperature coefficient from paper
+        C = 0.5  # Replace with actual N2 fugacity exponent from paper
+        
+        log_concentration = A + B/temperature + C * jnp.log10(fugacity)
+        concentration = jnp.power(10, log_concentration)
+        
+        # Convert to ppmw if needed
+        ppmw = concentration * unit_conversion.percent_to_ppm
+        
+        return ppmw
+
+
+N2_h_bearing_solubility: Solubility = _N2_h_bearing_solubility()
+"""H-bearing N solubility law
+
+Implementation from https://pubs.acs.org/doi/full/10.1021/acsearthspacechem.5c00074
+Accounts for the effect of hydrogen on nitrogen solubility in silicate melts.
+
+Note: This is a placeholder implementation. You need to replace the equation in the 
+concentration method with the actual coefficients and functional form from the referenced paper.
 """
