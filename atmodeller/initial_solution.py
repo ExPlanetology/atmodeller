@@ -13,6 +13,7 @@ codebase.
 """
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 from jax import lax
 from jax.scipy.special import logsumexp
@@ -318,6 +319,44 @@ def get_stability_signal(
     return stability_signal
 
 
+def get_soft_activation(
+    parameters: Parameters, species_abundance: Float[Array, "... n_species"]
+) -> Float[Array, "... n_species"]:
+    """Computes soft activation weights for condensate species using a sigmoid function.
+
+    Args:
+        parameters: Parameters containing the reaction system information
+        species_abundance: Estimated abundance of each species, used to estimate activities
+
+    Returns:
+        Activation weights in [0, 1] for each condensate (non-condensates get 0)
+    """
+    condensate_mask: Bool[Array, " n_species"] = jnp.asarray(
+        parameters.reaction_system.phase_system.condensates_species_mask
+    )
+    stability_signal: Float[Array, "... n_reactions n_species"] = get_stability_signal(
+        parameters, species_abundance
+    )
+
+    # Mask out non-condensate species in the stability signal before max, so only real condensates
+    # can have nonzero activation
+    stability_signal = jnp.where(condensate_mask, stability_signal, -jnp.inf)
+
+    # Take the maximum stability signal for each species across all reactions
+    max_affinity: Float[Array, "... n_species"] = jnp.nanmax(stability_signal, axis=-2)
+    # jax.debug.print("max_affinity = {out}", out=max_affinity)
+
+    # Sigmoid activation: 1 / (1 + exp(-affinity)). This smoothly maps the stability signal to an
+    # activation weight between 0 and 1. Note that the RT scaling is already baked into the
+    # stability signal via log_Kp, so no additional temperature scaling is needed here.
+    activation: Float[Array, "... n_species"] = jax.nn.sigmoid(max_affinity)
+
+    # Only condensates get nonzero activation
+    activation = jnp.where(condensate_mask, activation, 0.0)
+
+    return activation
+
+
 def generate_auto_initial_guess(parameters: Parameters) -> Float[Array, "... twice_species"]:
     """Generates an automatic initial guess for the solution vector.
 
@@ -382,6 +421,13 @@ def generate_auto_initial_guess(parameters: Parameters) -> Float[Array, "... twi
             parameters, n_other
         )
         # jax.debug.print("stability_signal in stability pass = {out}", out=stability_signal)
+
+        # TODO: For debugging and testing
+        # activation_weights: Float[Array, "... n_species"] = get_soft_activation(
+        #    parameters, n_other
+        # )
+        # jax.debug.print("activation_weights in stability pass = {out}", out=activation_weights)
+
         new_predictions: Bool[Array, "... n_species"] = (
             jnp.any(stability_signal > 0, axis=-2) & condensate_mask
         )
