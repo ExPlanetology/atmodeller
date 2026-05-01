@@ -100,8 +100,8 @@ class ZhangDuan(RealGas):
         return scaled_volume
 
     @eqx.filter_jit
-    def _get_parameter(self, Tm: ArrayLike, coefficients: tuple[float, ...]) -> Array:
-        """Gets the parameter (coefficient) for polynomials involving Tm terms
+    def _get_S1_parameter(self, Tm: ArrayLike, coefficients: tuple[float, ...]) -> Array:
+        """Gets the parameter (coefficient) for the S1 term for polynomials involving Tm terms
 
         Args:
             Tm: Scaled temperature
@@ -115,6 +115,19 @@ class ZhangDuan(RealGas):
         )
 
     @eqx.filter_jit
+    def _get_S2_parameter(self, Tm: ArrayLike, coefficients: tuple[float, ...]) -> Array:
+        """Gets the parameter (coefficient) for the S2 term for polynomials involving Tm terms
+
+        Args:
+            Tm: Scaled temperature
+            coefficients: Coefficients for this term
+
+        Returns:
+            Parameter (coefficient)
+        """
+        return 2 * coefficients[1] / jnp.square(Tm) + 3 * coefficients[2] / jnp.power(Tm, 3)
+
+    @eqx.filter_jit
     def _S1(self, Tm: ArrayLike, Vm: ArrayLike) -> Array:
         """S1 term :cite:p:`ZD09{Equation 15}`
 
@@ -125,10 +138,10 @@ class ZhangDuan(RealGas):
         Returns:
             S1 term
         """
-        b: Array = self._get_parameter(Tm, self.coefficients[0:3])
-        c: Array = self._get_parameter(Tm, self.coefficients[3:6])
-        d: Array = self._get_parameter(Tm, self.coefficients[6:9])
-        e: Array = self._get_parameter(Tm, self.coefficients[9:12])
+        b: Array = self._get_S1_parameter(Tm, self.coefficients[0:3])
+        c: Array = self._get_S1_parameter(Tm, self.coefficients[3:6])
+        d: Array = self._get_S1_parameter(Tm, self.coefficients[6:9])
+        e: Array = self._get_S1_parameter(Tm, self.coefficients[9:12])
         a13: float = self.coefficients[12]
         a14: float = self.coefficients[13]
         a15: float = self.coefficients[14]
@@ -146,6 +159,40 @@ class ZhangDuan(RealGas):
         # jax.debug.print("S1 = {out}", out=S1)
 
         return S1
+
+    @eqx.filter_jit
+    def _S2(self, Tm: ArrayLike, Vm: ArrayLike) -> Array:
+        """S2 term :cite:p:`ZD09{Equation 16}`
+
+        Args:
+            Tm: Scaled temperature
+            Vm: Scaled volume
+
+        Returns:
+            S2 term
+        """
+        b: Array = self._get_S2_parameter(Tm, self.coefficients[0:3])
+        c: Array = self._get_S2_parameter(Tm, self.coefficients[3:6])
+        d: Array = self._get_S2_parameter(Tm, self.coefficients[6:9])
+        e: Array = self._get_S2_parameter(Tm, self.coefficients[9:12])
+        a13: float = self.coefficients[12]
+        a14: float = self.coefficients[13]
+        a15: float = self.coefficients[14]
+
+        S2: Array = (
+            b / Vm
+            + c / (2 * jnp.square(Vm))
+            + d / (4 * jnp.power(Vm, 4))
+            + e / (5 * jnp.power(Vm, 5))
+        ) + (
+            3
+            * a13
+            / (2 * a15 * jnp.power(Tm, 3))
+            * (a14 + 1 - (a14 + 1 + a15 / jnp.square(Vm)) * safe_exp(-a15 / jnp.square(Vm)))
+        )
+        # jax.debug.print("S2 = {out}", out=S2)
+
+        return S2
 
     @eqx.filter_jit
     def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> Array:
@@ -176,13 +223,13 @@ class ZhangDuan(RealGas):
         ptr: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
         # jax.debug.print("ptr = {ptr}", ptr=ptr)
 
-        b: ArrayLike = self._get_parameter(Tm, self.coefficients[0:3])
+        b: ArrayLike = self._get_S1_parameter(Tm, self.coefficients[0:3])
         # jax.debug.print("b = {b}", b=b)
-        c: ArrayLike = self._get_parameter(Tm, self.coefficients[3:6])
+        c: ArrayLike = self._get_S1_parameter(Tm, self.coefficients[3:6])
         # jax.debug.print("c = {c}", c=c)
-        d: ArrayLike = self._get_parameter(Tm, self.coefficients[6:9])
+        d: ArrayLike = self._get_S1_parameter(Tm, self.coefficients[6:9])
         # jax.debug.print("d = {d}", d=d)
-        e: ArrayLike = self._get_parameter(Tm, self.coefficients[9:12])
+        e: ArrayLike = self._get_S1_parameter(Tm, self.coefficients[9:12])
         # jax.debug.print("e = {e}", e=e)
 
         term1: Array = (
@@ -238,7 +285,7 @@ class ZhangDuan(RealGas):
         safe_volume: ArrayLike = ideal_volume + VOLUME_EPSILON
         Tm: ArrayLike = self._Tm(temperature)
         Vm: Array = self._Vm(safe_volume)
-        b: Array = self._get_parameter(Tm, self.coefficients[0:3])
+        b: Array = self._get_S1_parameter(Tm, self.coefficients[0:3])
 
         compressibility_factor: Array = 1 + b / Vm
         # TODO: This is ad-hoc, but works for now.
