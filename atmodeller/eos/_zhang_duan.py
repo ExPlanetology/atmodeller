@@ -9,7 +9,7 @@ from typing import ClassVar
 import equinox as eqx
 import jax.numpy as jnp
 import optimistix as optx
-from jaxtyping import Array, ArrayLike
+from jaxtyping import Array, ArrayLike, Float
 
 from atmodeller import override
 from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW, VOLUME_EPSILON
@@ -372,7 +372,141 @@ class ZhangDuan(RealGas):
         return volume_integral
 
 
-CH4_zhang09: RealGas = ZhangDuan(154, 3.691)
+def get_epsilon_berthelot_rule(species: tuple[str, ...]) -> Float[Array, "n_species n_species"]:
+    """Gets the epsilon matrix for a given set of species using the Berthelot rule.
+
+    This is a simple geometric mean, which is the standard mixing rule for parameters like the
+    Lennard-Jones energy parameter (epsilon).
+
+    Uses the mean of known values as a fallback for missing species, which is a simple approach
+    that allows the mixing rules to be applied even when some species are missing.
+
+    Args:
+        species: Tuple of species names
+
+    Returns:
+        Epsilon matrix
+    """
+    mean_epsilon: Float[Array, ""] = jnp.mean(jnp.array(list(epsilon_species.values())))
+    epsilon: Float[Array, " n_species"] = jnp.array(
+        [epsilon_species.get(sp, mean_epsilon) for sp in species]
+    )
+    epsilon_matrix: Float[Array, "n_species n_species"] = jnp.sqrt(jnp.outer(epsilon, epsilon))
+
+    return epsilon_matrix
+
+
+def get_omega_lorentz_rule(species: tuple[str, ...]) -> Float[Array, "n_species n_species"]:
+    """Gets the omega matrix for a given set of species using the Lorentz mixing rule.
+
+    This is a simple arithmetic mean, which is the standard mixing rule for parameters like the
+    Lennard-Jones diameter (omega).
+
+    Uses the mean of known values as a fallback for missing species, which is a simple approach
+    that allows the mixing rules to be applied even when some species are missing.
+
+    Args:
+        species: Tuple of species names
+
+    Returns:
+        Omega matrix
+    """
+    mean_omega: Float[Array, ""] = jnp.mean(jnp.array(list(omega_species.values())))
+    omega: Float[Array, " n_species"] = jnp.array(
+        [omega_species.get(sp, mean_omega) for sp in species]
+    )
+    omega_matrix: Float[Array, "n_species n_species"] = 0.5 * (omega[:, None] + omega[None, :])
+
+    return omega_matrix
+
+
+def get_k1_mixing_matrix(species: tuple[str, ...]) -> Float[Array, "n_species n_species"]:
+    """Gets the k1 matrix for a given set of species.
+
+    Args:
+        species: Tuple of species names
+
+    Returns:
+        k1 matrix
+    """
+    num_species: int = len(species)
+    k1_matrix: Float[Array, "n_species n_species"] = jnp.ones((num_species, num_species))
+
+    # Values from Zhang and Duan (2009) for CO2-H2O
+    k1_matrix = k1_matrix.at[species.index("CO2"), species.index("H2O")].set(0.85)
+    k1_matrix = k1_matrix.at[species.index("H2O"), species.index("CO2")].set(0.85)
+
+    # Values from Zhang and Duan (2009) for CH4-H2O
+    k1_matrix = k1_matrix.at[species.index("CH4"), species.index("H2O")].set(0.8)
+    k1_matrix = k1_matrix.at[species.index("H2O"), species.index("CH4")].set(0.8)
+
+    return k1_matrix
+
+
+def get_k2_mixing_matrix(species: tuple[str, ...]) -> Array:
+    """Gets the k2 matrix for a given set of species.
+
+    Args:
+        species: Tuple of species names
+
+    Returns:
+        k2 matrix
+    """
+    num_species: int = len(species)
+    k2_matrix: Array = jnp.ones((num_species, num_species))
+
+    # Values from Zhang and Duan (2009) for CO2-H2O
+    k2_matrix = k2_matrix.at[species.index("CO2"), species.index("H2O")].set(1.02)
+    k2_matrix = k2_matrix.at[species.index("H2O"), species.index("CO2")].set(1.02)
+
+    # Values from Zhang and Duan (2009) for CH4-H2O
+    k2_matrix = k2_matrix.at[species.index("CH4"), species.index("H2O")].set(1.0)
+    k2_matrix = k2_matrix.at[species.index("H2O"), species.index("CH4")].set(1.0)
+
+    return k2_matrix
+
+
+def binary_mixing_rule(
+    mole_fraction: Float[Array, " n_species"],
+    kn: Float[Array, "n_species n_species"],
+    arg: Float[Array, "n_species n_species"],
+) -> Array:
+    """Binary mixing rule
+
+    Args:
+        mole_fraction: Mole fraction of species
+        kn: Binary interaction parameter
+        arg: Argument to mix (e.g., epsilon or omega)
+
+    Returns:
+        Mixed argument
+    """
+    return jnp.sum(jnp.outer(mole_fraction, mole_fraction) * kn * arg)
+
+
+epsilon_species: dict[str, float] = {
+    "CH4": 154.0,
+    "H2O": 510.0,
+    "CO2": 235.0,
+    "H2": 31.2,
+    "CO": 105.6,
+    "O2": 124.5,
+    "C2H6": 246.1,
+}
+"""Epsilon values for each species (K) :cite:p:`ZD09{Table 4}`. Ensure these use Hill notation."""
+omega_species: dict[str, float] = {
+    "CH4": 3.691,
+    "H2O": 2.88,
+    "CO2": 3.79,
+    "H2": 2.93,
+    "CO": 3.66,
+    "O2": 3.36,
+    "C2H6": 4.35,
+}
+"""Omega values for each species (10\\ :sup:`-10` m) :cite:p:`ZD09{Table 4}`. Ensure these use Hill
+notation."""
+
+CH4_zhang09: RealGas = ZhangDuan(epsilon_species["CH4"], omega_species["CH4"])
 """CH4 unbounded :cite:p:`ZD09`"""
 CH4_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=273,
@@ -386,7 +520,7 @@ CH4_zhang09_bounded: RealGas = CombinedRealGas.create(
 )
 """CH4 bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-H2O_zhang09: RealGas = ZhangDuan(510, 2.88)
+H2O_zhang09: RealGas = ZhangDuan(epsilon_species["H2O"], omega_species["H2O"])
 """H2O unbounded :cite:p:`ZD09`"""
 H2O_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=673,
@@ -400,7 +534,7 @@ H2O_zhang09_bounded: RealGas = CombinedRealGas.create(
 )
 """H2O bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-CO2_zhang09: RealGas = ZhangDuan(235, 3.79)
+CO2_zhang09: RealGas = ZhangDuan(epsilon_species["CO2"], omega_species["CO2"])
 """CO2 unbounded :cite:p:`ZD09`"""
 CO2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=473,
@@ -414,7 +548,7 @@ CO2_zhang09_bounded: RealGas = CombinedRealGas.create(
 )
 
 # Tested boundedness (not the same as physical correctness) for 500<T<10000 K and 0<P<10 GPa
-H2_zhang09: RealGas = ZhangDuan(31.2, 2.93)
+H2_zhang09: RealGas = ZhangDuan(epsilon_species["H2"], omega_species["H2"])
 """H2 unbounded :cite:p:`ZD09`"""
 H2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=250,
@@ -426,7 +560,7 @@ H2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 H2_zhang09_bounded: RealGas = CombinedRealGas.create([H2_zhang09], [H2_experimental_calibration])
 """H2 bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-CO_zhang09: RealGas = ZhangDuan(105.6, 3.66)
+CO_zhang09: RealGas = ZhangDuan(epsilon_species["CO"], omega_species["CO"])
 """CO unbounded :cite:p:`ZD09`"""
 CO_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=300,
@@ -438,7 +572,7 @@ CO_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 CO_zhang09_bounded: RealGas = CombinedRealGas.create([CO_zhang09], [CO_experimental_calibration])
 """CO bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-O2_zhang09: RealGas = ZhangDuan(124.5, 3.36)
+O2_zhang09: RealGas = ZhangDuan(epsilon_species["O2"], omega_species["O2"])
 """O2 unbounded :cite:p:`ZD09`"""
 O2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=300,
@@ -450,7 +584,7 @@ O2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 O2_zhang09_bounded: RealGas = CombinedRealGas.create([O2_zhang09], [O2_experimental_calibration])
 """O2 bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-C2H6_zhang09: RealGas = ZhangDuan(246.1, 4.35)
+C2H6_zhang09: RealGas = ZhangDuan(epsilon_species["C2H6"], omega_species["C2H6"])
 """C2H6 unbounded :cite:p:`ZD09`"""
 C2H6_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=373,
