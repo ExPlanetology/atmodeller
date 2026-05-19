@@ -12,7 +12,7 @@ The hierarchy is:
 - :class:`ThinAtmospherePlanet`: pressure from thin-atmosphere mechanical balance when pressure is
   not specified
 - :class:`PressureScalingLawPlanet`: pressure from a scaling law
-  :cite:p:`Schlichting_2022{Equation 8}` when pressure is not specified
+  :cite:p:`Schlichting2022{Equation 8}` when pressure is not specified
 """
 
 from abc import abstractmethod
@@ -704,7 +704,7 @@ class PressureScalingLawPlanet(BasePlanet):
     """A planet with a scaling law for the atmospheric pressure
 
     A pressure is used if specified, otherwise it is computed from the scaling law
-    :cite:p:`Schlichting_2022{Equation 8}`:
+    :cite:p:`Schlichting2022{Equation 8}`:
 
     .. math::
         P_{\\text{surf}} = 1 \\times 10^6 \\frac{M_{\\text{atm}}}{M_{\\text{p}}} \\left( \\frac{M_\\text{p}}{M_{\\text{Earth}}}\\right)^{2/3}
