@@ -272,6 +272,10 @@ class ZhangDuan(RealGas):
     def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
         r"""Initial guess volume is the ideal gas volume plus a small epsilon
 
+        The factor of 10 biases the solver towards the largest (gas phase) root, otherwise an
+        incorrect root may be found. But this does not guarantee that the correct root will always
+        be found.
+
         Args:
             temperature: Temperature in K
             pressure: Pressure in bar
@@ -283,7 +287,7 @@ class ZhangDuan(RealGas):
         safe_volume: FloatArray = as_j64(ideal_volume + VOLUME_EPSILON)
         # jax.debug.print("initial_volume = {out}", out=safe_volume)
 
-        return safe_volume
+        return safe_volume * 10
 
     @override
     # @eqx.filter_jit
@@ -363,19 +367,27 @@ class ZhangDuanMixture(ZhangDuan):
     k2: NpFloat  # (n_species, n_species)
     epsilon_matrix: NpFloat  # (n_species, n_species)
     sigma_matrix: NpFloat  # (n_species, n_species)
+    species_index: int
 
     @override
-    def __init__(self, species: tuple[str, ...]):
+    def __init__(self, species: tuple[str, ...], species_to_output: str | None = None):
         """Initializes the mixture model.
 
         Args:
             species: Tuple of species names
+            species_to_output: Name of the species for which to output species-specific quantities,
+                such as fugacity. Defaults to ``None``.
         """
         self.species = species
         self.k1 = self.get_k1_mixing_matrix(species)
         self.k2 = self.get_k2_mixing_matrix(species)
         self.epsilon_matrix = self.get_epsilon_berthelot_rule(species)
         self.sigma_matrix = self.get_sigma_lorentz_rule(species)
+        # TODO: Hacky
+        self.species_index = (
+            species.index(species_to_output) if species_to_output is not None else 0
+        )
+        # print("species_index:", self.species_index)
         # FIXME: Hacky, but this is required to avoid errors in the base class methods that expect
         # these attributes to be defined. The actual values will be computed using the mixing
         # rules, so these are just placeholders.
@@ -393,6 +405,37 @@ class ZhangDuanMixture(ZhangDuan):
             Epsilon for the mixture
         """
         return self.binary_mixing_rule(mole_fractions, self.k1, self.epsilon_matrix)
+
+    def get_species_epsilon(
+        self, mole_fractions: Float[Array, " n_species"]
+    ) -> Float[Array, " n_species"]:
+        """Gets the epsilon values for each species in the mixture using the Berthelot mixing rule.
+
+        Args:
+            mole_fractions: Mole fractions of species in the gas phase
+
+        Returns:
+            Epsilon values for each species in the mixture
+        """
+        epsilon = jnp.sum(self.k1 * mole_fractions[None, :] * self.epsilon_matrix, axis=1)
+
+        return epsilon
+
+    def get_species_sigma(
+        self, mole_fractions: Float[Array, " n_species"]
+    ) -> Float[Array, " n_species"]:
+        """Gets the sigma values for each species in the mixture using the Lorentz mixing rule.
+
+        Args:
+            mole_fractions: Mole fractions of species in the gas phase
+
+        Returns:
+            Sigma values for each species in the mixture
+        """
+        # TODO: Zhange and Duan list this as k1, but that must be a typo(?)
+        sigma = jnp.sum(self.k2 * mole_fractions[None, :] * self.sigma_matrix, axis=1)
+
+        return sigma
 
     @override
     def get_sigma(self, mole_fractions: Float[Array, " n_species"]) -> Float[Array, ""]:
@@ -558,6 +601,53 @@ class ZhangDuanMixture(ZhangDuan):
         # jax.debug.print("Relative volume error = {out}", out=relative_volume_error)
 
         return volume
+
+    @override
+    def log_fugacity(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Float[Array, " n_species"],
+    ) -> FloatArray:
+        """Log fugacity :cite:p:`ZD09{Equation 14}`
+
+        This is for a pure species and does not include the terms to enable end member mixing.
+
+        Args:
+            temperature: Temperature in K
+            pressure: Pressure in bar
+            mole_fractions: Mole fractions of species in the gas phase
+
+        Returns:
+            Log fugacity in bar
+        """
+        volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
+        Vm: FloatArray = self._Vm(volume, mole_fractions)
+        Tm: ArrayLike = self._Tm(temperature, mole_fractions)
+        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
+        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self._S1(Tm, Vm) + Z - 1
+
+        # Extra terms for mixture
+        log_fugacity_coefficient = log_fugacity_coefficient + 2 * self._S2(Tm, Vm) * (
+            1
+            - self.get_species_epsilon(mole_fractions)[self.species_index]
+            / self.get_epsilon(mole_fractions)
+        )
+        log_fugacity_coefficient = log_fugacity_coefficient + 6 * (1 - Z) * (
+            1
+            - self.get_species_sigma(mole_fractions)[self.species_index]
+            / self.get_sigma(mole_fractions)
+        )
+
+        # TODO: Check if this is partial fugacity?
+        # TODO: Note multiplication by mole fraction
+        mole_fraction = mole_fractions[self.species_index]
+        log_fugacity: FloatArray = (
+            log_fugacity_coefficient + jnp.log(pressure) + jnp.log(mole_fraction)
+        )
+        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
+
+        return log_fugacity
 
     @staticmethod
     def get_epsilon_berthelot_rule(
