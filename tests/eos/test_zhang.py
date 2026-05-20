@@ -131,6 +131,9 @@ def test_RTlnfCO2() -> None:
 
     expected: NpArray = np.array([106.5, 114.7, 135.1, 178.1, 197.1, 215.6])
 
+    # rtol chosen to account for rounding in the expected values, which are only given to 1
+    # decimal place in the paper. The expected values are likely rounded, but the model is not,
+    # so we need to allow for some tolerance in the comparison.
     nptest.assert_allclose(RTlnfCO2, expected, rtol=3.3e-4, atol=ATOL)
 
 
@@ -143,8 +146,8 @@ def test_H2O_CO2_RTlnf_CO2_working() -> None:
     species: tuple[str, ...] = ("H2O", "CO2")
     model = ZhangDuanMixture(species)
 
-    pressure = np.array([500, 700, 1000, 1630, 1920, 2200]) * 10  # 500 MPa
-    temperature = np.array([1298, 1278, 1373, 1600, 1700, 1800])  # 1573.15
+    pressure = np.array([500, 700, 1000, 1630, 1920, 2200]) * 10
+    temperature = np.array([1298, 1278, 1373, 1600, 1700, 1800])
 
     mole_fractions = jnp.array([0.875, 0.125])
     # mole_fractions = jnp.array([1.0, 0.0])
@@ -161,7 +164,7 @@ def test_H2O_CO2_RTlnf_CO2_working() -> None:
     print("Pure RTlnf (H2O):", RTlnfH2O)
 
     model_CO2 = get_eos_models()["CO2_zhang09"]
-    volume = model_CO2.volume(temperature, pressure)
+    volume = model_CO2.volume(temperature, pressure)  # type: ignore
     print("Pure volume (CO2):", volume)
     log_fugacity_CO2 = model_CO2.log_fugacity(temperature, pressure)
     print("Pure log_fugacity (CO2):", log_fugacity_CO2)
