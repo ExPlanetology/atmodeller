@@ -20,7 +20,7 @@ from jaxtyping import Array, ArrayLike
 from atmodeller import override
 from atmodeller.constants import STANDARD_FUGACITY
 from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
-from atmodeller.jax_utils import OptxSolver, as_j64, safe_exp, to_native_floats
+from atmodeller.jax_utils import FloatArray, OptxSolver, as_j64, safe_exp, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
 from atmodeller.thermodata import CriticalData
 
@@ -39,82 +39,89 @@ class RealGasBase(eqx.Module):
         """Log fugacity
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Log fugacity in bar
         """
 
-    @eqx.filter_jit
     def fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Fugacity
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Fugacity in bar
         """
         return safe_exp(self.log_fugacity(temperature, pressure))
 
-    @eqx.filter_jit
     def log_fugacity_coefficient(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Log fugacity coefficient
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Log fugacity coefficient, which is dimensionless
         """
         return self.log_fugacity(temperature, pressure) - jnp.log(pressure)
 
-    @eqx.filter_jit
     def fugacity_coefficient(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Fugacity coefficient
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             fugacity coefficient, which is dimensionless
         """
         return safe_exp(self.log_fugacity_coefficient(temperature, pressure))
 
-    @eqx.filter_jit
-    def log_activity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def log_activity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: FloatArray | None = None
+    ) -> Array:
         """Log activity
 
+        This is the primary access point for calling the EOS within the main engine. Most EOSs
+        describe a pure phase and therefore do not require mole fractions. The default behaviour
+        is to ignore mole fractions, but the argument is retained so that subclasses can override
+        this method when mole fraction dependence is needed.
+
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log activity, which is dimensionless
         """
+        del mole_fractions
+
         return self.log_fugacity(temperature, pressure) - jnp.log(STANDARD_FUGACITY)
 
-    @eqx.filter_jit
     def pressure_from_fugacity(self, temperature: ArrayLike, fugacity: ArrayLike) -> Array:
         """Calculate pressure from fugacity
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
             fugacity: Fugacity in bar
 
         Returns:
-            Pressure in bar
+            Pressure (bar)
         """
 
         def objective_function(pressure: ArrayLike, kwargs: dict[str, ArrayLike]) -> Array:
             """Objective function to solve for pressure
 
             Args:
-                pressure: Pressure in bar
+                pressure: Pressure (bar)
                 kwargs: Dictionary with other required parameters
 
             Returns:
@@ -155,8 +162,8 @@ class RealGas(RealGasBase):
         r"""Volume
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
@@ -167,21 +174,20 @@ class RealGas(RealGasBase):
         r"""Volume integral in units required for internal Atmodeller operations.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
         """
 
     @override
-    @eqx.filter_jit
     def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Log fugacity
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Log fugacity in bar
@@ -192,26 +198,24 @@ class RealGas(RealGasBase):
 
         return log_fugacity
 
-    @eqx.filter_jit
     def volume_integral_J(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Volume integral in J
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume integral in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
         """
         return 1e5 * self.volume_integral(temperature, pressure)
 
-    @eqx.filter_jit
     def dzdp(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Derivative of the compressibility factor with respect to pressure
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Derivative of the compressibility factor with respect to pressure
@@ -222,13 +226,12 @@ class RealGas(RealGasBase):
 
         return dzdp_fn(temperature, pressure)
 
-    @eqx.filter_jit
     def dvdp(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Derivative of volume with respect to pressure
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Derivative of volume with respect to pressure
@@ -239,13 +242,12 @@ class RealGas(RealGasBase):
 
         return dvdp_fn(temperature, pressure)
 
-    @eqx.filter_jit
     def compressibility_factor(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         """Compressibility factor
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Compressibility factor, which is dimensionless
@@ -269,12 +271,10 @@ class IdealGas(RealGas):
     """
 
     @override
-    @eqx.filter_jit
     def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         return GAS_CONSTANT_BAR * temperature / pressure
 
     @override
-    @eqx.filter_jit
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         return jnp.log(pressure) * GAS_CONSTANT_BAR * temperature
 
@@ -298,8 +298,8 @@ class RedlichKwongABC(RealGas):
         r"""Gets the `a` parameter
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             `a` parameter in
@@ -315,13 +315,12 @@ class RedlichKwongABC(RealGas):
         """
 
     @override
-    @eqx.filter_jit
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Volume integral
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
@@ -343,7 +342,6 @@ class RedlichKwongABC(RealGas):
         return volume_integral
 
     @override
-    @eqx.filter_jit
     def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Volume-explicit equation :cite:p:`HP91{Equation 7}`
 
@@ -358,8 +356,8 @@ class RedlichKwongABC(RealGas):
         :math:`P` is pressure, and :math:`b` corrects for the volume.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
@@ -397,21 +395,20 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
         r"""Initial guess volume for the solution to ensure convergence to the correct root
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Initial volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
         """
         ...
 
-    @eqx.filter_jit
     def A_factor(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         """`A` factor :cite:p:`HP91{Appendix A}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             `A` factor, which is dimensionless
@@ -422,13 +419,12 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
 
         return A_factor
 
-    @eqx.filter_jit
     def B_factor(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         """`B` factor :cite:p:`HP91{Appendix A}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             `B` factor, which is dimensionless
@@ -438,13 +434,12 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
         return B_factor
 
     @override
-    @eqx.filter_jit
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Volume integral :cite:p:`HP91{Equation A.2}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
@@ -455,13 +450,12 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
         return volume_integral
 
     @override
-    @eqx.filter_jit
     def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Log fugacity
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Log fugacity
@@ -475,7 +469,6 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
 
         return log_fugacity
 
-    @eqx.filter_jit
     def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> Array:
         r"""Objective function to solve for the volume
 
@@ -506,13 +499,12 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
         return residual
 
     @override
-    @eqx.filter_jit
     def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Solves the RK equation numerically to compute the volume.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
@@ -540,8 +532,8 @@ class RedlichKwongImplicitDenseFluidABC(RedlichKwongImplicitABC):
         For the dense fluid phase a suitably low value must be chosen :cite:p:`HP91{Appendix}`.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Initial volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
@@ -564,8 +556,8 @@ class RedlichKwongImplicitGasABC(RedlichKwongImplicitABC):
         For the gaseous phase a suitably high value must be chosen :cite:p:`HP91{Appendix}`.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Initial volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
@@ -608,14 +600,13 @@ class VirialCompensation(eqx.Module):
     P0: float = eqx.field(converter=float)
     """Pressure at which the MRK equation begins to overestimate the molar volume significantly"""
 
-    @eqx.filter_jit
     def _a(self, temperature: ArrayLike, critical_data: CriticalData) -> Array:
         r"""`a` parameter :cite:p:`HP98`
 
         This is also the `d` parameter in :cite:t:`HP91`.
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
             critical_data: Critical data
 
         Returns:
@@ -629,14 +620,13 @@ class VirialCompensation(eqx.Module):
 
         return a
 
-    @eqx.filter_jit
     def _b(self, temperature: ArrayLike, critical_data: CriticalData) -> Array:
         r"""`b` parameter :cite:p:`HP98`
 
         This is also the `c` parameter in :cite:t:`HP91`.
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
             critical_data: Critical data
 
         Returns:
@@ -650,12 +640,11 @@ class VirialCompensation(eqx.Module):
 
         return b
 
-    @eqx.filter_jit
     def _c(self, temperature: ArrayLike, critical_data: CriticalData) -> Array:
         r"""`c` parameter :cite:p:`HP98`
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
             critical_data: Critical data
 
         Returns:
@@ -669,12 +658,11 @@ class VirialCompensation(eqx.Module):
 
         return c
 
-    @eqx.filter_jit
     def _delta_pressure(self, pressure: ArrayLike) -> Array:
         """Pressure difference
 
         Args:
-            pressure: Pressure in bar
+            pressure: Pressure (bar)
 
         Returns:
             Pressure difference relative to :attr:`P0` in bar
@@ -692,15 +680,14 @@ class VirialCompensation(eqx.Module):
 
         return delta_pressure
 
-    @eqx.filter_jit
     def volume(
         self, temperature: ArrayLike, pressure: ArrayLike, critical_data: CriticalData
     ) -> Array:
         r"""Volume contribution
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
             critical_data: Critical data
 
         Returns:
@@ -715,15 +702,14 @@ class VirialCompensation(eqx.Module):
 
         return volume
 
-    @eqx.filter_jit
     def volume_integral(
         self, temperature: ArrayLike, pressure: ArrayLike, critical_data: CriticalData
     ) -> Array:
         r"""Volume integral :math:`V dP` contribution
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
             critical_data: Critical data
 
         Returns:
@@ -762,13 +748,12 @@ class CORK(RealGas):
     """Critical data"""
 
     @override
-    @eqx.filter_jit
     def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Volume :cite:p:`HP91{Equation 7a}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
@@ -780,13 +765,12 @@ class CORK(RealGas):
         return volume
 
     @override
-    @eqx.filter_jit
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Volume integral :cite:p:`HP91{Equation 8}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
