@@ -24,8 +24,7 @@ class RedoxBuffer(eqx.Module):
     Args:
         log10_shift: Log10 shift relative to the buffer. Defaults to zero.
         evaluation_pressure: Pressure (bar) to evaluate the buffer at. Defaults to 1 bar. If
-        ``None``, then the total pressure will be used, but this can give rise to multiple
-            solutions and should be used with caution.
+        ``None``, then the total pressure will be used.
     """
 
     log10_shift: Float[Array, "..."]
@@ -138,8 +137,7 @@ class IronWustiteBufferHirschmann08(RedoxBuffer):
     Args:
         log10_shift: Log10 shift relative to the buffer. Defaults to zero.
         evaluation_pressure: Pressure (bar) to evaluate the buffer at. Defaults to 1 bar. If
-            ``None``, then the total pressure will be used, but this can give rise to multiple
-            solutions and should be used with caution.
+            ``None``, then the total pressure will be used.
     """
 
     calibration: ExperimentalCalibration
@@ -186,8 +184,7 @@ class IronWustiteBufferHirschmann21(RedoxBuffer):
     Args:
         log10_shift: Log10 shift relative to the buffer. Defaults to zero.
         evaluation_pressure: Pressure (bar) to evaluate the buffer at. Defaults to 1 bar. If
-            ``None``, then the total pressure will be used, but this can give rise to multiple
-            solutions and should be used with caution.
+            ``None``, then the total pressure will be used.
     """
 
     calibration: ExperimentalCalibration
@@ -356,8 +353,7 @@ class IronWustiteBufferHirschmann(RedoxBuffer):
     Args:
         log10_shift: Log10 shift relative to the buffer. Defaults to 0.
         evaluation_pressure: Pressure (bar) to evaluate the buffer at. Defaults to 1 bar. If
-            ``None``, then the total pressure will be used, but this can give rise to multiple
-            solutions and should be used with caution.
+            ``None``, then the total pressure will be used.
     """
 
     calibration: ExperimentalCalibration
