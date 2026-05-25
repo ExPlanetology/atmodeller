@@ -669,7 +669,7 @@ class GasPhaseOutput(PhaseOutput["GasPhase"]):
 
         def with_oxygen() -> Float[Array, "#n_batch 1"]:
             log10_fugacity = jnp.log10(self.species_activity[..., O2_index.astype(int)])
-            buffer: RedoxBufferProtocol = IronWustiteBuffer()
+            buffer: RedoxBufferProtocol = IronWustiteBuffer(evaluation_pressure=None)
             buffer_at_P = buffer.log10_fugacity(self._temperature, self._pressure)
             log10_shift_at_P = log10_fugacity - buffer_at_P
             return jnp.expand_dims(log10_shift_at_P, axis=-1)
