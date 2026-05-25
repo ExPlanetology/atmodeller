@@ -135,12 +135,15 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         ]
 
         def apply_log_activity(
-            index: Integer[Array, ""], temperature: FloatArray, pressure: FloatArray
+            index: Integer[Array, ""],
+            temperature: FloatArray,
+            pressure: FloatArray,
+            mole_fractions: FloatArray,
         ) -> FloatArray:
-            return lax.switch(index, log_activity_funcs, temperature, pressure)
+            return lax.switch(index, log_activity_funcs, temperature, pressure, mole_fractions)
 
         self.vmap_log_activity = eqx.filter_vmap(
-            apply_log_activity, in_axes=(0, None, None), out_axes=-1
+            apply_log_activity, in_axes=(0, None, None, None), out_axes=-1
         )
 
         logger.info(
@@ -189,7 +192,7 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         temperature: FloatArray,
         pressure: FloatArray,
     ) -> Float[Array, "... n_species"]:
-        """Gets the log activity of each species in the phase
+        """Gets the log activity of each species in the phase.
 
         Args:
             log_number_moles: Log number of moles of each species in the phase
@@ -202,14 +205,19 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         if self.is_empty:
             return jnp.zeros_like(log_number_moles)
 
-        # Log activity coefficient of pure species
-        log_activity: Float[Array, "... n_species"] = self.vmap_log_activity(
-            jnp.arange(self.species.number_species), temperature, pressure
-        )
-        log_mole_fraction: Float[Array, "... n_species"] = self.get_log_mole_fraction(
+        log_mole_fractions: Float[Array, "... n_species"] = self.get_log_mole_fraction(
             log_number_moles
         )
-        log_activity: Float[Array, "... n_species"] = log_activity + log_mole_fraction
+        # jax.debug.print("before log_activity: log_mole_fractions = {out}", out=log_mole_fractions)
+
+        # Log activity coefficient of pure species
+        log_activity: Float[Array, "... n_species"] = self.vmap_log_activity(
+            jnp.arange(self.species.number_species),
+            temperature,
+            pressure,
+            jnp.exp(log_mole_fractions),
+        )
+        log_activity: Float[Array, "... n_species"] = log_activity + log_mole_fractions
 
         return log_activity
 
