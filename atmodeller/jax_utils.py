@@ -9,7 +9,7 @@ batch handling, and linear algebra helpers for use with JAX, NumPy, and related 
 designed to be standalone and does not depend on other modules within the atmodeller package.
 """
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any, Literal, TypeAlias
 
 import jax
@@ -383,3 +383,21 @@ def max_norm(
         L-infinity norm
     """
     return jnp.linalg.norm(objective_function(solution, parameters), ord=jnp.inf, axis=-1)
+
+
+def stack_broadcast(arrays: Sequence[Array], axis: int = -1) -> Array:
+    """Broadcasts a sequence of arrays to a common shape and stacks them.
+
+    Args:
+        arrays: sequence of arrays with identical trailing semantics but possibly different leading
+            batch shapes.
+        axis: axis along which to stack after broadcasting. Defaults to ``-1`` (last axis).
+
+    Returns:
+        Stacked array with broadcasted leading dimensions.
+    """
+    shapes: list[tuple[int, ...]] = [arr.shape for arr in arrays]
+    target_shape: tuple[int, ...] = jnp.broadcast_shapes(*shapes)
+    arrays_: list[Array] = [jnp.broadcast_to(arr, target_shape) for arr in arrays]
+
+    return jnp.stack(arrays_, axis=axis)
