@@ -49,18 +49,25 @@ class ActivityCoefficient(eqx.Module):
         """
         return jnp.full_like(self.gamma, False, dtype=jnp.bool_)
 
-    def log_activity(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
+    def log_activity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: FloatArray | None = None
+    ) -> FloatArray:
         """Log of the activity coefficient (dimensionless).
+
+        This is the primary access point for calling the EOS within the main engine so must adhere
+        to the expected interface for activity.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
+            mole_fractions: Mole fractions. Defaults to ``None`` if unused.
 
         Returns:
             Log activity coefficient
         """
         del temperature
         del pressure
+        del mole_fractions
 
         return jnp.log(self.gamma)
 
