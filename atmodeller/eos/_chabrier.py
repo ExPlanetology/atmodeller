@@ -15,7 +15,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import pandas as pd
 from jax.scipy.interpolate import RegularGridInterpolator
-from jaxtyping import Array, ArrayLike, Float
+from jaxtyping import ArrayLike, Float
 from molmass import Formula
 
 from atmodeller import override
@@ -23,7 +23,7 @@ from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos import DATA_DIRECTORY
 from atmodeller.eos._aggregators import CombinedRealGas, CombinedRealGasFugacity
 from atmodeller.eos.core import IdealGas, RealGas, RealGasBase
-from atmodeller.jax_utils import as_j64, to_native_floats
+from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -118,31 +118,30 @@ class Chabrier(RealGas):
                 skiprows=2,
             )
         pivot_table: pd.DataFrame = df.pivot(index=T_name, columns=P_name, values=rho_name)
-        log_T: Array = jnp.array(pivot_table.index.to_numpy())
-        log_P: Array = jnp.array(pivot_table.columns.to_numpy())
-        log_rho: Array = jnp.array(pivot_table.to_numpy())
+        log_T: FloatArray = jnp.array(pivot_table.index.to_numpy())
+        log_P: FloatArray = jnp.array(pivot_table.columns.to_numpy())
+        log_rho: FloatArray = jnp.array(pivot_table.to_numpy())
 
         interpolator: RegularGridInterpolator = RegularGridInterpolator(
             (log_T, log_P), log_rho, method="linear"
         )
 
-        def interpolator_hashable_function_wrapper(x) -> Array:
+        def interpolator_hashable_function_wrapper(x) -> FloatArray:
             """Converts interpolator to a hashable function"""
             return interpolator(x)
 
         return interpolator_hashable_function_wrapper
 
-    @eqx.filter_jit
-    def _convert_to_molar_density(self, log10_density_gcc: ArrayLike) -> Array:
+    def _convert_to_molar_density(self, log10_density_gcc: ArrayLike) -> FloatArray:
         r"""Converts density to molar density
 
         Args:
-            log10_density_gcc: Log10 density in g/cc
+            log10_density_gcc: Log10 density (g/cc)
 
         Returns:
-            Molar density in :math:`\mathrm{mol}\mathrm{m}^{-3}`
+            Molar density (:math:`\mathrm{mol}\mathrm{m}^{-3}`)
         """
-        molar_density: Array = jnp.power(10, log10_density_gcc) / unit_conversion.cm3_to_m3
+        molar_density: FloatArray = jnp.power(10, log10_density_gcc) / unit_conversion.cm3_to_m3
         composition_factor: float = (
             self.He_molar_mass_g_mol * self.He_fraction
             + self.H2_molar_mass_g_mol * (1 - self.He_fraction)
@@ -168,8 +167,9 @@ class Chabrier(RealGas):
         return He_fraction_map
 
     @override
-    @eqx.filter_jit
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Log fugacity
 
         This performs a numerical integration to compute the fugacity, although an obvious
@@ -177,64 +177,75 @@ class Chabrier(RealGas):
         during initialisation or by storing it in a lookup table that is read in.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Log fugacity in bar
+            Log fugacity (bar)
         """
+        del mole_fractions
+
         # pressure = eqx.error_if(
         #    jnp.asarray(pressure), jnp.asarray(pressure) <= 0, "pressure must be positive"
         # )
         temperature = as_j64(temperature)
-        log10_pressure: Array = jnp.log10(pressure)
+        log10_pressure: FloatArray = jnp.log10(pressure)
         temperature, log10_pressure = jnp.broadcast_arrays(temperature, log10_pressure)
 
         # Pressure range to integrate over
-        pressures: Array = jnp.logspace(
+        pressures: FloatArray = jnp.logspace(
             jnp.log10(STANDARD_PRESSURE), log10_pressure, num=self.integration_steps
         )
         # jax.debug.print("log10_pressure = {out}", out=log10_pressure)
         # pressures = eqx.error_if(pressures, jnp.any(pressures <= 0), "pressures must not be zero")
         # jax.debug.print("pressures.shape = {out}", out=pressures.shape)
-        dP: Array = jnp.diff(pressures, axis=0)
+        dP: FloatArray = jnp.diff(pressures, axis=0)
         # jax.debug.print("dP.shape = {out}", out=dP.shape)
         # dP = eqx.error_if(dP, jnp.any(dP <= 0), "dP must be positive")
 
-        volumes: Array = self.volume(temperature, pressures)
+        volumes: FloatArray = self.volume(temperature, pressures)
         # volumes = eqx.error_if(volumes, jnp.any(jnp.isnan(volumes)), "volume must not be nan")
         # jax.debug.print("volumes.shape = {out}", out=volumes.shape)
-        avg_volumes: Array = (volumes[:-1] + volumes[1:]) * 0.5
+        avg_volumes: FloatArray = (volumes[:-1] + volumes[1:]) * 0.5
         # jax.debug.print("avg_volumes.shape = {out}", out=avg_volumes.shape)
 
         # Trapezoid integration
-        volume_integral: Array = jnp.sum(avg_volumes * dP, axis=0)
+        volume_integral: FloatArray = jnp.sum(avg_volumes * dP, axis=0)
         # jax.debug.print("volume_integral = {out}", out=volume_integral)
         # jax.debug.print("volume_integral.shape = {out}", out=volume_integral.shape)
 
-        log_fugacity: Array = volume_integral / (GAS_CONSTANT_BAR * temperature)
+        log_fugacity: FloatArray = volume_integral / (GAS_CONSTANT_BAR * temperature)
         # jax.debug.print("log_fugacity = {out}", out=log_fugacity)
 
         return log_fugacity
 
     @override
-    @eqx.filter_jit
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        log10_density_gcc: Array = self.log10_density_func(
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        del mole_fractions
+
+        log10_density_gcc: FloatArray = self.log10_density_func(
             (jnp.log10(temperature), jnp.log10(unit_conversion.bar_to_GPa * pressure))
         )
         # jax.debug.print("log10_density_gcc = {out}", out=log10_density_gcc)
-        molar_density: Array = self._convert_to_molar_density(log10_density_gcc)
-        volume: Array = jnp.reciprocal(molar_density)
+        molar_density: FloatArray = self._convert_to_molar_density(log10_density_gcc)
+        volume: FloatArray = jnp.reciprocal(molar_density)
         # jax.debug.print("volume = {out}", out=volume)
 
         return volume
 
     @override
-    @eqx.filter_jit
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        log_fugacity: Array = self.log_fugacity(temperature, pressure)
-        volume_integral: Array = log_fugacity * GAS_CONSTANT_BAR * temperature
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        del mole_fractions
+
+        log_fugacity: FloatArray = self.log_fugacity(temperature, pressure)
+        volume_integral: FloatArray = log_fugacity * GAS_CONSTANT_BAR * temperature
 
         return volume_integral
 
@@ -252,31 +263,42 @@ class ChabrierFunction(RealGasBase):
     coeffs: tuple[float, ...] = eqx.field(converter=to_native_floats)
 
     @override
-    @eqx.filter_jit
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        return self.log_fugacity_coefficient(temperature, pressure) + jnp.log(pressure)
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        return self.log_fugacity_coefficient(temperature, pressure, mole_fractions) + jnp.log(
+            pressure
+        )
 
     @override
-    @eqx.filter_jit
-    def log_fugacity_coefficient(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def log_fugacity_coefficient(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Log fugacity coefficient
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity coefficient, which is dimensionless
         """
+        del mole_fractions
+
         _, logP = jnp.broadcast_arrays(jnp.log(temperature), jnp.log(pressure))
-        c: Float[Array, " coeffs"] = jnp.array(self.coeffs)
+        c: Float[FloatArray, " coeffs"] = jnp.array(self.coeffs)
 
         # The chosen functional form is empirical, but by construction recovers a unity fugacity
         # coefficient at 1 bar. The c[0]*exp(c[1]*logP) term captures the overall exponential
         # behavior, while the c[2] + c[3]*logP terms provide additional flexibility to fit the data
         # more accurately before the exponential term dominates at higher pressures.
         # The terms are calculated and summed term-by-term to ensure broadcasting works correctly.
-        log_fugacity_coefficient: Array = logP * (c[0] * jnp.exp(c[1] * logP) + c[2] + c[3] * logP)
+        log_fugacity_coefficient: FloatArray = logP * (
+            c[0] * jnp.exp(c[1] * logP) + c[2] + c[3] * logP
+        )
 
         return log_fugacity_coefficient
 
