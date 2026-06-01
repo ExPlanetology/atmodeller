@@ -31,68 +31,72 @@ class RealGasBase(eqx.Module):
     """A real gas equation of state (EOS) without volume calculations"""
 
     @abstractmethod
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Log fugacity
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity (bar)
         """
 
-    def fugacity(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Fugacity
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Fugacity (bar)
         """
-        return safe_exp(self.log_fugacity(temperature, pressure, *args))
+        return safe_exp(self.log_fugacity(temperature, pressure, mole_fractions))
 
     def log_fugacity_coefficient(
-        self, temperature: ArrayLike, pressure: ArrayLike, *args
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         """Log fugacity coefficient
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity coefficient, which is dimensionless
         """
-        return self.log_fugacity(temperature, pressure, *args) - jnp.log(pressure)
+        return self.log_fugacity(temperature, pressure, mole_fractions) - jnp.log(pressure)
 
     def fugacity_coefficient(
-        self, temperature: ArrayLike, pressure: ArrayLike, *args
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         """Fugacity coefficient
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             fugacity coefficient, which is dimensionless
         """
-        return safe_exp(self.log_fugacity_coefficient(temperature, pressure, *args))
+        return safe_exp(self.log_fugacity_coefficient(temperature, pressure, mole_fractions))
 
     def log_activity(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
@@ -132,79 +136,89 @@ class RealGas(RealGasBase):
     """
 
     @abstractmethod
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> ArrayLike:
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""Volume
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
 
     @abstractmethod
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         r"""Volume integral in units required for internal Atmodeller operations.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
 
     @override
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Log fugacity
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity (bar)
         """
-        log_fugacity: FloatArray = self.volume_integral(temperature, pressure, *args) / (
+        log_fugacity: FloatArray = self.volume_integral(temperature, pressure, mole_fractions) / (
             GAS_CONSTANT_BAR * temperature
         )
 
         return log_fugacity
 
-    def volume_integral_J(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def volume_integral_J(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         r"""Volume integral in J
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Volume integral (:math:`\mathrm{J}\ \mathrm{mol}^{-1}`)
         """
-        return 1e5 * self.volume_integral(temperature, pressure, *args)
+        return 1e5 * self.volume_integral(temperature, pressure, mole_fractions)
 
-    def dzdp(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def dzdp(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Derivative of the compressibility factor with respect to pressure
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Derivative of the compressibility factor with respect to pressure
@@ -214,17 +228,19 @@ class RealGas(RealGasBase):
         # TODO: use Equinox equivalent instead of native JAX?
         dzdp_fn: Callable = jacfwd(self.compressibility_factor, argnums=1)
 
-        return dzdp_fn(temperature, pressure, *args)
+        return dzdp_fn(temperature, pressure, mole_fractions)
 
-    def dvdp(self, temperature: ArrayLike, pressure: ArrayLike, *args) -> FloatArray:
+    def dvdp(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Derivative of volume with respect to pressure
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Derivative of volume with respect to pressure
@@ -234,24 +250,24 @@ class RealGas(RealGasBase):
         # TODO: use Equinox equivalent instead of native JAX?
         dvdp_fn: Callable = jacfwd(self.volume, argnums=1)
 
-        return dvdp_fn(temperature, pressure, *args)
+        return dvdp_fn(temperature, pressure, mole_fractions)
 
     def compressibility_factor(
-        self, temperature: ArrayLike, pressure: ArrayLike, *args
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> ArrayLike:
         """Compressibility factor
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            *args: Additional arguments that may be required by specific EOSs, e.g. mole fractions
-                for non-pure phases. These are ignored by default but retained so that overriding
-                subclasses can use them when needed.
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Compressibility factor, which is dimensionless
         """
-        volume: ArrayLike = self.volume(temperature, pressure, *args)
+        volume: ArrayLike = self.volume(temperature, pressure, mole_fractions)
         volume_ideal: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
         compressibility_factor: ArrayLike = volume / volume_ideal
 
