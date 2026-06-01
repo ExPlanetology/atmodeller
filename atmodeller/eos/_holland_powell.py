@@ -258,24 +258,18 @@ class MRKCorrespondingStatesHP91(RedlichKwongABC):
         return cls(critical_data)
 
     @override
-    def a(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""MRK `a` parameter :cite:p:`HP91{Equation 9}`
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             MRK `a` parameter
             (:math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`)
         """
         del pressure
-        del mole_fractions
 
         a: ArrayLike = (
             self._a_coefficients[0] * jnp.power(self.critical_temperature, (5.0 / 2))
@@ -291,21 +285,12 @@ class MRKCorrespondingStatesHP91(RedlichKwongABC):
         return a
 
     @override
-    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
+    def b(self) -> ArrayLike:
         r"""MRK `b` parameter computed from :attr:`b0` :cite:p:`HP91{Equation 9}`.
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             MRK `b` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        del mole_fractions
-
         b: ArrayLike = self._b * self.critical_temperature / self.critical_pressure
 
         return b
@@ -340,23 +325,17 @@ class MRKImplicitHP91ABCMixin(eqx.Module):
         """
         ...
 
-    def a(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""MRK `a` parameter :cite:p:`HP91{Equation 6}`
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             MRK `a` parameter
         """
         del pressure
-        del mole_fractions
 
         delta_temperature: ArrayLike = self.delta_temperature_for_a(temperature)
         a: ArrayLike = (
@@ -368,8 +347,7 @@ class MRKImplicitHP91ABCMixin(eqx.Module):
 
         return a
 
-    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
-        del mole_fractions
+    def b(self) -> ArrayLike:
 
         return self._b
 
@@ -423,9 +401,7 @@ class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFlu
         return temperature - self._Ta
 
     @override
-    def initial_volume(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Initial guess volume to ensure convergence to the correct root
 
         See :cite:t:`HP91{Appendix}`. It appears that there is only ever a single root, even if
@@ -436,19 +412,16 @@ class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFlu
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
 
         def low_temperature_case() -> ArrayLike:
-            return self.b(mole_fractions) / 2
+            return self.b() / 2
 
         def high_temperature_case() -> ArrayLike:
-            return GAS_CONSTANT_BAR * temperature / pressure + self.b(mole_fractions)
+            return GAS_CONSTANT_BAR * temperature / pressure + self.b()
 
         initial_volume: Array = jnp.where(
             temperature < jnp.array(self._Tc), low_temperature_case(), high_temperature_case()
