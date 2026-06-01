@@ -29,6 +29,9 @@ class CombinedRealGas(RealGas):
     This class computes the contribution to the volume integral separately for each EOS based on
     the range covered by its P-T calibration, and then combines them.
 
+    Note:
+        This is not presently compatible with batched mole_fractions.
+
     Args:
         real_gases: Real gases to combine
         calibrations: Experimental calibrations that correspond to ``real_gases``
@@ -173,8 +176,6 @@ class CombinedRealGas(RealGas):
     def volume(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> ArrayLike:
-        # TODO: This will likely break for batched mole_fractions. More logic/broadcasting will be
-        # needed.
         temperature, pressure = jnp.broadcast_arrays(temperature, pressure)
         original_shape: tuple[int, ...] = temperature.shape
         # jax.debug.print("temperature = {out}", out=temperature)
@@ -201,8 +202,6 @@ class CombinedRealGas(RealGas):
     def volume_integral(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
-        # TODO: This will likely break for batched mole_fractions. More logic/broadcasting will be
-        # needed.
         index: Array = self._get_index(pressure)
 
         def compute_integral(
@@ -416,6 +415,7 @@ class UpperBoundRealGas(RealGas):
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         del mole_fractions
+
         volume_integral: FloatArray = (
             (
                 jnp.log(pressure / self.p_eval)
