@@ -234,12 +234,12 @@ class MRKCorrespondingStatesHP91(RedlichKwongABC):
 
     @property
     def critical_pressure(self) -> float:
-        """Critical pressure in bar"""
+        """Critical pressure (bar)"""
         return self.critical_data.pressure
 
     @property
     def critical_temperature(self) -> float:
-        """Critical temperature in K"""
+        """Critical temperature (K)"""
         return self.critical_data.temperature
 
     @classmethod
@@ -258,19 +258,24 @@ class MRKCorrespondingStatesHP91(RedlichKwongABC):
         return cls(critical_data)
 
     @override
-    @eqx.filter_jit
-    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def a(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""MRK `a` parameter :cite:p:`HP91{Equation 9}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            MRK `a` parameter in
-            :math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`
+            MRK `a` parameter
+            (:math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`)
         """
         del pressure
+        del mole_fractions
 
         a: ArrayLike = (
             self._a_coefficients[0] * jnp.power(self.critical_temperature, (5.0 / 2))
@@ -286,17 +291,21 @@ class MRKCorrespondingStatesHP91(RedlichKwongABC):
         return a
 
     @override
-    @eqx.filter_jit
-    def b(self) -> ArrayLike:
+    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
         r"""MRK `b` parameter computed from :attr:`b0` :cite:p:`HP91{Equation 9}`.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            MRK `b` parameter in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`.
+            MRK `b` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
+        del mole_fractions
+
         b: ArrayLike = self._b * self.critical_temperature / self.critical_pressure
 
         return b
@@ -324,25 +333,30 @@ class MRKImplicitHP91ABCMixin(eqx.Module):
         """Temperature difference for the calculation of the `a` parameter
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
 
         Returns:
-            Temperature difference in K
+            Temperature difference (K)
         """
         ...
 
-    @eqx.filter_jit
-    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def a(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""MRK `a` parameter :cite:p:`HP91{Equation 6}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             MRK `a` parameter
         """
         del pressure
+        del mole_fractions
 
         delta_temperature: ArrayLike = self.delta_temperature_for_a(temperature)
         a: ArrayLike = (
@@ -354,8 +368,9 @@ class MRKImplicitHP91ABCMixin(eqx.Module):
 
         return a
 
-    @eqx.filter_jit
-    def b(self) -> ArrayLike:
+    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
+        del mole_fractions
+
         return self._b
 
 
@@ -387,7 +402,6 @@ class MRKImplicitLiquidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFl
     """MRK for liquid phase :cite:p`HP91{Equation 6}`"""
 
     @override
-    @eqx.filter_jit
     def delta_temperature_for_a(self, temperature: ArrayLike) -> ArrayLike:
         return self._Ta - temperature
 
@@ -405,13 +419,13 @@ class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFlu
     """MRK for supercritical fluid :cite:p:`HP91{Equation 6}`"""
 
     @override
-    @eqx.filter_jit
     def delta_temperature_for_a(self, temperature: ArrayLike) -> ArrayLike:
         return temperature - self._Ta
 
     @override
-    @eqx.filter_jit
-    def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def initial_volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""Initial guess volume to ensure convergence to the correct root
 
         See :cite:t:`HP91{Appendix}`. It appears that there is only ever a single root, even if
@@ -420,23 +434,24 @@ class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFlu
         initial guess is changed accordingly.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Initial volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
 
         def low_temperature_case() -> ArrayLike:
-            return self.b() / 2
+            return self.b(mole_fractions) / 2
 
         def high_temperature_case() -> ArrayLike:
-            return GAS_CONSTANT_BAR * temperature / pressure + self.b()
+            return GAS_CONSTANT_BAR * temperature / pressure + self.b(mole_fractions)
 
         initial_volume: Array = jnp.where(
-            temperature < jnp.array(self._Tc),
-            low_temperature_case(),
-            high_temperature_case(),
+            temperature < jnp.array(self._Tc), low_temperature_case(), high_temperature_case()
         )
 
         return initial_volume
@@ -472,7 +487,7 @@ class H2OMrkGasFluid91(RealGas):
         mrk_fluid: The MRK for the supercritical fluid
         mrk_gas: The MRK for the subcritical gas
         Ta: Temperature at which a_gas = a in the MRK formulation in K
-        Tc: Critical temperature in K
+        Tc: Critical temperature (K)
     """
 
     mrk_fluid: MRKImplicitFluidHP91 = H2OMrkFluidHolland91
@@ -482,14 +497,13 @@ class H2OMrkGasFluid91(RealGas):
     Ta: float = eqx.field(converter=float, default=Ta_H2O)
     """Temperature at which a_gas = a in the MRK formulation in K"""
     Tc: float = eqx.field(converter=float, default=Tc_H2O)
-    """Critical temperature in K"""
+    """Critical temperature (K)"""
 
-    @eqx.filter_jit
     def _select_condition(self, temperature: ArrayLike) -> Array:
         """Selects the condition
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
 
         Returns:
             Integer denoting the condition, i.e. the region of phase space
@@ -514,27 +528,28 @@ class H2OMrkGasFluid91(RealGas):
         return condition
 
     @override
-    @eqx.filter_jit
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> Array:
         r"""Volume integral :cite:p:`HP91{Appendix A}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
-            Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
+            Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
         condition: Array = self._select_condition(temperature)
 
         def volume_integral0() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure)
+            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
 
         def volume_integral1() -> Array:
-            return self.mrk_gas.volume_integral(temperature, pressure)
+            return self.mrk_gas.volume_integral(temperature, pressure, mole_fractions)
 
         def volume_integral2() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure)
+            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
 
         volume_integral_funcs: list[Callable] = [
             volume_integral0,
@@ -548,45 +563,53 @@ class H2OMrkGasFluid91(RealGas):
         return volume_integral
 
     @override
-    @eqx.filter_jit
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> Array:
         r"""Log fugacity :cite:p:`HP91{Equation 8}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity
         """
-        log_fugacity: Array = self.volume_integral(temperature, pressure) / (
+        log_fugacity: Array = self.volume_integral(temperature, pressure, mole_fractions) / (
             GAS_CONSTANT_BAR * temperature
         )
 
         return log_fugacity
 
     @override
-    @eqx.filter_jit
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> Array:
         r"""Volume
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         condition: Array = self._select_condition(temperature)
 
         def volume0() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure)
+            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
 
         def volume1() -> ArrayLike:
-            return self.mrk_gas.volume(temperature, pressure)
+            return self.mrk_gas.volume(temperature, pressure, mole_fractions)
 
         def volume2() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure)
+            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
 
         volume_funcs: list[Callable] = [volume0, volume1, volume2]
 
@@ -604,7 +627,7 @@ class H2OMrkHP91(RealGas):
         mrk_gas: The MRK for the subcritical gas
         mrk_liquid: The MRK for the subcritical liquid
         Ta: Temperature at which a_gas = a in the MRK formulation in K
-        Tc: Critical temperature in K
+        Tc: Critical temperature (K)
     """
 
     mrk_fluid: MRKImplicitFluidHP91 = H2OMrkFluidHolland91
@@ -616,19 +639,18 @@ class H2OMrkHP91(RealGas):
     Ta: float = eqx.field(converter=float, default=Ta_H2O)
     """Temperature at which a_gas = a in the MRK formulation in K"""
     Tc: float = eqx.field(converter=float, default=Tc_H2O)
-    """Critical temperature in K"""
+    """Critical temperature (K)"""
 
-    @eqx.filter_jit
     def Psat(self, temperature: ArrayLike) -> Array:
         """Saturation curve
 
         Compared to :cite:t:`HP91` the pressure is returned in bar, as required by Atmodeller.
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
 
         Returns:
-            Saturation curve pressure in bar
+            Saturation curve pressure (bar)
         """
         Psat: Array = (
             -13.627
@@ -639,13 +661,12 @@ class H2OMrkHP91(RealGas):
 
         return Psat
 
-    @eqx.filter_jit
     def _select_condition(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Selects the condition
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Integer denoting the condition, i.e. the region of phase space
@@ -681,38 +702,42 @@ class H2OMrkHP91(RealGas):
         return condition
 
     @override
-    @eqx.filter_jit
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> Array:
         r"""Volume integral :cite:p:`HP91{Appendix A}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
+            Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
         condition: Array = self._select_condition(temperature, pressure)
         Psat: Array = self.Psat(temperature)
 
         def volume_integral0() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure)
+            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
 
         def volume_integral1() -> Array:
-            return self.mrk_gas.volume_integral(temperature, pressure)
+            return self.mrk_gas.volume_integral(temperature, pressure, mole_fractions)
 
         def volume_integral2() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure)
+            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
 
         def volume_integral3() -> Array:
-            value: Array = self.mrk_gas.volume_integral(temperature, Psat)
-            value = value - self.mrk_liquid.volume_integral(temperature, Psat)
-            value = value + self.mrk_liquid.volume_integral(temperature, pressure)
+            value: Array = self.mrk_gas.volume_integral(temperature, Psat, mole_fractions)
+            value = value - self.mrk_liquid.volume_integral(temperature, Psat, mole_fractions)
+            value = value + self.mrk_liquid.volume_integral(temperature, pressure, mole_fractions)
 
             return value
 
         def volume_integral4() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure)
+            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
 
         volume_integral_funcs: list[Callable] = [
             volume_integral0,
@@ -728,51 +753,59 @@ class H2OMrkHP91(RealGas):
         return volume_integral
 
     @override
-    @eqx.filter_jit
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> Array:
         r"""Log fugacity :cite:p:`HP91{Equation 8}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity
         """
-        log_fugacity: Array = self.volume_integral(temperature, pressure) / (
+        log_fugacity: Array = self.volume_integral(temperature, pressure, mole_fractions) / (
             GAS_CONSTANT_BAR * temperature
         )
 
         return log_fugacity
 
     @override
-    @eqx.filter_jit
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""Volume
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         condition: Array = self._select_condition(temperature, pressure)
 
         def volume0() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure)
+            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
 
         def volume1() -> ArrayLike:
-            return self.mrk_gas.volume(temperature, pressure)
+            return self.mrk_gas.volume(temperature, pressure, mole_fractions)
 
         def volume2() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure)
+            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
 
         def volume3() -> ArrayLike:
-            return self.mrk_liquid.volume(temperature, pressure)
+            return self.mrk_liquid.volume(temperature, pressure, mole_fractions)
 
         def volume4() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure)
+            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
 
         volume_funcs: list[Callable] = [volume0, volume1, volume2, volume3, volume4]
 
@@ -825,17 +858,11 @@ mean that every virial coefficient has been multiplied by 1e-2 compared to the v
 """
 
 experimental_calibration_holland91: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=373,
-    temperature_max=1873,
-    pressure_min=1,
-    pressure_max=50e3,
+    temperature_min=373, temperature_max=1873, pressure_min=1, pressure_max=50e3
 )
 """Experimental calibration for :cite:`HP91,HP11` models"""
 experimental_calibration_holland98: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=373,
-    temperature_max=1873,
-    pressure_min=1,
-    pressure_max=120e3,
+    temperature_min=373, temperature_max=1873, pressure_min=1, pressure_max=120e3
 )
 """Experimental calibration for :cite:`HP98` models"""
 
