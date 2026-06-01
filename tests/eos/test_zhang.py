@@ -84,16 +84,16 @@ def test_H2O_vol_high_TP2(check_values) -> None:
     )
 
 
-# def test_volume_with_broadcasting(check_values) -> None:
-#     """Tests volume with broadcasting"""
-#     model: RealGas = check_values.get_eos_model("H2O", MODEL_SUFFIX)
-#     check_values.check_broadcasting("volume", model)
+def test_volume_with_broadcasting(check_values) -> None:
+    """Tests volume with broadcasting"""
+    model: RealGas = check_values.get_eos_model("H2O", MODEL_SUFFIX)
+    check_values.check_broadcasting("volume", model)
 
 
-# def test_fugacity_with_broadcasting(check_values) -> None:
-#     """Tests volume with broadcasting"""
-#     model: RealGas = check_values.get_eos_model("H2O", MODEL_SUFFIX)
-#     check_values.check_broadcasting("fugacity", model)
+def test_fugacity_with_broadcasting(check_values) -> None:
+    """Tests volume with broadcasting"""
+    model: RealGas = check_values.get_eos_model("H2O", MODEL_SUFFIX)
+    check_values.check_broadcasting("fugacity", model)
 
 
 def test_H2O_CO2_vol_mix_low_H2O() -> None:
@@ -277,7 +277,7 @@ def test_autodiff() -> None:
     pressure = 2.4e3 * 10
     temperature = 1273
 
-    moles_in = jnp.array([0.3, 0.05, 0.05, 0.3, 0.02, 0.03, 0.25])
+    moles_in = jnp.array([0.05, 0.05, 0.05, 0.1, 0.25, 0.25, 0.25])
 
     out_autodiff = eos_H2O.log_fugacity(temperature, pressure, moles_in)
 

@@ -4,10 +4,9 @@
 
 """Tests for the EOS models from :cite:t:`SF87,SF87a,SF88,SS92`"""
 
-from atmodeller.sci_utils import unit_conversion
-
 from atmodeller.eos import RealGas
 from atmodeller.eos._saxena import H2_SF87
+from atmodeller.sci_utils import unit_conversion
 
 
 def test_Ar(check_values) -> None:
@@ -179,13 +178,13 @@ def test_volume_integral_index2(check_values) -> None:
     check_values.volume_integral(temperature, pressure, model, expected)
 
 
-# def test_volume_with_broadcasting(check_values) -> None:
-#     """Tests volume with broadcasting"""
-#     model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
-#     check_values.check_broadcasting("volume", model)
+def test_volume_with_broadcasting(check_values) -> None:
+    """Tests volume with broadcasting"""
+    model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
+    check_values.check_broadcasting("volume", model)
 
 
-# def test_fugacity_with_broadcasting(check_values) -> None:
-#     """Tests volume with broadcasting"""
-#     model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
-#     check_values.check_broadcasting("fugacity", model)
+def test_fugacity_with_broadcasting(check_values) -> None:
+    """Tests volume with broadcasting"""
+    model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
+    check_values.check_broadcasting("fugacity", model)

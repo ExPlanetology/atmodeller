@@ -4,9 +4,8 @@
 
 """Tests for the EOS models from :cite:t:`HWZ58`"""
 
-from atmodeller.sci_utils import unit_conversion
-
 from atmodeller.eos import RealGas
+from atmodeller.sci_utils import unit_conversion
 
 # Probably due to rounding of the model parameters in the paper, some compressibilities in the
 # table in the paper don't quite match exactly with what we compute. Hence relax the tolerance.
@@ -124,13 +123,13 @@ def test_He_high(check_values) -> None:
     check_values.compressibility(1000, pressure, model, 1.14766, rtol=RTOL, atol=ATOL)
 
 
-# def test_volume_with_broadcasting(check_values) -> None:
-#     """Tests volume with broadcasting"""
-#     model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
-#     check_values.check_broadcasting("volume", model)
+def test_volume_with_broadcasting(check_values) -> None:
+    """Tests volume with broadcasting"""
+    model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
+    check_values.check_broadcasting("volume", model)
 
 
-# def test_fugacity_with_broadcasting(check_values) -> None:
-#     """Tests volume with broadcasting"""
-#     model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
-#     check_values.check_broadcasting("fugacity", model)
+def test_fugacity_with_broadcasting(check_values) -> None:
+    """Tests fugacity with broadcasting"""
+    model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
+    check_values.check_broadcasting("fugacity", model)

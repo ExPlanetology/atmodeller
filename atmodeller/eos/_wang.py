@@ -138,7 +138,7 @@ class VirialQuadratic(RealGas):
     def volume(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
-        r"""Volume :cite:p:`SS92{Equation 1}`
+        r"""Volume
 
         Args:
             temperature: Temperature (K)
@@ -204,7 +204,7 @@ H4Si_wang18: RealGas = VirialQuadratic(
 H4Si_wang18_bounded: RealGas = CombinedRealGas.create(
     [H4Si_wang18], [experimental_calibration_wang18]
 )
-"""OSi MRK corresponding states bounded :cite:p:`C16`"""
+"""H4Si Wang18 corresponding states bounded :cite:p:`WLL18`"""
 
 
 def get_wang_eos_models() -> dict[str, RealGas]:

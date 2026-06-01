@@ -67,18 +67,12 @@ class RedlichKwong49(RedlichKwongABC):
         return cls(critical_data)
 
     @override
-    def a(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""RK49 `a` parameter :cite:p:`RK49{Equation 4}`.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
-
 
         Returns:
             RK49 `a` parameter
@@ -86,7 +80,6 @@ class RedlichKwong49(RedlichKwongABC):
         """
         del temperature
         del pressure
-        del mole_fractions
 
         a: ArrayLike = (
             jnp.power(GAS_CONSTANT_BAR, (2.0))
@@ -97,14 +90,12 @@ class RedlichKwong49(RedlichKwongABC):
         return a
 
     @override
-    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
+    def b(self) -> ArrayLike:
         r"""RK49 `b` parameter :cite:p:`RK49{Equation 5}`.
 
         Returns:
             RK49 `b` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`).
         """
-        del mole_fractions
-
         b: ArrayLike = (
             (jnp.power(2, (1.0 / 3)) - 1)
             * GAS_CONSTANT_BAR
