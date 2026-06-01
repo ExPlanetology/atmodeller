@@ -6,7 +6,6 @@
 
 import logging
 from abc import abstractmethod
-from collections.abc import Callable
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -24,7 +23,7 @@ from atmodeller.eos.core import (
     RedlichKwongImplicitGasABC,
     VirialCompensation,
 )
-from atmodeller.jax_utils import Scalar, as_j64, to_native_floats
+from atmodeller.jax_utils import FloatArray, Scalar, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
 from atmodeller.thermodata import CriticalData, critical_data_dictionary
 
@@ -92,9 +91,7 @@ class CorrespondingStatesUnitConverter:
         return b_coefficient * factor
 
     @staticmethod
-    def convert_virial_coefficients(
-        virial_coefficients: tuple[Scalar, ...],
-    ) -> tuple[float, ...]:
+    def convert_virial_coefficients(virial_coefficients: tuple[Scalar, ...]) -> tuple[float, ...]:
         r"""Converts the virial coefficients for corresponding states
 
         The virial coefficients, for example associated with coefficients c and d in
@@ -348,7 +345,6 @@ class MRKImplicitHP91ABCMixin(eqx.Module):
         return a
 
     def b(self) -> ArrayLike:
-
         return self._b
 
 
@@ -503,7 +499,7 @@ class H2OMrkGasFluid91(RealGas):
     @override
     def volume_integral(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Volume integral :cite:p:`HP91{Appendix A}`
 
         Args:
@@ -513,32 +509,30 @@ class H2OMrkGasFluid91(RealGas):
         Returns:
             Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
-        condition: Array = self._select_condition(temperature)
+        temperature, pressure = jnp.broadcast_arrays(as_j64(temperature), as_j64(pressure))
+        original_shape: tuple[int, ...] = temperature.shape
+        temperature = temperature.ravel()
+        pressure = pressure.ravel()
 
-        def volume_integral0() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
+        def _apply(t: FloatArray, p: FloatArray) -> FloatArray:
+            condition: Array = self._select_condition(t)
+            return lax.switch(
+                condition,
+                [
+                    lambda: self.mrk_fluid.volume_integral(t, p, mole_fractions),
+                    lambda: self.mrk_gas.volume_integral(t, p, mole_fractions),
+                    lambda: self.mrk_fluid.volume_integral(t, p, mole_fractions),
+                ],
+            )
 
-        def volume_integral1() -> Array:
-            return self.mrk_gas.volume_integral(temperature, pressure, mole_fractions)
+        result: FloatArray = eqx.filter_vmap(_apply, in_axes=(0, 0))(temperature, pressure)
 
-        def volume_integral2() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
-
-        volume_integral_funcs: list[Callable] = [
-            volume_integral0,
-            volume_integral1,
-            volume_integral2,
-        ]
-
-        volume_integral: Array = lax.switch(condition, volume_integral_funcs)
-        # jax.debug.print("volume_integral = {out}", out=volume_integral)
-
-        return volume_integral
+        return jnp.reshape(result, original_shape)
 
     @override
     def log_fugacity(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Log fugacity :cite:p:`HP91{Equation 8}`
 
         Args:
@@ -551,7 +545,7 @@ class H2OMrkGasFluid91(RealGas):
         Returns:
             Log fugacity
         """
-        log_fugacity: Array = self.volume_integral(temperature, pressure, mole_fractions) / (
+        log_fugacity: FloatArray = self.volume_integral(temperature, pressure, mole_fractions) / (
             GAS_CONSTANT_BAR * temperature
         )
 
@@ -560,7 +554,7 @@ class H2OMrkGasFluid91(RealGas):
     @override
     def volume(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Volume
 
         Args:
@@ -573,23 +567,25 @@ class H2OMrkGasFluid91(RealGas):
         Returns:
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        condition: Array = self._select_condition(temperature)
+        temperature, pressure = jnp.broadcast_arrays(as_j64(temperature), as_j64(pressure))
+        original_shape: tuple[int, ...] = temperature.shape
+        temperature = temperature.ravel()
+        pressure = pressure.ravel()
 
-        def volume0() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
+        def _apply(t: FloatArray, p: FloatArray) -> FloatArray:
+            condition: Array = self._select_condition(t)
+            return lax.switch(
+                condition,
+                [
+                    lambda: self.mrk_fluid.volume(t, p, mole_fractions),
+                    lambda: self.mrk_gas.volume(t, p, mole_fractions),
+                    lambda: self.mrk_fluid.volume(t, p, mole_fractions),
+                ],
+            )
 
-        def volume1() -> ArrayLike:
-            return self.mrk_gas.volume(temperature, pressure, mole_fractions)
+        result: FloatArray = eqx.filter_vmap(_apply, in_axes=(0, 0))(temperature, pressure)
 
-        def volume2() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
-
-        volume_funcs: list[Callable] = [volume0, volume1, volume2]
-
-        volume: Array = lax.switch(condition, volume_funcs)
-        # jax.debug.print("volume = {out}", out=volume)
-
-        return volume
+        return jnp.reshape(result, original_shape)
 
 
 class H2OMrkHP91(RealGas):
@@ -677,7 +673,7 @@ class H2OMrkHP91(RealGas):
     @override
     def volume_integral(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Volume integral :cite:p:`HP91{Appendix A}`
 
         Args:
@@ -690,45 +686,37 @@ class H2OMrkHP91(RealGas):
         Returns:
             Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
-        condition: Array = self._select_condition(temperature, pressure)
-        Psat: Array = self.Psat(temperature)
+        temperature, pressure = jnp.broadcast_arrays(as_j64(temperature), as_j64(pressure))
+        original_shape: tuple[int, ...] = temperature.shape
+        temperature = temperature.ravel()
+        pressure = pressure.ravel()
 
-        def volume_integral0() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
+        def _apply(t: FloatArray, p: FloatArray) -> FloatArray:
+            condition: Array = self._select_condition(t, p)
+            Psat: FloatArray = self.Psat(t)
+            return lax.switch(
+                condition,
+                [
+                    lambda: self.mrk_fluid.volume_integral(t, p, mole_fractions),
+                    lambda: self.mrk_gas.volume_integral(t, p, mole_fractions),
+                    lambda: self.mrk_fluid.volume_integral(t, p, mole_fractions),
+                    lambda: (
+                        self.mrk_gas.volume_integral(t, Psat, mole_fractions)
+                        - self.mrk_liquid.volume_integral(t, Psat, mole_fractions)
+                        + self.mrk_liquid.volume_integral(t, p, mole_fractions)
+                    ),
+                    lambda: self.mrk_fluid.volume_integral(t, p, mole_fractions),
+                ],
+            )
 
-        def volume_integral1() -> Array:
-            return self.mrk_gas.volume_integral(temperature, pressure, mole_fractions)
+        result: FloatArray = eqx.filter_vmap(_apply, in_axes=(0, 0))(temperature, pressure)
 
-        def volume_integral2() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
-
-        def volume_integral3() -> Array:
-            value: Array = self.mrk_gas.volume_integral(temperature, Psat, mole_fractions)
-            value = value - self.mrk_liquid.volume_integral(temperature, Psat, mole_fractions)
-            value = value + self.mrk_liquid.volume_integral(temperature, pressure, mole_fractions)
-
-            return value
-
-        def volume_integral4() -> Array:
-            return self.mrk_fluid.volume_integral(temperature, pressure, mole_fractions)
-
-        volume_integral_funcs: list[Callable] = [
-            volume_integral0,
-            volume_integral1,
-            volume_integral2,
-            volume_integral3,
-            volume_integral4,
-        ]
-
-        volume_integral: Array = lax.switch(condition, volume_integral_funcs)
-        # jax.debug.print("volume_integral = {out}", out=volume_integral)
-
-        return volume_integral
+        return jnp.reshape(result, original_shape)
 
     @override
     def log_fugacity(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Log fugacity :cite:p:`HP91{Equation 8}`
 
         Args:
@@ -741,7 +729,7 @@ class H2OMrkHP91(RealGas):
         Returns:
             Log fugacity
         """
-        log_fugacity: Array = self.volume_integral(temperature, pressure, mole_fractions) / (
+        log_fugacity: FloatArray = self.volume_integral(temperature, pressure, mole_fractions) / (
             GAS_CONSTANT_BAR * temperature
         )
 
@@ -763,29 +751,27 @@ class H2OMrkHP91(RealGas):
         Returns:
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        condition: Array = self._select_condition(temperature, pressure)
+        temperature, pressure = jnp.broadcast_arrays(as_j64(temperature), as_j64(pressure))
+        original_shape: tuple[int, ...] = temperature.shape
+        temperature = temperature.ravel()
+        pressure = pressure.ravel()
 
-        def volume0() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
+        def _apply(t: FloatArray, p: FloatArray) -> FloatArray:
+            condition: Array = self._select_condition(t, p)
+            return lax.switch(
+                condition,
+                [
+                    lambda: self.mrk_fluid.volume(t, p, mole_fractions),
+                    lambda: self.mrk_gas.volume(t, p, mole_fractions),
+                    lambda: self.mrk_fluid.volume(t, p, mole_fractions),
+                    lambda: self.mrk_liquid.volume(t, p, mole_fractions),
+                    lambda: self.mrk_fluid.volume(t, p, mole_fractions),
+                ],
+            )
 
-        def volume1() -> ArrayLike:
-            return self.mrk_gas.volume(temperature, pressure, mole_fractions)
+        result: FloatArray = eqx.filter_vmap(_apply, in_axes=(0, 0))(temperature, pressure)
 
-        def volume2() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
-
-        def volume3() -> ArrayLike:
-            return self.mrk_liquid.volume(temperature, pressure, mole_fractions)
-
-        def volume4() -> ArrayLike:
-            return self.mrk_fluid.volume(temperature, pressure, mole_fractions)
-
-        volume_funcs: list[Callable] = [volume0, volume1, volume2, volume3, volume4]
-
-        volume: Array = lax.switch(condition, volume_funcs)
-        # jax.debug.print("volume = {out}", out=volume)
-
-        return volume
+        return jnp.reshape(result, original_shape)
 
 
 H2OMrkHolland91: RealGas = H2OMrkHP91()
