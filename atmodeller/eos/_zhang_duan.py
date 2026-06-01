@@ -4,8 +4,9 @@
 
 """Real gas EOS from :cite:t:`ZD09`"""
 
+from abc import abstractmethod
 from collections.abc import Callable
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 import equinox as eqx
 import jax
@@ -50,13 +51,8 @@ REFERENCE_SIGMA: float = sigma_species["CH4"]
 """Reference sigma"""
 
 
-class ZhangDuanPureSpecies(RealGas):
-    """Real gas EOS for a pure species :cite:p:`ZD09`
-
-    Args:
-        epsilon: Lenard-Jones parameter (epsilon/kB) in K
-        sigma: Lenard-Jones parameter in :math:`10^{-10}` m
-    """
+class ZhangDuanBase(RealGas):
+    """A real gas EOS from :cite:t:`ZD09`"""
 
     coefficients: ClassVar[tuple[float, ...]] = (
         2.95177298930e-2,
@@ -77,124 +73,138 @@ class ZhangDuanPureSpecies(RealGas):
     )
     """Coefficients"""
 
-    epsilon: float = eqx.field(converter=float)
-    """Lenard-Jones parameter (epsilon/kB) in K"""
-    sigma: float = eqx.field(converter=float)
-    """Lenard-Jones parameter in :math:`10^{-10}` m"""
-
-    def get_epsilon(self) -> Float[Array, ""]:
+    @abstractmethod
+    def get_epsilon(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
         """Gets epsilon.
+
+        Args:
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
             Epsilon (K)
         """
-        return as_j64(self.epsilon)
 
-    def get_sigma(self) -> Float[Array, ""]:
+    @abstractmethod
+    def get_sigma(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
         """Gets sigma.
+
+        Args:
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
             Sigma (:math:`10^{-10}` m)
         """
-        return as_j64(self.sigma)
 
-    def _Pm(self, pressure: ArrayLike) -> Float[Array, ""]:
-        """Scaled pressure
+    def reduced_pressure(
+        self, pressure: ArrayLike, mole_fractions: Optional[ArrayLike] = None
+    ) -> FloatArray:
+        """Reduced pressure
 
         Args:
             pressure: Pressure (bar)
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
-            Scaled pressure
+            Reduced pressure (dimensionless)
         """
-        sigma: Float[Array, ""] = self.get_sigma()
-        epsilon: Float[Array, ""] = self.get_epsilon()
+        sigma: ArrayLike = self.get_sigma(mole_fractions)
+        epsilon: ArrayLike = self.get_epsilon(mole_fractions)
         pressure_MPa: ArrayLike = pressure * unit_conversion.bar_to_MPa
-        # factor: float = 3.0636
-        # Use more precise value
+        # Zhang and Duan (2009) give 3.0636, but we can calculate the exact value as follows:
         factor: float = epsilon_species["CH4"] / sigma_species["CH4"] ** 3
-        scaled_pressure: FloatArray = factor * jnp.power(sigma, 3) * pressure_MPa / epsilon
-        # jax.debug.print("scaled_pressure = {out}", out=scaled_pressure)
+        reduced_pressure: FloatArray = factor * jnp.power(sigma, 3) * pressure_MPa / epsilon
+        # jax.debug.print("reduced_pressure = {out}", out=reduced_pressure)
 
-        return scaled_pressure
+        return reduced_pressure
 
-    def _Tm(self, temperature: ArrayLike) -> ArrayLike:
-        """Scaled temperature
+    def reduced_temperature(
+        self, temperature: ArrayLike, mole_fractions: Optional[ArrayLike] = None
+    ) -> ArrayLike:
+        """Reduced temperature
 
         Args:
             temperature: Temperature (K)
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
-            Scaled temperature
+            Reduced temperature (dimensionless)
         """
-        epsilon: Float[Array, ""] = self.get_epsilon()
-        scaled_temperature: ArrayLike = REFERENCE_EPSILON * temperature / epsilon
-        # jax.debug.print("scaled_temperature = {out}", out=scaled_temperature)
+        epsilon: ArrayLike = self.get_epsilon(mole_fractions)
+        reduced_temperature: ArrayLike = REFERENCE_EPSILON * temperature / epsilon
+        # jax.debug.print("reduced_temperature = {out}", out=reduced_temperature)
 
-        return scaled_temperature
+        return reduced_temperature
 
-    def _Vm(self, volume: ArrayLike) -> FloatArray:
-        r"""Scaled volume
+    def reduced_volume(
+        self, volume: ArrayLike, mole_fractions: Optional[ArrayLike] = None
+    ) -> FloatArray:
+        r"""Reduced volume
 
         Args:
-            volume: Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            volume: Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
-            Scaled volume
+            Reduced volume (dimensionless)
         """
-        sigma: Float[Array, ""] = self.get_sigma()
+        sigma: ArrayLike = self.get_sigma(mole_fractions)
         volume_cm3: ArrayLike = volume * unit_conversion.m3_to_cm3
         sigma_term: FloatArray = jnp.power(sigma / REFERENCE_SIGMA, 3)
-        scaled_volume: FloatArray = volume_cm3 / 1000 / sigma_term  # type: ignore
-        # jax.debug.print("scaled_volume = {out}", out=scaled_volume)
+        reduced_volume: FloatArray = volume_cm3 / 1000 / sigma_term  # type: ignore
+        # jax.debug.print("reduced_volume = {out}", out=reduced_volume)
 
-        return scaled_volume
+        return reduced_volume
 
-    def _get_S1_parameter(self, Tm: ArrayLike, coefficients: tuple[float, ...]) -> FloatArray:
-        """Gets the parameter (coefficient) for the S1 term for polynomials involving Tm terms
+    def _get_S1_parameter(self, Tr: ArrayLike, coefficients: tuple[float, ...]) -> FloatArray:
+        """Gets the parameter (coefficient) for the S1 term for polynomials involving Tr terms.
 
         Args:
-            Tm: Scaled temperature
+            Tr: Reduced temperature
             coefficients: Coefficients for this term
 
         Returns:
             Parameter (coefficient)
         """
         return (
-            coefficients[0] + coefficients[1] / jnp.square(Tm) + coefficients[2] / jnp.power(Tm, 3)
+            coefficients[0] + coefficients[1] / jnp.square(Tr) + coefficients[2] / jnp.power(Tr, 3)
         )
 
-    def _S1(self, Tm: ArrayLike, Vm: ArrayLike) -> FloatArray:
-        """S1 term :cite:p:`ZD09{Equation 15}`
+    def get_S1(self, Tr: ArrayLike, Vr: ArrayLike) -> FloatArray:
+        """Computes the S1 term :cite:p:`ZD09{Equation 15}`.
 
         Args:
-            Tm: Scaled temperature
-            Vm: Scaled volume
+            Tr: Reduced temperature
+            Vr: Reduced volume
 
         Returns:
             S1 term
         """
-        b: FloatArray = self._get_S1_parameter(Tm, self.coefficients[0:3])
-        c: FloatArray = self._get_S1_parameter(Tm, self.coefficients[3:6])
-        d: FloatArray = self._get_S1_parameter(Tm, self.coefficients[6:9])
-        e: FloatArray = self._get_S1_parameter(Tm, self.coefficients[9:12])
+        b: FloatArray = self._get_S1_parameter(Tr, self.coefficients[0:3])
+        c: FloatArray = self._get_S1_parameter(Tr, self.coefficients[3:6])
+        d: FloatArray = self._get_S1_parameter(Tr, self.coefficients[6:9])
+        e: FloatArray = self._get_S1_parameter(Tr, self.coefficients[9:12])
         a13: float = self.coefficients[12]
         a14: float = self.coefficients[13]
         a15: float = self.coefficients[14]
 
-        S1: FloatArray = (
-            b / Vm
-            + c / (2 * jnp.square(Vm))
-            + d / (4 * jnp.power(Vm, 4))
-            + e / (5 * jnp.power(Vm, 5))
+        S1_term: FloatArray = (
+            b / Vr
+            + c / (2 * jnp.square(Vr))
+            + d / (4 * jnp.power(Vr, 4))
+            + e / (5 * jnp.power(Vr, 5))
         ) + (
             a13
-            / (2 * a15 * jnp.power(Tm, 3))
-            * (a14 + 1 - (a14 + 1 + a15 / jnp.square(Vm)) * safe_exp(-a15 / jnp.square(Vm)))
+            / (2 * a15 * jnp.power(Tr, 3))
+            * (a14 + 1 - (a14 + 1 + a15 / jnp.square(Vr)) * safe_exp(-a15 / jnp.square(Vr)))
         )
-        # jax.debug.print("S1 = {out}", out=S1)
+        # jax.debug.print("S1_term = {out}", out=S1_term)
 
-        return S1
+        return S1_term
 
     def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
         r"""Objective function to solve for the volume :cite:p:`ZD09{Equation 8}`.
@@ -204,20 +214,22 @@ class ZhangDuanPureSpecies(RealGas):
         instead, care should be taken to ensure that the 1000 scaling factor is accounted for.
 
         Args:
-            volume: Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
-            kwargs: Dictionary with other required parameters
+            volume: Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
+            kwargs: Dictionary with other required and optional parameters
 
         Returns:
             Residual of the objective function
         """
         temperature: ArrayLike = kwargs["temperature"]
         pressure: ArrayLike = kwargs["pressure"]
+        mole_fractions: Optional[ArrayLike] = kwargs.get("mole_fractions", None)
         # jax.debug.print("temperature = {temperature}", temperature=temperature)
         # jax.debug.print("pressure = {pressure}", pressure=pressure)
+        # jax.debug.print("mole_fractions = {mole_fractions}", mole_fractions=mole_fractions)
 
-        Tm: ArrayLike = self._Tm(temperature)
+        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
         # jax.debug.print("Tm = {Tm}", Tm=Tm)
-        Vm: FloatArray = self._Vm(volume)
+        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
         # jax.debug.print("Vm = {Vm}", Vm=Vm)
         ptr: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
         # jax.debug.print("ptr = {ptr}", ptr=ptr)
@@ -269,7 +281,7 @@ class ZhangDuanPureSpecies(RealGas):
             pressure: Pressure (bar)
 
         Returns:
-            Initial volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         ideal_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
         safe_volume: FloatArray = as_j64(ideal_volume + VOLUME_EPSILON)
@@ -277,20 +289,30 @@ class ZhangDuanPureSpecies(RealGas):
 
         return safe_volume * 10
 
-    @override
     # @eqx.debug.assert_max_traces(max_traces=1)
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
+    def volume(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Optional[ArrayLike] = None,
+    ) -> FloatArray:
         r"""Computes the volume numerically.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
-            Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         initial: FloatArray = self.initial_volume(temperature, pressure)
-        kwargs: dict[str, ArrayLike] = {"temperature": temperature, "pressure": pressure}
+        kwargs: dict[str, Optional[ArrayLike]] = {
+            "temperature": temperature,
+            "pressure": pressure,
+            "mole_fractions": mole_fractions,
+        }
 
         solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
         sol = optx.root_find(self._objective_function, solver, initial, args=kwargs, throw=THROW)
@@ -306,39 +328,21 @@ class ZhangDuanPureSpecies(RealGas):
 
         return volume
 
-    @override
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
-        """Log fugacity :cite:p:`ZD09{Equation 14}`
-
-        This is for a pure species and does not include the terms to enable end member mixing.
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-
-        Returns:
-            Log fugacity in bar
-        """
-        volume: FloatArray = self.volume(temperature, pressure)
-        Vm: FloatArray = self._Vm(volume)
-        Tm: ArrayLike = self._Tm(temperature)
-        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self._S1(Tm, Vm) + Z - 1
-        log_fugacity: FloatArray = log_fugacity_coefficient + jnp.log(pressure)
-        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
-
-        return log_fugacity
-
-    @override
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
+    def volume_integral(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Optional[ArrayLike] = None,
+    ) -> FloatArray:
         r"""Volume integral
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
+            mole_fractions: Ignored for pure fluids. Defaults to ``None``.
 
         Returns:
-            Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
+            Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
         log_fugacity: FloatArray = self.log_fugacity(temperature, pressure)
         volume_integral: FloatArray = log_fugacity * GAS_CONSTANT_BAR * temperature
@@ -346,7 +350,60 @@ class ZhangDuanPureSpecies(RealGas):
         return volume_integral
 
 
-class ZhangDuanMixture(ZhangDuanPureSpecies):
+class ZhangDuanPureFluid(ZhangDuanBase):
+    """Real gas EOS for a pure fluid :cite:p:`ZD09`
+
+    Args:
+        epsilon: Lenard-Jones parameter (epsilon/kB) in K
+        sigma: Lenard-Jones parameter (:math:`10^{-10}` m)
+    """
+
+    epsilon: float = eqx.field(converter=float)
+    """Lenard-Jones parameter (epsilon/kB) in K"""
+    sigma: float = eqx.field(converter=float)
+    """Lenard-Jones parameter (:math:`10^{-10}` m)"""
+
+    @override
+    def get_epsilon(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
+        del mole_fractions
+        return as_j64(self.epsilon)
+
+    @override
+    def get_sigma(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
+        del mole_fractions
+        return as_j64(self.sigma)
+
+    @override
+    def log_fugacity(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Optional[ArrayLike] = None,
+    ) -> FloatArray:
+        """Log fugacity :cite:p:`ZD09{Equation 14}`
+
+        This is for a pure fluid and does not include the terms to enable end member mixing.
+
+        Args:
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Ignored for pure fluids. Defaults to ``None``.
+
+        Returns:
+            Log fugacity in bar
+        """
+        volume: FloatArray = self.volume(temperature, pressure)
+        Vm: FloatArray = self.reduced_volume(volume)
+        Tm: ArrayLike = self.reduced_temperature(temperature)
+        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
+        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
+        log_fugacity: FloatArray = log_fugacity_coefficient + jnp.log(pressure)
+        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
+
+        return log_fugacity
+
+
+class ZhangDuanMixture(ZhangDuanBase):
     """Zhang and Duan EOS for mixtures :cite:p:`ZD09`"""
 
     species: tuple[str, ...]
@@ -376,15 +433,10 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
             species.index(species_to_output) if species_to_output is not None else 0
         )
         # print("species_index:", self.species_index)
-        # FIXME: Hacky, but this is required to avoid errors in the base class methods that expect
-        # these attributes to be defined. The actual values will be computed using the mixing
-        # rules, so these are just placeholders.
-        self.epsilon = 0
-        self.sigma = 0
         self._grad_fn = eqx.filter_grad(self.wrap_log_fugacity_bulk)
 
     @override
-    def get_epsilon(self, mole_fractions: Float[Array, "... n_species"]) -> Float[Array, "..."]:
+    def get_epsilon(self, mole_fractions: Float[Array, "... n_species"]) -> FloatArray:
         """Gets epsilon for a mixture using the Berthelot mixing rule.
 
         Args:
@@ -394,6 +446,18 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
             Epsilon for the mixture
         """
         return self.binary_mixing_rule(mole_fractions, self.k1, self.epsilon_matrix)
+
+    @override
+    def get_sigma(self, mole_fractions: Float[Array, "... n_species"]) -> FloatArray:
+        """Gets sigma for a mixture using the Lorentz mixing rule.
+
+        Args:
+            mole_fractions: Mole fractions of species in the gas phase
+
+        Returns:
+            Sigma for the mixture
+        """
+        return self.binary_mixing_rule(mole_fractions, self.k2, self.sigma_matrix)
 
     def get_species_epsilon(
         self, mole_fractions: Float[Array, "... n_species"]
@@ -406,7 +470,9 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
         Returns:
             Epsilon values for each species in the mixture
         """
-        epsilon = jnp.einsum("...j,ij,ij->...i", mole_fractions, self.k1, self.epsilon_matrix)
+        epsilon: Float[Array, "... n_species"] = jnp.einsum(
+            "...j,ij,ij->...i", mole_fractions, self.k1, self.epsilon_matrix
+        )
 
         return epsilon
 
@@ -415,84 +481,19 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
     ) -> Float[Array, "... n_species"]:
         """Gets the sigma values for each species in the mixture using the Lorentz mixing rule.
 
+        There is a typo in :cite:t:`ZD09` that gives the coefficient as k1 rather than k2.
+
         Args:
             mole_fractions: Mole fractions of species in the gas phase
 
         Returns:
             Sigma values for each species in the mixture
         """
-        # TODO: Zhang and Duan list this as k1, but that must be a typo(?)
-        sigma = jnp.einsum("...j,ij,ij->...i", mole_fractions, self.k2, self.sigma_matrix)
+        sigma: Float[Array, "... n_species"] = jnp.einsum(
+            "...j,ij,ij->...i", mole_fractions, self.k2, self.sigma_matrix
+        )
 
         return sigma
-
-    @override
-    def get_sigma(self, mole_fractions: Float[Array, "... n_species"]) -> Float[Array, "..."]:
-        """Gets sigma for a mixture using the Lorentz mixing rule.
-
-        Args:
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Sigma for the mixture
-        """
-        return self.binary_mixing_rule(mole_fractions, self.k2, self.sigma_matrix)
-
-    def _Pm(
-        self, pressure: ArrayLike, mole_fractions: Float[Array, "... n_species"]
-    ) -> FloatArray:
-        """Scaled pressure
-
-        Args:
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Scaled pressure
-        """
-        sigma: FloatArray = self.get_sigma(mole_fractions)
-        epsilon: FloatArray = self.get_epsilon(mole_fractions)
-        pressure_MPa: ArrayLike = pressure * unit_conversion.bar_to_MPa
-        scaled_pressure: FloatArray = 3.0636 * jnp.power(sigma, 3) * pressure_MPa / epsilon
-        # jax.debug.print("scaled_pressure = {out}", out=scaled_pressure)
-
-        return scaled_pressure
-
-    def _Tm(
-        self, temperature: ArrayLike, mole_fractions: Float[Array, "... n_species"]
-    ) -> ArrayLike:
-        """Scaled temperature
-
-        Args:
-            temperature: Temperature (K)
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Scaled temperature
-        """
-        epsilon: Float[Array, ""] = self.get_epsilon(mole_fractions)
-        scaled_temperature: ArrayLike = 154 * temperature / epsilon
-        # jax.debug.print("scaled_temperature = {out}", out=scaled_temperature)
-
-        return scaled_temperature
-
-    def _Vm(self, volume: ArrayLike, mole_fractions: Float[Array, "... n_species"]) -> FloatArray:
-        r"""Scaled volume
-
-        Args:
-            volume: Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Scaled volume
-        """
-        sigma: Float[Array, ""] = self.get_sigma(mole_fractions)
-        volume_cm3: ArrayLike = volume * unit_conversion.m3_to_cm3
-        sigma_term: FloatArray = jnp.power(sigma / 3.691, 3)
-        scaled_volume: FloatArray = volume_cm3 / 1000 / sigma_term  # type: ignore
-        # jax.debug.print("scaled_volume = {out}", out=scaled_volume)
-
-        return scaled_volume
 
     def _get_S2_parameter(self, Tm: ArrayLike, coefficients: tuple[float, ...]) -> FloatArray:
         """Gets the parameter (coefficient) for the S2 term for polynomials involving Tm terms
@@ -539,106 +540,106 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
 
         return S2
 
-    def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
-        r"""Objective function to solve for the volume :cite:p:`ZD09{Equation 8}`.
+    # def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
+    #     r"""Objective function to solve for the volume :cite:p:`ZD09{Equation 8}`.
 
-        Note that the left-hand side of :cite:t:`ZD09{Equation 8}` is the compressibility factor
-        so should be expressed in terms of P, V, R, and T, and not the scaled equivalents.
+    #     Note that the left-hand side of :cite:t:`ZD09{Equation 8}` is the compressibility factor
+    #     so should be expressed in terms of P, V, R, and T, and not the scaled equivalents.
 
-        Args:
-            volume: Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
-            kwargs: Dictionary with other required parameters
+    #     Args:
+    #         volume: Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+    #         kwargs: Dictionary with other required parameters
 
-        Returns:
-            Residual of the objective function
-        """
-        temperature: ArrayLike = kwargs["temperature"]
-        pressure: ArrayLike = kwargs["pressure"]
-        mole_fractions: Float[Array, "... n_species"] = kwargs["mole_fractions"]  # type: ignore
-        # jax.debug.print("temperature = {temperature}", temperature=temperature)
-        # jax.debug.print("pressure = {pressure}", pressure=pressure)
+    #     Returns:
+    #         Residual of the objective function
+    #     """
+    #     temperature: ArrayLike = kwargs["temperature"]
+    #     pressure: ArrayLike = kwargs["pressure"]
+    #     mole_fractions: Float[Array, "... n_species"] = kwargs["mole_fractions"]  # type: ignore
+    #     # jax.debug.print("temperature = {temperature}", temperature=temperature)
+    #     # jax.debug.print("pressure = {pressure}", pressure=pressure)
 
-        Tm: ArrayLike = self._Tm(temperature, mole_fractions)
-        # jax.debug.print("Tm = {Tm}", Tm=Tm)
-        Vm: FloatArray = self._Vm(volume, mole_fractions)
-        # jax.debug.print("Vm = {Vm}", Vm=Vm)
-        ptr: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        # jax.debug.print("ptr = {ptr}", ptr=ptr)
+    #     Tm: ArrayLike = self._Tm(temperature, mole_fractions)
+    #     # jax.debug.print("Tm = {Tm}", Tm=Tm)
+    #     Vm: FloatArray = self._Vm(volume, mole_fractions)
+    #     # jax.debug.print("Vm = {Vm}", Vm=Vm)
+    #     ptr: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
+    #     # jax.debug.print("ptr = {ptr}", ptr=ptr)
 
-        b: FloatArray = self._get_S1_parameter(Tm, self.coefficients[0:3])
-        # jax.debug.print("b = {b}", b=b)
-        c: FloatArray = self._get_S1_parameter(Tm, self.coefficients[3:6])
-        # jax.debug.print("c = {c}", c=c)
-        d: FloatArray = self._get_S1_parameter(Tm, self.coefficients[6:9])
-        # jax.debug.print("d = {d}", d=d)
-        e: FloatArray = self._get_S1_parameter(Tm, self.coefficients[9:12])
-        # jax.debug.print("e = {e}", e=e)
+    #     b: FloatArray = self._get_S1_parameter(Tm, self.coefficients[0:3])
+    #     # jax.debug.print("b = {b}", b=b)
+    #     c: FloatArray = self._get_S1_parameter(Tm, self.coefficients[3:6])
+    #     # jax.debug.print("c = {c}", c=c)
+    #     d: FloatArray = self._get_S1_parameter(Tm, self.coefficients[6:9])
+    #     # jax.debug.print("d = {d}", d=d)
+    #     e: FloatArray = self._get_S1_parameter(Tm, self.coefficients[9:12])
+    #     # jax.debug.print("e = {e}", e=e)
 
-        term1: FloatArray = (
-            as_j64(1)
-            + b / as_j64(Vm)
-            + c / jnp.power(Vm, 2)
-            + d / jnp.power(Vm, 4)
-            + e / jnp.power(Vm, 5)
-        )
-        # jax.debug.print("term1 = {term1}", term1=term1)
+    #     term1: FloatArray = (
+    #         as_j64(1)
+    #         + b / as_j64(Vm)
+    #         + c / jnp.power(Vm, 2)
+    #         + d / jnp.power(Vm, 4)
+    #         + e / jnp.power(Vm, 5)
+    #     )
+    #     # jax.debug.print("term1 = {term1}", term1=term1)
 
-        a13: float = self.coefficients[12]
-        a14: float = self.coefficients[13]
-        a15: float = self.coefficients[14]
-        term2: FloatArray = (
-            a13
-            / jnp.power(Tm, 3)
-            / jnp.power(Vm, 2)
-            * (a14 + a15 / jnp.square(Vm))
-            * safe_exp(-a15 / jnp.square(Vm))
-        )
-        # jax.debug.print("term2 = {term2}", term2=term2)
+    #     a13: float = self.coefficients[12]
+    #     a14: float = self.coefficients[13]
+    #     a15: float = self.coefficients[14]
+    #     term2: FloatArray = (
+    #         a13
+    #         / jnp.power(Tm, 3)
+    #         / jnp.power(Vm, 2)
+    #         * (a14 + a15 / jnp.square(Vm))
+    #         * safe_exp(-a15 / jnp.square(Vm))
+    #     )
+    #     # jax.debug.print("term2 = {term2}", term2=term2)
 
-        residual: FloatArray = term1 + term2 - ptr
-        # jax.debug.print("residual = {residual}", residual=residual)
+    #     residual: FloatArray = term1 + term2 - ptr
+    #     # jax.debug.print("residual = {residual}", residual=residual)
 
-        return residual
+    #     return residual
 
-    @override
+    # @override
     # @eqx.filter_jit
     # @eqx.debug.assert_max_traces(max_traces=1)
-    def volume(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Float[Array, "... n_species"],
-    ) -> Array:
-        r"""Computes the volume numerically.
+    # def volume(
+    #     self,
+    #     temperature: ArrayLike,
+    #     pressure: ArrayLike,
+    #     mole_fractions: Float[Array, "... n_species"],
+    # ) -> Array:
+    #     r"""Computes the volume numerically.
 
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of species in the gas phase
+    #     Args:
+    #         temperature: Temperature (K)
+    #         pressure: Pressure (bar)
+    #         mole_fractions: Mole fractions of species in the gas phase
 
-        Returns:
-            Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
-        """
-        initial: FloatArray = self.initial_volume(temperature, pressure)
-        kwargs: dict[str, ArrayLike] = {
-            "temperature": temperature,
-            "pressure": pressure,
-            "mole_fractions": mole_fractions,
-        }
+    #     Returns:
+    #         Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+    #     """
+    #     initial: FloatArray = self.initial_volume(temperature, pressure)
+    #     kwargs: dict[str, ArrayLike] = {
+    #         "temperature": temperature,
+    #         "pressure": pressure,
+    #         "mole_fractions": mole_fractions,
+    #     }
 
-        solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
-        sol = optx.root_find(self._objective_function, solver, initial, args=kwargs, throw=THROW)
-        volume: FloatArray = sol.value
-        # jax.debug.print("volume = {out}", out=volume)
-        # jax.debug.print("Optimistix success. Number of steps = {out}", out=sol.stats["num_steps"])
+    #     solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
+    #     sol = optx.root_find(self._objective_function, solver, initial, args=kwargs, throw=THROW)
+    #     volume: FloatArray = sol.value
+    #     jax.debug.print("volume = {out}", out=volume)
+    #     jax.debug.print("Optimistix success. Number of steps = {out}", out=sol.stats["num_steps"])
 
-        # For comparing the initial and final volumes to refine the choice of the initial volume
-        # jax.debug.print("initial_volume = {out}", out=initial)
-        # jax.debug.print("final_volume = {out}", out=volume)
-        # relative_volume_error: FloatArray = (initial - volume) / volume
-        # jax.debug.print("Relative volume error = {out}", out=relative_volume_error)
+    #     # For comparing the initial and final volumes to refine the choice of the initial volume
+    #     jax.debug.print("initial_volume = {out}", out=initial)
+    #     jax.debug.print("final_volume = {out}", out=volume)
+    #     relative_volume_error: FloatArray = (initial - volume) / volume
+    #     jax.debug.print("Relative volume error = {out}", out=relative_volume_error)
 
-        return volume
+    #     return volume
 
     @override
     def log_fugacity(
@@ -708,10 +709,10 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
             mole_fractions: Mole fractions of species in the gas phase
         """
         volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
-        Vm: FloatArray = self._Vm(volume, mole_fractions)
-        Tm: ArrayLike = self._Tm(temperature, mole_fractions)
+        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
+        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
         Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self._S1(Tm, Vm) + Z - 1
+        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
 
         return log_fugacity_coefficient
 
@@ -754,10 +755,10 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
             Log fugacity in bar
         """
         volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
-        Vm: FloatArray = self._Vm(volume, mole_fractions)
-        Tm: ArrayLike = self._Tm(temperature, mole_fractions)
+        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
+        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
         Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self._S1(Tm, Vm) + Z - 1
+        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
         # jax.debug.print("species_index = {out}", out=self.species_index)
         # jax.debug.print(
         #    "log_fugacity_coefficient (before mixing) = {out}", out=log_fugacity_coefficient
@@ -937,7 +938,7 @@ class ZhangDuanMixture(ZhangDuanPureSpecies):
         )
 
 
-CH4_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["CH4"], sigma_species["CH4"])
+CH4_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["CH4"], sigma_species["CH4"])
 """CH4 unbounded :cite:p:`ZD09`"""
 CH4_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=273,
@@ -951,7 +952,7 @@ CH4_zhang09_bounded: RealGas = CombinedRealGas.create(
 )
 """CH4 bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-H2O_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["H2O"], sigma_species["H2O"])
+H2O_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["H2O"], sigma_species["H2O"])
 """H2O unbounded :cite:p:`ZD09`"""
 H2O_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=673,
@@ -965,7 +966,7 @@ H2O_zhang09_bounded: RealGas = CombinedRealGas.create(
 )
 """H2O bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-CO2_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["CO2"], sigma_species["CO2"])
+CO2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["CO2"], sigma_species["CO2"])
 """CO2 unbounded :cite:p:`ZD09`"""
 CO2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=473,
@@ -979,7 +980,7 @@ CO2_zhang09_bounded: RealGas = CombinedRealGas.create(
 )
 
 # Tested boundedness (not the same as physical correctness) for 500<T<10000 K and 0<P<10 GPa
-H2_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["H2"], sigma_species["H2"])
+H2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["H2"], sigma_species["H2"])
 """H2 unbounded :cite:p:`ZD09`"""
 H2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=250,
@@ -991,7 +992,7 @@ H2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 H2_zhang09_bounded: RealGas = CombinedRealGas.create([H2_zhang09], [H2_experimental_calibration])
 """H2 bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-CO_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["CO"], sigma_species["CO"])
+CO_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["CO"], sigma_species["CO"])
 """CO unbounded :cite:p:`ZD09`"""
 CO_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=300,
@@ -1003,7 +1004,7 @@ CO_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 CO_zhang09_bounded: RealGas = CombinedRealGas.create([CO_zhang09], [CO_experimental_calibration])
 """CO bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-O2_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["O2"], sigma_species["O2"])
+O2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["O2"], sigma_species["O2"])
 """O2 unbounded :cite:p:`ZD09`"""
 O2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=300,
@@ -1015,7 +1016,7 @@ O2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 O2_zhang09_bounded: RealGas = CombinedRealGas.create([O2_zhang09], [O2_experimental_calibration])
 """O2 bounded to data range :cite:p:`ZD09{Table 5}`"""
 
-C2H6_zhang09: RealGas = ZhangDuanPureSpecies(epsilon_species["C2H6"], sigma_species["C2H6"])
+C2H6_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["C2H6"], sigma_species["C2H6"])
 """C2H6 unbounded :cite:p:`ZD09`"""
 C2H6_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=373,
