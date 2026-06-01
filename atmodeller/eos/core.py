@@ -315,17 +315,12 @@ class RedlichKwongABC(RealGas):
     """
 
     @abstractmethod
-    def a(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Gets the `a` parameter
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             `a` parameter
@@ -333,13 +328,8 @@ class RedlichKwongABC(RealGas):
         """
 
     @abstractmethod
-    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
+    def b(self) -> ArrayLike:
         r"""Gets the `b` parameter
-
-        Args:
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             `b` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
@@ -361,17 +351,19 @@ class RedlichKwongABC(RealGas):
         Returns:
             Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
-        a: ArrayLike = self.a(temperature, pressure, mole_fractions)
+        del mole_fractions
+
+        a: ArrayLike = self.a(temperature, pressure)
 
         volume_integral: FloatArray = (
             jnp.log(pressure) * GAS_CONSTANT_BAR * temperature
-            + self.b(mole_fractions) * pressure
+            + self.b() * pressure
             + a
-            / self.b(mole_fractions)
+            / self.b()
             / jnp.sqrt(temperature)
             * (
-                jnp.log(GAS_CONSTANT_BAR * temperature + self.b(mole_fractions) * pressure)
-                - jnp.log(GAS_CONSTANT_BAR * temperature + 2.0 * self.b(mole_fractions) * pressure)
+                jnp.log(GAS_CONSTANT_BAR * temperature + self.b() * pressure)
+                - jnp.log(GAS_CONSTANT_BAR * temperature + 2.0 * self.b() * pressure)
             )
         )
 
@@ -403,17 +395,19 @@ class RedlichKwongABC(RealGas):
         Returns:
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        a: ArrayLike = self.a(temperature, pressure, mole_fractions)
+        del mole_fractions
+
+        a: ArrayLike = self.a(temperature, pressure)
 
         volume: FloatArray = (
             jnp.sqrt(temperature)
             * -1.0
             * a
             * GAS_CONSTANT_BAR
-            / (GAS_CONSTANT_BAR * temperature + self.b(mole_fractions) * pressure)
-            / (GAS_CONSTANT_BAR * temperature + 2.0 * self.b(mole_fractions) * pressure)
+            / (GAS_CONSTANT_BAR * temperature + self.b() * pressure)
+            / (GAS_CONSTANT_BAR * temperature + 2.0 * self.b() * pressure)
             + GAS_CONSTANT_BAR * temperature / pressure
-            + self.b(mole_fractions)
+            + self.b()
         )
 
         return volume
@@ -432,63 +426,45 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
     """
 
     @abstractmethod
-    def initial_volume(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: ArrayLike | None = None,
-    ) -> ArrayLike:
+    def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Initial guess volume for the solution to ensure convergence to the correct root
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         ...
 
-    def A_factor(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def A_factor(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         """`A` factor :cite:p:`HP91{Appendix A}`
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             `A` factor, which is dimensionless
         """
-        A_factor: ArrayLike = self.a(temperature, pressure, mole_fractions) / (
-            self.b(mole_fractions) * GAS_CONSTANT_BAR * jnp.power(temperature, 1.5)
+        A_factor: ArrayLike = self.a(temperature, pressure) / (
+            self.b() * GAS_CONSTANT_BAR * jnp.power(temperature, 1.5)
         )
 
         return A_factor
 
-    def B_factor(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def B_factor(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         """`B` factor :cite:p:`HP91{Appendix A}`
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             `B` factor, which is dimensionless
         """
-        B_factor: ArrayLike = self.b(mole_fractions) * pressure / (GAS_CONSTANT_BAR * temperature)
+        B_factor: ArrayLike = self.b() * pressure / (GAS_CONSTANT_BAR * temperature)
 
         return B_factor
 
@@ -530,8 +506,8 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
             Log fugacity (bar)
         """
         z: FloatArray = as_j64(self.compressibility_factor(temperature, pressure, mole_fractions))
-        A: ArrayLike = self.A_factor(temperature, pressure, mole_fractions)
-        B: ArrayLike = self.B_factor(temperature, pressure, mole_fractions)
+        A: ArrayLike = self.A_factor(temperature, pressure)
+        B: ArrayLike = self.B_factor(temperature, pressure)
 
         log_fugacity_coefficient: FloatArray = -jnp.log(z - B) - A * jnp.log(1 + B / z) + z - 1
         log_fugacity: FloatArray = jnp.log(pressure) + log_fugacity_coefficient
@@ -552,18 +528,17 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
         """
         temperature: ArrayLike = cast(ArrayLike, kwargs["temperature"])
         pressure: ArrayLike = cast(ArrayLike, kwargs["pressure"])
-        mole_fractions: ArrayLike | None = kwargs.get("mole_fractions", None)
 
-        a: ArrayLike = self.a(temperature, pressure, mole_fractions)
+        a: ArrayLike = self.a(temperature, pressure)
 
         # Coefficients for the polynomial in terms of volume. Unity coefficients are to satisfy
         # type checking.
         rtp: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
         coeff2: ArrayLike = -1.0 * rtp
-        coeff1: ArrayLike = a / (jnp.sqrt(temperature) * pressure) - 1.0 * self.b(
-            mole_fractions
-        ) * (rtp + self.b(mole_fractions))
-        coeff0: ArrayLike = -1.0 * a * self.b(mole_fractions) / (jnp.sqrt(temperature) * pressure)
+        coeff1: ArrayLike = a / (jnp.sqrt(temperature) * pressure) - 1.0 * self.b() * (
+            rtp + self.b()
+        )
+        coeff0: ArrayLike = -1.0 * a * self.b() / (jnp.sqrt(temperature) * pressure)
 
         residual: FloatArray = (
             jnp.power(volume, 3) + coeff2 * jnp.square(volume) + coeff1 * volume + coeff0
@@ -587,12 +562,10 @@ class RedlichKwongImplicitABC(RedlichKwongABC):
         Returns:
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        initial_volume: ArrayLike = self.initial_volume(temperature, pressure, mole_fractions)
-        kwargs: dict[str, ArrayLike | None] = {
-            "temperature": temperature,
-            "pressure": pressure,
-            "mole_fractions": mole_fractions,
-        }
+        del mole_fractions
+
+        initial_volume: ArrayLike = self.initial_volume(temperature, pressure)
+        kwargs: dict[str, ArrayLike | None] = {"temperature": temperature, "pressure": pressure}
 
         solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
         sol = optx.root_find(
@@ -608,9 +581,7 @@ class RedlichKwongImplicitDenseFluidABC(RedlichKwongImplicitABC):
     """MRK for the high density fluid phase :cite:p`HP91{Equation 6}`"""
 
     @override
-    def initial_volume(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Initial guess volume to ensure convergence to the correct root
 
         For the dense fluid phase a suitably low value must be chosen :cite:p:`HP91{Appendix}`.
@@ -618,9 +589,6 @@ class RedlichKwongImplicitDenseFluidABC(RedlichKwongImplicitABC):
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
@@ -628,7 +596,7 @@ class RedlichKwongImplicitDenseFluidABC(RedlichKwongImplicitABC):
         del temperature
         del pressure
 
-        initial_volume: ArrayLike = self.b(mole_fractions) / 2
+        initial_volume: ArrayLike = self.b() / 2
 
         return initial_volume
 
@@ -637,9 +605,7 @@ class RedlichKwongImplicitGasABC(RedlichKwongImplicitABC):
     """MRK for the low density gaseous phase :cite:p:`HP91{Equation 6a}`"""
 
     @override
-    def initial_volume(
-        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> ArrayLike:
+    def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Initial guess volume to ensure convergence to the correct root
 
         For the gaseous phase a suitably high value must be chosen :cite:p:`HP91{Appendix}`.
@@ -647,16 +613,11 @@ class RedlichKwongImplicitGasABC(RedlichKwongImplicitABC):
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        initial_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure + 10 * self.b(
-            mole_fractions
-        )
+        initial_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure + 10 * self.b()
 
         return initial_volume
 
@@ -694,12 +655,7 @@ class VirialCompensation(eqx.Module):
     P0: float = eqx.field(converter=float)
     """Pressure at which the MRK equation begins to overestimate the molar volume significantly"""
 
-    def _a(
-        self,
-        temperature: ArrayLike,
-        critical_data: CriticalData,
-        mole_fractions: ArrayLike | None = None,
-    ) -> FloatArray:
+    def _a(self, temperature: ArrayLike, critical_data: CriticalData) -> FloatArray:
         r"""`a` parameter :cite:p:`HP98`
 
         This is also the `d` parameter in :cite:t:`HP91`.
@@ -707,15 +663,10 @@ class VirialCompensation(eqx.Module):
         Args:
             temperature: Temperature (K)
             critical_data: Critical data
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             `a` parameter in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}\ \mathrm{bar}^{-1}`
         """
-        del mole_fractions
-
         a: FloatArray = (
             self.a_coefficients[1] * as_j64(temperature)
             + self.a_coefficients[0] * critical_data.temperature
@@ -724,12 +675,7 @@ class VirialCompensation(eqx.Module):
 
         return a
 
-    def _b(
-        self,
-        temperature: ArrayLike,
-        critical_data: CriticalData,
-        mole_fractions: ArrayLike | None = None,
-    ) -> FloatArray:
+    def _b(self, temperature: ArrayLike, critical_data: CriticalData) -> FloatArray:
         r"""`b` parameter :cite:p:`HP98`
 
         This is also the `c` parameter in :cite:t:`HP91`.
@@ -737,15 +683,10 @@ class VirialCompensation(eqx.Module):
         Args:
             temperature: Temperature (K)
             critical_data: Critical data
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             `b` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}\ \mathrm{bar}^{-1/2}`)
         """
-        del mole_fractions
-
         b: FloatArray = (
             self.b_coefficients[1] * as_j64(temperature)
             + self.b_coefficients[0] * critical_data.temperature
@@ -754,27 +695,16 @@ class VirialCompensation(eqx.Module):
 
         return b
 
-    def _c(
-        self,
-        temperature: ArrayLike,
-        critical_data: CriticalData,
-        mole_fractions: ArrayLike | None = None,
-    ) -> FloatArray:
+    def _c(self, temperature: ArrayLike, critical_data: CriticalData) -> FloatArray:
         r"""`c` parameter :cite:p:`HP98`
 
         Args:
             temperature: Temperature (K)
             critical_data: Critical data
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
-
 
         Returns:
             `c` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}\ \mathrm{bar}^{-1/4}`)
         """
-        del mole_fractions
-
         c: FloatArray = (
             self.c_coefficients[1] * as_j64(temperature)
             + self.c_coefficients[0] * critical_data.temperature
@@ -808,11 +738,7 @@ class VirialCompensation(eqx.Module):
         return delta_pressure
 
     def volume(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        critical_data: CriticalData,
-        mole_fractions: ArrayLike | None = None,
+        self, temperature: ArrayLike, pressure: ArrayLike, critical_data: CriticalData
     ) -> FloatArray:
         r"""Volume contribution
 
@@ -820,28 +746,21 @@ class VirialCompensation(eqx.Module):
             temperature: Temperature (K)
             pressure: Pressure (bar)
             critical_data: Critical data
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             Volume contribution (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         delta_pressure: FloatArray = self._delta_pressure(pressure)
         volume: FloatArray = (
-            self._a(temperature, critical_data, mole_fractions) * delta_pressure
-            + self._b(temperature, critical_data, mole_fractions) * jnp.sqrt(delta_pressure)
-            + self._c(temperature, critical_data, mole_fractions) * jnp.power(delta_pressure, 0.25)
+            self._a(temperature, critical_data) * delta_pressure
+            + self._b(temperature, critical_data) * jnp.sqrt(delta_pressure)
+            + self._c(temperature, critical_data) * jnp.power(delta_pressure, 0.25)
         )
 
         return volume
 
     def volume_integral(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        critical_data: CriticalData,
-        mole_fractions: ArrayLike | None = None,
+        self, temperature: ArrayLike, pressure: ArrayLike, critical_data: CriticalData
     ) -> FloatArray:
         r"""Volume integral :math:`V dP` contribution
 
@@ -849,23 +768,20 @@ class VirialCompensation(eqx.Module):
             temperature: Temperature (K)
             pressure: Pressure (bar)
             critical_data: Critical data
-            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
-                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
-                ``None``.
 
         Returns:
             Volume integral contribution (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
         delta_pressure: FloatArray = self._delta_pressure(pressure)
         volume_integral: FloatArray = (
-            self._a(temperature, critical_data, mole_fractions) / 2.0 * jnp.square(delta_pressure)
+            self._a(temperature, critical_data) / 2.0 * jnp.square(delta_pressure)
             + 2.0
             / 3.0
-            * self._b(temperature, critical_data, mole_fractions)
+            * self._b(temperature, critical_data)
             * jnp.power(delta_pressure, (3.0 / 2.0))
             + 4.0
             / 5.0
-            * self._c(temperature, critical_data, mole_fractions)
+            * self._c(temperature, critical_data)
             * jnp.power(delta_pressure, (5.0 / 4.0))
         )
 
@@ -906,7 +822,7 @@ class CORK(RealGas):
         """
         volume: ArrayLike = self.mrk.volume(
             temperature, pressure, mole_fractions
-        ) + self.virial.volume(temperature, pressure, self.critical_data, mole_fractions)
+        ) + self.virial.volume(temperature, pressure, self.critical_data)
 
         return volume
 
@@ -928,6 +844,6 @@ class CORK(RealGas):
         """
         volume_integral: FloatArray = self.mrk.volume_integral(
             temperature, pressure, mole_fractions
-        ) + self.virial.volume_integral(temperature, pressure, self.critical_data, mole_fractions)
+        ) + self.virial.volume_integral(temperature, pressure, self.critical_data)
 
         return volume_integral
