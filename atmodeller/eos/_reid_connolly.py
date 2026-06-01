@@ -34,8 +34,8 @@ class RedlichKwong49(RedlichKwongABC):
     _b: float = eqx.field(converter=float)
 
     def __init__(self, critical_data: CriticalData):
-        r"""Default a (in :math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`)
-        and b (in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`) for SiO calculated from  the critical
+        r"""Default a (:math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`)
+        and b (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`) for SiO calculated from the critical
         pressure and temperature from :cite:p:`C16{Table 2}`"""
         self.critical_data = critical_data
         self._a = 0.000448433
@@ -43,12 +43,12 @@ class RedlichKwong49(RedlichKwongABC):
 
     @property
     def critical_pressure(self) -> float:
-        """Critical pressure in bar"""
+        """Critical pressure (bar)"""
         return self.critical_data.pressure
 
     @property
     def critical_temperature(self) -> float:
-        """Critical temperature in K"""
+        """Critical temperature (K))"""
         return self.critical_data.temperature
 
     @classmethod
@@ -67,20 +67,26 @@ class RedlichKwong49(RedlichKwongABC):
         return cls(critical_data)
 
     @override
-    @eqx.filter_jit
-    def a(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def a(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""RK49 `a` parameter :cite:p:`RK49{Equation 4}`.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
+
 
         Returns:
-            RK49 `a` parameter in
-            :math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`
+            RK49 `a` parameter
+            (:math:`(\mathrm{m}^3\ \mathrm{mol}^{-1})^2\ \mathrm{K}^{1/2}\ \mathrm{bar}`)
         """
         del temperature
         del pressure
+        del mole_fractions
 
         a: ArrayLike = (
             jnp.power(GAS_CONSTANT_BAR, (2.0))
@@ -91,13 +97,14 @@ class RedlichKwong49(RedlichKwongABC):
         return a
 
     @override
-    @eqx.filter_jit
-    def b(self) -> ArrayLike:
+    def b(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
         r"""RK49 `b` parameter :cite:p:`RK49{Equation 5}`.
 
         Returns:
-            RK49 `b` parameter in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`.
+            RK49 `b` parameter (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`).
         """
+        del mole_fractions
+
         b: ArrayLike = (
             (jnp.power(2, (1.0 / 3)) - 1)
             * GAS_CONSTANT_BAR
@@ -109,18 +116,12 @@ class RedlichKwong49(RedlichKwongABC):
 
 
 experimental_calibration_connolly16: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=1000,
-    temperature_max=10000,
-    pressure_min=1,
-    pressure_max=50e3,
+    temperature_min=1000, temperature_max=10000, pressure_min=1, pressure_max=50e3
 )
 """Experimental calibration for :cite:`C16` models"""
 
 experimental_calibration_reid87: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=300,
-    temperature_max=500,
-    pressure_min=1,
-    pressure_max=100,
+    temperature_min=300, temperature_max=500, pressure_min=1, pressure_max=100
 )
 """Experimental calibration for :cite:`RPS77` models"""
 
