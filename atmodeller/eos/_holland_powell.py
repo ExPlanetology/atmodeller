@@ -320,7 +320,7 @@ class MRKImplicitHP91ABCMixin(eqx.Module):
         a_coefficients: `a` coefficients
         b: `b` coefficient
         Ta: Temperature at which the `a` parameter is equal for the dense fluid and gas in K
-        Tc: Critical temperature in K
+        Tc: Critical temperature (K)
     """
 
     _a_coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)
