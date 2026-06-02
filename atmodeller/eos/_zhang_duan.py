@@ -41,7 +41,7 @@ sigma_species: dict[str, float] = {
     "O2": 3.36,
     "C2H6": 4.35,
 }
-r"""sigma values for each species (10\ :sup:`-10` m) :cite:p:`ZD09{Table 4}`. Ensure these use Hill
+r"""Sigma values for each species (10\ :sup:`-10` m) :cite:p:`ZD09{Table 4}`. Ensure these use Hill
 notation."""
 
 REFERENCE_EPSILON: float = epsilon_species["CH4"]
@@ -605,7 +605,21 @@ class ZhangDuanMixture(ZhangDuanBase):
         pressure: ArrayLike,
         mole_fractions: Float[Array, "... n_species"],
     ) -> FloatArray:
-        """Log species fugacity coefficient computed using autodiff
+        r"""Log species fugacity coefficient obtained using autodiff
+
+        .. math::
+            \ln \phi_i = \left(\frac{\partial(n \ln \phi)}{\partial n_i}\right)_{T,P,n_{j \neq i}}.
+
+        However, it is desirable to express this in terms of the mole fractions rather than the
+        number of moles, since the mole fractions are the natural variables for the mixing rules.
+
+        Differentiating, applying the quotient rule, and simplifying gives:
+
+        .. math::
+            \ln \phi_i = \ln \phi + \frac{\partial \ln \phi}{\partial x_i} - \sum_k x_k \frac{\partial \ln \phi}{\partial x_k}.
+
+        This method is not used in the final implementation, but it serves as a useful check on the
+        analytical expression for the species fugacity coefficient.
 
         Args:
             temperature: Temperature (K)
@@ -621,6 +635,7 @@ class ZhangDuanMixture(ZhangDuanBase):
 
         # Use vmap over the batch dimension when mole_fractions is batched (ndim > 1),
         # since eqx.filter_grad requires a scalar-output function.
+        # TODO: Not sure if this is taken care of before entering this method?
         if mole_fractions.ndim == 2:
             grads = jax.vmap(self._grad_fn, in_axes=(0, None, None))(
                 mole_fractions, temperature, pressure
@@ -639,7 +654,10 @@ class ZhangDuanMixture(ZhangDuanBase):
         pressure: ArrayLike,
         mole_fractions: Float[Array, "... n_species"],
     ) -> FloatArray:
-        """Log partial fugacity coefficient :cite:p:`ZD09{Equation 14}`
+        """Log partial fugacity coefficient using analytical expression :cite:p:`ZD09{Equation 14}`
+
+        Note the sign error in the compositional correction term in :cite:t:`ZD09{Equation 14}`.
+        The correct sign before S2 should be negative.
 
         Args:
             temperature: Temperature (K)
