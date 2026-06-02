@@ -103,7 +103,7 @@ def test_H2O_CO2_vol_mix_low_H2O() -> None:
     :cite:t:`Frost1997`.
     """
     species: tuple[str, ...] = ("H2O", "CO2")
-    model = ZhangDuanMixture(species)
+    model = ZhangDuanMixture(species, "H2O")
 
     mole_fractions = jnp.array([0.6125, 0.3875])
 
@@ -121,7 +121,7 @@ def test_H2O_CO2_vol_mix_high_H2O() -> None:
     :cite:t:`Frost1997`.
     """
     species: tuple[str, ...] = ("H2O", "CO2")
-    model = ZhangDuanMixture(species)
+    model = ZhangDuanMixture(species, "H2O")
 
     mole_fractions = jnp.array([0.875, 0.125])
 
@@ -277,11 +277,12 @@ def test_autodiff() -> None:
     pressure = 2.4e3 * 10
     temperature = 1273
 
-    moles_in = jnp.array([0.05, 0.05, 0.05, 0.1, 0.25, 0.25, 0.25])
+    moles_in = jnp.array([0.5, 0.1, 0.1, 0.1, 0.1, 0.5, 0.5])
 
-    out_autodiff = eos_H2O.log_fugacity(temperature, pressure, moles_in)
-
-    out_func = eos_H2O.log_fugacity_original(temperature, pressure, moles_in)
+    out_autodiff = eos_H2O.log_species_fugacity_coefficient_autodiff(
+        temperature, pressure, moles_in
+    )
+    out_func = eos_H2O.log_fugacity_coefficient(temperature, pressure, moles_in)
 
     print("out_autodiff:", out_autodiff)
     print("out_func:", out_func)

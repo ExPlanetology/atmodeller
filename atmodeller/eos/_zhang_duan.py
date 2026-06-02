@@ -6,7 +6,7 @@
 
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import ClassVar, Optional
+from typing import ClassVar, cast
 
 import equinox as eqx
 import jax
@@ -16,10 +16,9 @@ import optimistix as optx
 from jaxtyping import Array, ArrayLike, Float
 
 from atmodeller import override
-from atmodeller.constants import STANDARD_FUGACITY
-from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW, VOLUME_EPSILON
+from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
 from atmodeller.eos._aggregators import CombinedRealGas
-from atmodeller.eos.core import RealGas
+from atmodeller.eos.core import RealGas, safe_ideal_initial_volume
 from atmodeller.jax_utils import FloatArray, NpFloat, OptxSolver, as_j64, safe_exp
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
@@ -74,7 +73,7 @@ class ZhangDuanBase(RealGas):
     """Coefficients"""
 
     @abstractmethod
-    def get_epsilon(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
+    def get_epsilon(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
         """Gets epsilon.
 
         Args:
@@ -86,7 +85,7 @@ class ZhangDuanBase(RealGas):
         """
 
     @abstractmethod
-    def get_sigma(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
+    def get_sigma(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
         """Gets sigma.
 
         Args:
@@ -98,7 +97,7 @@ class ZhangDuanBase(RealGas):
         """
 
     def reduced_pressure(
-        self, pressure: ArrayLike, mole_fractions: Optional[ArrayLike] = None
+        self, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         """Reduced pressure
 
@@ -121,7 +120,7 @@ class ZhangDuanBase(RealGas):
         return reduced_pressure
 
     def reduced_temperature(
-        self, temperature: ArrayLike, mole_fractions: Optional[ArrayLike] = None
+        self, temperature: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> ArrayLike:
         """Reduced temperature
 
@@ -140,7 +139,7 @@ class ZhangDuanBase(RealGas):
         return reduced_temperature
 
     def reduced_volume(
-        self, volume: ArrayLike, mole_fractions: Optional[ArrayLike] = None
+        self, volume: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         r"""Reduced volume
 
@@ -206,7 +205,9 @@ class ZhangDuanBase(RealGas):
 
         return S1_term
 
-    def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
+    def _objective_function(
+        self, volume: ArrayLike, kwargs: dict[str, ArrayLike | None]
+    ) -> FloatArray:
         r"""Objective function to solve for the volume :cite:p:`ZD09{Equation 8}`.
 
         Note that the left-hand side of :cite:t:`ZD09{Equation 8}` is the compressibility factor,
@@ -220,9 +221,9 @@ class ZhangDuanBase(RealGas):
         Returns:
             Residual of the objective function
         """
-        temperature: ArrayLike = kwargs["temperature"]
-        pressure: ArrayLike = kwargs["pressure"]
-        mole_fractions: Optional[ArrayLike] = kwargs.get("mole_fractions", None)
+        temperature: ArrayLike = cast(ArrayLike, kwargs["temperature"])
+        pressure: ArrayLike = cast(ArrayLike, kwargs["pressure"])
+        mole_fractions: ArrayLike | None = kwargs.get("mole_fractions", None)
         # jax.debug.print("temperature = {temperature}", temperature=temperature)
         # jax.debug.print("pressure = {pressure}", pressure=pressure)
         # jax.debug.print("mole_fractions = {mole_fractions}", mole_fractions=mole_fractions)
@@ -231,7 +232,7 @@ class ZhangDuanBase(RealGas):
         # jax.debug.print("Tm = {Tm}", Tm=Tm)
         Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
         # jax.debug.print("Vm = {Vm}", Vm=Vm)
-        ptr: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
+        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
         # jax.debug.print("ptr = {ptr}", ptr=ptr)
 
         b: FloatArray = self._get_S1_parameter(Tm, self.coefficients[0:3])
@@ -264,7 +265,7 @@ class ZhangDuanBase(RealGas):
         )
         # jax.debug.print("term2 = {term2}", term2=term2)
 
-        residual: FloatArray = term1 + term2 - ptr
+        residual: FloatArray = term1 + term2 - Z
         # jax.debug.print("residual = {residual}", residual=residual)
 
         return residual
@@ -283,18 +284,11 @@ class ZhangDuanBase(RealGas):
         Returns:
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        ideal_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
-        safe_volume: FloatArray = as_j64(ideal_volume + VOLUME_EPSILON)
-        # jax.debug.print("initial_volume = {out}", out=safe_volume)
-
-        return safe_volume * 10
+        return safe_ideal_initial_volume(temperature, pressure) * 10
 
     # @eqx.debug.assert_max_traces(max_traces=1)
     def volume(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Optional[ArrayLike] = None,
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         r"""Computes the volume numerically.
 
@@ -308,7 +302,7 @@ class ZhangDuanBase(RealGas):
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
         initial: FloatArray = self.initial_volume(temperature, pressure)
-        kwargs: dict[str, Optional[ArrayLike]] = {
+        kwargs: dict[str, ArrayLike | None] = {
             "temperature": temperature,
             "pressure": pressure,
             "mole_fractions": mole_fractions,
@@ -329,25 +323,98 @@ class ZhangDuanBase(RealGas):
         return volume
 
     def volume_integral(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Optional[ArrayLike] = None,
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
-        r"""Volume integral
+        r"""Pressure-integrated volume contribution
+
+        Computes the quantity
+
+        .. math::
+            RT \ln f,
+
+        where :math:`f` is the fugacity returned by :meth:`log_fugacity`.
+
+        For bulk fluid fugacities, this corresponds to the pressure integral involving the molar
+        volume. For species fugacities in mixtures, the corresponding integral involves the partial
+        molar volume.
+
+        Args:
+            temperature: Temperature (K).
+            pressure: Pressure (bar).
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
+
+        Returns:
+            Pressure-integrated volume contribution
+            (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
+        """
+        log_fugacity: FloatArray = self.log_fugacity(temperature, pressure, mole_fractions)
+        volume_integral: FloatArray = log_fugacity * GAS_CONSTANT_BAR * temperature
+
+        return volume_integral
+
+    def log_mixture_fugacity_coefficient(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        r"""Log fugacity coefficient of the fluid mixture :cite:p:`ZD09{Equation 14}`
+
+        Computes the fugacity coefficient associated with the bulk fluid described by the Zhang and
+        Duan EOS.
+
+        .. math::
+            \ln \phi = -\ln Z + S_1 + Z - 1
+
+        where :math:`\phi` is the mixture fugacity coefficient and :math:`Z` is the compressibility
+        factor. For a pure fluid, this reduces to the standard pure-fluid fugacity coefficient.
+
+        This quantity does not include the compositional derivative terms required to obtain
+        species (partial) fugacity coefficients in mixtures.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
-            mole_fractions: Ignored for pure fluids. Defaults to ``None``.
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
-            Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
+            Logarithm of the mixture fugacity coefficient (dimensionless)
         """
-        log_fugacity: FloatArray = self.log_fugacity(temperature, pressure)
-        volume_integral: FloatArray = log_fugacity * GAS_CONSTANT_BAR * temperature
+        volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
+        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
+        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
+        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
+        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
+        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
 
-        return volume_integral
+        return log_fugacity_coefficient
+
+    def log_mixture_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        r"""Logarithm of the mixture fugacity
+
+        Computes
+
+        .. math::
+            \ln f = \ln \phi + \ln P
+
+        where :math:`f` is the mixture fugacity, :math:`\phi` is the mixture fugacity coefficient,
+        and :math:`P` is the pressure.
+
+        For pure fluids, this reduces to the standard definition of fugacity.
+
+        Args:
+            temperature: Temperature (K).
+            pressure: Pressure (bar).
+            mole_fractions: Mole fractions of species in the gas phase. Defaults
+                to ``None`` for pure fluids.
+
+        Returns:
+            Logarithm of the mixture fugacity.
+        """
+        return self.log_mixture_fugacity_coefficient(
+            temperature, pressure, mole_fractions
+        ) + jnp.log(pressure)
 
 
 class ZhangDuanPureFluid(ZhangDuanBase):
@@ -364,43 +431,28 @@ class ZhangDuanPureFluid(ZhangDuanBase):
     """Lenard-Jones parameter (:math:`10^{-10}` m)"""
 
     @override
-    def get_epsilon(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
+    def get_epsilon(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
         del mole_fractions
         return as_j64(self.epsilon)
 
     @override
-    def get_sigma(self, mole_fractions: Optional[ArrayLike] = None) -> ArrayLike:
+    def get_sigma(self, mole_fractions: ArrayLike | None = None) -> ArrayLike:
         del mole_fractions
         return as_j64(self.sigma)
 
     @override
-    def log_fugacity(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Optional[ArrayLike] = None,
+    def log_fugacity_coefficient(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
-        """Log fugacity :cite:p:`ZD09{Equation 14}`
+        del mole_fractions
+        return self.log_mixture_fugacity_coefficient(temperature, pressure)
 
-        This is for a pure fluid and does not include the terms to enable end member mixing.
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Ignored for pure fluids. Defaults to ``None``.
-
-        Returns:
-            Log fugacity in bar
-        """
-        volume: FloatArray = self.volume(temperature, pressure)
-        Vm: FloatArray = self.reduced_volume(volume)
-        Tm: ArrayLike = self.reduced_temperature(temperature)
-        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
-        log_fugacity: FloatArray = log_fugacity_coefficient + jnp.log(pressure)
-        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
-
-        return log_fugacity
+    @override
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        del mole_fractions
+        return self.log_mixture_fugacity(temperature, pressure)
 
 
 class ZhangDuanMixture(ZhangDuanBase):
@@ -415,25 +467,32 @@ class ZhangDuanMixture(ZhangDuanBase):
     _grad_fn: Callable
 
     @override
-    def __init__(self, species: tuple[str, ...], species_to_output: str | None = None):
+    def __init__(self, species: tuple[str, ...], species_to_output: str):
         """Initializes the mixture model.
 
         Args:
             species: Tuple of species names
             species_to_output: Name of the species for which to output species-specific quantities,
-                such as fugacity. Defaults to ``None``.
+                such as partial fugacity
         """
         self.species = species
         self.k1 = self.get_k1_mixing_matrix(species)
         self.k2 = self.get_k2_mixing_matrix(species)
         self.epsilon_matrix = self.get_epsilon_berthelot_rule(species)
         self.sigma_matrix = self.get_sigma_lorentz_rule(species)
-        # TODO: Hacky
-        self.species_index = (
-            species.index(species_to_output) if species_to_output is not None else 0
-        )
+        self.species_index = species.index(species_to_output)
         # print("species_index:", self.species_index)
-        self._grad_fn = eqx.filter_grad(self.wrap_log_fugacity_bulk)
+        self._grad_fn = eqx.filter_grad(self._wrap_log_mixture_fugacity_coefficient)
+
+    def _wrap_log_mixture_fugacity_coefficient(
+        self,
+        mole_fractions: Float[Array, "... n_species"],
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+    ):
+        """Wrapper to switch argument order to allow for differentiation with respect to mole
+        fractions using eqx.filter_grad"""
+        return self.log_mixture_fugacity_coefficient(temperature, pressure, mole_fractions)
 
     @override
     def get_epsilon(self, mole_fractions: Float[Array, "... n_species"]) -> FloatArray:
@@ -481,7 +540,7 @@ class ZhangDuanMixture(ZhangDuanBase):
     ) -> Float[Array, "... n_species"]:
         """Gets the sigma values for each species in the mixture using the Lorentz mixing rule.
 
-        There is a typo in :cite:t:`ZD09` that gives the coefficient as k1 rather than k2.
+        There is a typo in :cite:t:`ZD09` and the coefficient should be k2.
 
         Args:
             mole_fractions: Mole fractions of species in the gas phase
@@ -540,106 +599,89 @@ class ZhangDuanMixture(ZhangDuanBase):
 
         return S2
 
-    # def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
-    #     r"""Objective function to solve for the volume :cite:p:`ZD09{Equation 8}`.
+    def log_species_fugacity_coefficient_autodiff(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Float[Array, "... n_species"],
+    ) -> FloatArray:
+        """Log species fugacity coefficient computed using autodiff
 
-    #     Note that the left-hand side of :cite:t:`ZD09{Equation 8}` is the compressibility factor
-    #     so should be expressed in terms of P, V, R, and T, and not the scaled equivalents.
+        Args:
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of species in the gas phase
 
-    #     Args:
-    #         volume: Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
-    #         kwargs: Dictionary with other required parameters
+        Returns:
+            Log species fugacity coefficient
+        """
+        log_fugacity_coeff_mix = self.log_mixture_fugacity_coefficient(
+            temperature, pressure, mole_fractions
+        )
 
-    #     Returns:
-    #         Residual of the objective function
-    #     """
-    #     temperature: ArrayLike = kwargs["temperature"]
-    #     pressure: ArrayLike = kwargs["pressure"]
-    #     mole_fractions: Float[Array, "... n_species"] = kwargs["mole_fractions"]  # type: ignore
-    #     # jax.debug.print("temperature = {temperature}", temperature=temperature)
-    #     # jax.debug.print("pressure = {pressure}", pressure=pressure)
+        # Use vmap over the batch dimension when mole_fractions is batched (ndim > 1),
+        # since eqx.filter_grad requires a scalar-output function.
+        if mole_fractions.ndim == 2:
+            grads = jax.vmap(self._grad_fn, in_axes=(0, None, None))(
+                mole_fractions, temperature, pressure
+            )
+        else:
+            grads = self._grad_fn(mole_fractions, temperature, pressure)
 
-    #     Tm: ArrayLike = self._Tm(temperature, mole_fractions)
-    #     # jax.debug.print("Tm = {Tm}", Tm=Tm)
-    #     Vm: FloatArray = self._Vm(volume, mole_fractions)
-    #     # jax.debug.print("Vm = {Vm}", Vm=Vm)
-    #     ptr: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-    #     # jax.debug.print("ptr = {ptr}", ptr=ptr)
+        log_fugacity_coeff_i = log_fugacity_coeff_mix + grads[..., self.species_index]
+        log_fugacity_coeff_i = log_fugacity_coeff_i - jnp.sum(grads * mole_fractions, axis=-1)
 
-    #     b: FloatArray = self._get_S1_parameter(Tm, self.coefficients[0:3])
-    #     # jax.debug.print("b = {b}", b=b)
-    #     c: FloatArray = self._get_S1_parameter(Tm, self.coefficients[3:6])
-    #     # jax.debug.print("c = {c}", c=c)
-    #     d: FloatArray = self._get_S1_parameter(Tm, self.coefficients[6:9])
-    #     # jax.debug.print("d = {d}", d=d)
-    #     e: FloatArray = self._get_S1_parameter(Tm, self.coefficients[9:12])
-    #     # jax.debug.print("e = {e}", e=e)
+        return log_fugacity_coeff_i
 
-    #     term1: FloatArray = (
-    #         as_j64(1)
-    #         + b / as_j64(Vm)
-    #         + c / jnp.power(Vm, 2)
-    #         + d / jnp.power(Vm, 4)
-    #         + e / jnp.power(Vm, 5)
-    #     )
-    #     # jax.debug.print("term1 = {term1}", term1=term1)
+    def log_partial_fugacity_coefficient(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Float[Array, "... n_species"],
+    ) -> FloatArray:
+        """Log partial fugacity coefficient :cite:p:`ZD09{Equation 14}`
 
-    #     a13: float = self.coefficients[12]
-    #     a14: float = self.coefficients[13]
-    #     a15: float = self.coefficients[14]
-    #     term2: FloatArray = (
-    #         a13
-    #         / jnp.power(Tm, 3)
-    #         / jnp.power(Vm, 2)
-    #         * (a14 + a15 / jnp.square(Vm))
-    #         * safe_exp(-a15 / jnp.square(Vm))
-    #     )
-    #     # jax.debug.print("term2 = {term2}", term2=term2)
+        Args:
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of species in the gas phase
 
-    #     residual: FloatArray = term1 + term2 - ptr
-    #     # jax.debug.print("residual = {residual}", residual=residual)
+        Returns:
+            Log partial fugacity coefficient (dimensionless)
+        """
+        log_fugacity_coefficient_mix: FloatArray = self.log_mixture_fugacity_coefficient(
+            temperature, pressure, mole_fractions
+        )
+        volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
+        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
+        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
+        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
 
-    #     return residual
+        # Compositional correction terms
+        correction1 = self.get_species_epsilon(mole_fractions)[
+            ..., self.species_index
+        ] / self.get_epsilon(mole_fractions)
+        # jax.debug.print("correction1 = {out}", out=correction1)
+        log_fugacity_coefficient_i = log_fugacity_coefficient_mix - 2 * self._S2(Tm, Vm) * (
+            1 - correction1
+        )
+        correction2 = self.get_species_sigma(mole_fractions)[
+            ..., self.species_index
+        ] / self.get_sigma(mole_fractions)
+        # jax.debug.print("correction2 = {out}", out=correction2)
+        log_fugacity_coefficient_i = log_fugacity_coefficient_i + 6 * (1 - Z) * (1 - correction2)
+        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
 
-    # @override
-    # @eqx.filter_jit
-    # @eqx.debug.assert_max_traces(max_traces=1)
-    # def volume(
-    #     self,
-    #     temperature: ArrayLike,
-    #     pressure: ArrayLike,
-    #     mole_fractions: Float[Array, "... n_species"],
-    # ) -> Array:
-    #     r"""Computes the volume numerically.
+        return log_fugacity_coefficient_i
 
-    #     Args:
-    #         temperature: Temperature (K)
-    #         pressure: Pressure (bar)
-    #         mole_fractions: Mole fractions of species in the gas phase
-
-    #     Returns:
-    #         Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
-    #     """
-    #     initial: FloatArray = self.initial_volume(temperature, pressure)
-    #     kwargs: dict[str, ArrayLike] = {
-    #         "temperature": temperature,
-    #         "pressure": pressure,
-    #         "mole_fractions": mole_fractions,
-    #     }
-
-    #     solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
-    #     sol = optx.root_find(self._objective_function, solver, initial, args=kwargs, throw=THROW)
-    #     volume: FloatArray = sol.value
-    #     jax.debug.print("volume = {out}", out=volume)
-    #     jax.debug.print("Optimistix success. Number of steps = {out}", out=sol.stats["num_steps"])
-
-    #     # For comparing the initial and final volumes to refine the choice of the initial volume
-    #     jax.debug.print("initial_volume = {out}", out=initial)
-    #     jax.debug.print("final_volume = {out}", out=volume)
-    #     relative_volume_error: FloatArray = (initial - volume) / volume
-    #     jax.debug.print("Relative volume error = {out}", out=relative_volume_error)
-
-    #     return volume
+    @override
+    def log_fugacity_coefficient(
+        self,
+        temperature: ArrayLike,
+        pressure: ArrayLike,
+        mole_fractions: Float[Array, "... n_species"],
+    ) -> FloatArray:
+        return self.log_partial_fugacity_coefficient(temperature, pressure, mole_fractions)
 
     @override
     def log_fugacity(
@@ -648,179 +690,8 @@ class ZhangDuanMixture(ZhangDuanBase):
         pressure: ArrayLike,
         mole_fractions: Float[Array, "... n_species"],
     ) -> FloatArray:
-        """Log fugacity computed using autodiff for the volume.
-
-        This is a useful check to ensure that the numerical solver for the volume is working correctly,
-        as the log fugacity should be consistent regardless of how the volume is computed.
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Gradient of log fugacity with respect to mole fractions
-        """
-        # This works, roughly
-        # grad_fn = jax.grad(self.log_fugacity_bulk, argnums=2)
-        # Try using equinox instead
-        # grad_fn = eqx.filter_grad(self.wrap_log_fugacity_bulk)
-        log_fugacity_coeff = self.log_fugacity_bulk(temperature, pressure, mole_fractions)
-        # jax.debug.print("log_fugacity_coeff_bulk = {out}", out=log_fugacity_coeff)
-
-        # For case without equinox
-        # log_fugacity_coeff = (
-        #     log_fugacity_coeff + grad_fn(temperature, pressure, mole_fractions)[self.species_index]
-        # )
-        # # jax.debug.print("grad_fn = {out}", out=self._grad_fn(temperature, pressure, mole_fractions))
-        # # jax.debug.print("mole_fractions = {out}", out=mole_fractions)
-        # log_fugacity_coeff = log_fugacity_coeff - jnp.sum(
-        #     grad_fn(temperature, pressure, mole_fractions) * mole_fractions
-        # )
-
-        # With equinox, switch argument order
-        # Use vmap over the batch dimension when mole_fractions is batched (ndim > 1),
-        # since eqx.filter_grad requires a scalar-output function.
-        if mole_fractions.ndim == 1:
-            grads = self._grad_fn(mole_fractions, temperature, pressure)
-        else:
-            grads = jax.vmap(self._grad_fn, in_axes=(0, None, None))(
-                mole_fractions, temperature, pressure
-            )
-        log_fugacity_coeff = log_fugacity_coeff + grads[..., self.species_index]
-        log_fugacity_coeff = log_fugacity_coeff - jnp.sum(grads * mole_fractions, axis=-1)
-
-        return log_fugacity_coeff + jnp.log(pressure)
-
-    def log_fugacity_bulk(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Float[Array, "... n_species"],
-    ) -> FloatArray:
-        """Log fugacity computed using a bulk method that does not require solving for the volume.
-
-        This is a useful check to ensure that the numerical solver for the volume is working correctly,
-        as the log fugacity should be consistent regardless of how the volume is computed.
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of species in the gas phase
-        """
-        volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
-        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
-        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
-        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
-
-        return log_fugacity_coefficient
-
-    def wrap_log_fugacity_bulk(
-        self,
-        mole_fractions: Float[Array, "... n_species"],
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-    ) -> FloatArray:
-        """Wrapper for log fugacity bulk method to ensure it is not traced by JAX.
-
-        This is necessary to avoid issues with the numerical solver for the volume when using
-        autodiff, as the solver may not be compatible with JAX's tracing mechanism.
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Log fugacity coefficient without the pressure term
-        """
-        return self.log_fugacity_bulk(temperature, pressure, mole_fractions)
-
-    @override
-    def log_fugacity_original(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Float[Array, "... n_species"],
-    ) -> FloatArray:
-        """Log fugacity :cite:p:`ZD09{Equation 14}`
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions of species in the gas phase
-
-        Returns:
-            Log fugacity in bar
-        """
-        volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
-        Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
-        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
-        Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
-        # jax.debug.print("species_index = {out}", out=self.species_index)
-        # jax.debug.print(
-        #    "log_fugacity_coefficient (before mixing) = {out}", out=log_fugacity_coefficient
-        # )
-
-        # Extra terms for mixture
-        correction1 = self.get_species_epsilon(mole_fractions)[
-            ..., self.species_index
-        ] / self.get_epsilon(mole_fractions)
-        # jax.debug.print("correction1 = {out}", out=correction1)
-        log_fugacity_coefficient = log_fugacity_coefficient - 2 * self._S2(Tm, Vm) * (
-            1 - correction1
-        )
-        correction2 = self.get_species_sigma(mole_fractions)[
-            ..., self.species_index
-        ] / self.get_sigma(mole_fractions)
-        log_fugacity_coefficient = log_fugacity_coefficient + 6 * (1 - Z) * (1 - correction2)
-        # jax.debug.print("correction2 = {out}", out=correction2)
-
-        # jax.debug.print(
-        #    "log_fugacity_coefficient (after mixing) = {out}", out=log_fugacity_coefficient
-        # )
-
-        # TODO: Check if this is partial fugacity?
-        # TODO: Note multiplication by mole fraction
-        # mole_fraction = mole_fractions[self.species_index]
-        log_fugacity: FloatArray = (
-            log_fugacity_coefficient
-            + jnp.log(
-                pressure
-            )  # FIXME: The mixing is done outside this function + jnp.log(mole_fraction)
-        )
-        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
-
-        # jax.debug.print("log_fugacity = {out}", out=log_fugacity)
-
-        return log_fugacity
-
-    @eqx.filter_jit
-    def log_activity(
-        self,
-        temperature: ArrayLike,
-        pressure: ArrayLike,
-        mole_fractions: Float[Array, "... n_species"],
-    ) -> FloatArray:
-        """Log activity
-
-        Args:
-            temperature: Temperature (K)
-            pressure: Pressure (bar)
-            mole_fractions: Mole fractions. Defaults to ``None`` if unused.
-
-        Returns:
-            Log activity, which is dimensionless
-        """
-        # jax.debug.print("mole_fractions = {out}", out=mole_fractions)
-        # log_fugacity = self.log_fugacity(temperature, pressure, mole_fractions)
-        # jax.debug.print("log_fugacity = {out}", out=log_fugacity)
-        return (
-            self.log_fugacity(temperature, pressure, mole_fractions) - jnp.log(STANDARD_FUGACITY)
-            # FIXME
-            # - jnp.log(mole_fractions)[self.species_index]
+        return self.log_fugacity_coefficient(temperature, pressure, mole_fractions) + jnp.log(
+            pressure
         )
 
     @staticmethod

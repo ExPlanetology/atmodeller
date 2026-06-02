@@ -20,7 +20,7 @@ from jaxtyping import ArrayLike
 
 from atmodeller import override
 from atmodeller.constants import STANDARD_FUGACITY
-from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
+from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW, VOLUME_EPSILON
 from atmodeller.jax_utils import FloatArray, OptxSolver, as_j64, safe_exp, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
 from atmodeller.thermodata import CriticalData
@@ -78,7 +78,7 @@ class RealGasBase(eqx.Module):
                 ``None``.
 
         Returns:
-            Log fugacity coefficient, which is dimensionless
+            Log fugacity coefficient (dimensionless)
         """
         return self.log_fugacity(temperature, pressure, mole_fractions) - jnp.log(pressure)
 
@@ -95,7 +95,7 @@ class RealGasBase(eqx.Module):
                 ``None``.
 
         Returns:
-            fugacity coefficient, which is dimensionless
+            Fugacity coefficient (dimensionless)
         """
         return safe_exp(self.log_fugacity_coefficient(temperature, pressure, mole_fractions))
 
@@ -114,7 +114,7 @@ class RealGasBase(eqx.Module):
                 ``None``.
 
         Returns:
-            Log activity, which is dimensionless
+            Log activity (dimensionless)
         """
         return self.log_fugacity(temperature, pressure, mole_fractions) - jnp.log(
             STANDARD_FUGACITY
@@ -263,7 +263,7 @@ class RealGas(RealGasBase):
                 ``None``.
 
         Returns:
-            Compressibility factor, which is dimensionless
+            Compressibility factor (dimensionless)
         """
         volume: ArrayLike = self.volume(temperature, pressure, mole_fractions)
         volume_ideal: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
@@ -720,7 +720,7 @@ class VirialCompensation(eqx.Module):
             pressure: Pressure (bar)
 
         Returns:
-            Pressure difference relative to :attr:`P0` in bar
+            Pressure difference relative to :attr:`P0` (bar)
         """
         pressure_array: FloatArray = as_j64(pressure)
         condition: FloatArray = pressure_array > self.P0
@@ -847,3 +847,20 @@ class CORK(RealGas):
         ) + self.virial.volume_integral(temperature, pressure, self.critical_data)
 
         return volume_integral
+
+
+def safe_ideal_initial_volume(temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
+    r"""Initial guess volume is the ideal gas volume plus a small epsilon
+
+    Args:
+        temperature: Temperature (K)
+        pressure: Pressure (bar)
+
+    Returns:
+        Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
+    """
+    ideal_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
+    safe_volume: FloatArray = as_j64(ideal_volume + VOLUME_EPSILON)
+    # jax.debug.print("initial_volume = {out}", out=safe_volume)
+
+    return safe_volume
