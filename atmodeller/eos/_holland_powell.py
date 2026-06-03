@@ -15,13 +15,11 @@ from scipy.constants import kilo
 
 from atmodeller import override
 from atmodeller.eos._aggregators import CombinedRealGas
-from atmodeller.eos.core import (
-    CORK,
-    RealGas,
+from atmodeller.eos.core import CORK, RealGas, VirialCompensation
+from atmodeller.eos.redlich_kwong import (
     RedlichKwongABC,
     RedlichKwongImplicitDenseFluidABC,
     RedlichKwongImplicitGasABC,
-    VirialCompensation,
 )
 from atmodeller.jax_utils import FloatArray, Scalar, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration

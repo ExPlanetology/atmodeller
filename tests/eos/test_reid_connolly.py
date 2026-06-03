@@ -40,13 +40,7 @@ def test_H3N_fugacity_coefficient(check_values) -> None:
     check_values.fugacity_coefficient(500, 100, model, expected)
 
 
-def test_volume_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
+def test_broadcasting(check_values) -> None:
+    """Tests methods with broadcasting"""
     model: RealGas = OSi_rk49_connolly16_bounded
-    check_values.check_broadcasting("volume", model)
-
-
-def test_fugacity_with_broadcasting(check_values) -> None:
-    """Tests fugacity with broadcasting"""
-    model: RealGas = OSi_rk49_connolly16_bounded
-    check_values.check_broadcasting("fugacity", model)
+    check_values.check_broadcasting(model)

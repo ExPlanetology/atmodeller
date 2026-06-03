@@ -10,9 +10,9 @@ import optimistix as optx
 from jaxtyping import ArrayLike
 
 from atmodeller import override
-from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW, VOLUME_EPSILON
+from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
 from atmodeller.eos._aggregators import CombinedRealGas
-from atmodeller.eos.core import RealGas
+from atmodeller.eos.core import RealGas, safe_ideal_initial_volume
 from atmodeller.jax_utils import FloatArray, OptxSolver, Scalar
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
@@ -171,7 +171,7 @@ class BeattieBridgeman(RealGas):
         """
         del mole_fractions
 
-        safe_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure + VOLUME_EPSILON
+        safe_volume: FloatArray = safe_ideal_initial_volume(temperature, pressure)
         kwargs: dict[str, ArrayLike] = {"temperature": temperature, "pressure": pressure}
 
         solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)

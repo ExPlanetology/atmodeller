@@ -38,6 +38,6 @@ def test_H2_fugacity_coefficient_1000kbar(check_values) -> None:
 
 
 def test_broadcasting(check_values) -> None:
-    """Tests properties with broadcasting"""
+    """Tests methods with broadcasting"""
     model: RealGas = H2_chabrier21
     check_values.check_broadcasting(model)
