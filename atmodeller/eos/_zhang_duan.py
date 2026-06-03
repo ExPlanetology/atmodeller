@@ -9,7 +9,6 @@ from collections.abc import Callable
 from typing import ClassVar, cast
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
@@ -23,6 +22,7 @@ from atmodeller.jax_utils import FloatArray, NpFloat, OptxSolver, as_j64, safe_e
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
 epsilon_species: dict[str, float] = {
+    # From Zhang and Duan (2009) Table 4. Ensure these use Hill notation.
     "CH4": 154.0,
     "H2O": 510.0,
     "CO2": 235.0,
@@ -30,9 +30,35 @@ epsilon_species: dict[str, float] = {
     "CO": 105.6,
     "O2": 124.5,
     "C2H6": 246.1,
+    # From Poling et al. (2000), Appendix B. Ensure these use Hill notation.
+    "Ar": 93.3,
+    "He": 10.22,
+    "Kr": 178.9,
+    "Ne": 32.8,
+    "Xe": 231.0,
+    # "CH4": 148.6,
+    # "CO": 91.7,
+    "COS": 336.0,
+    # "CO2": 195.2,
+    # "C2H6": 215.7,
+    "Cl2": 316.0,
+    "F2": 112.6,
+    "CHN": 569.1,
+    "ClH": 344.7,
+    # "H2": 59.7,
+    # "H2O": 809.1,
+    "H2S": 301.1,
+    "H3N": 558.3,
+    "NO": 116.7,
+    "N2": 71.4,
+    "N2O": 232.4,
+    # "O2": 106.7,
+    "O2S": 335.4,
 }
-"""Epsilon values for each species (K) :cite:p:`ZD09{Table 4}`. Ensure these use Hill notation."""
+"""Epsilon values for each species (K) :cite:p:`ZD09{Table 4}` and :cite:p:`PPO00{Appendix B}`.
+Ensure these use Hill notation and prefer the values from :cite:t:`ZD09` where available."""
 sigma_species: dict[str, float] = {
+    # From Zhang and Duan (2009) Table 4. Ensure these use Hill notation.
     "CH4": 3.691,
     "H2O": 2.88,
     "CO2": 3.79,
@@ -40,9 +66,34 @@ sigma_species: dict[str, float] = {
     "CO": 3.66,
     "O2": 3.36,
     "C2H6": 4.35,
+    # From Poling et al. (2000), Appendix B. Ensure these use Hill notation.
+    "Ar": 3.542,
+    "He": 2.551,
+    "Kr": 3.655,
+    "Ne": 2.820,
+    "Xe": 4.047,
+    # "CH4": 3.758,
+    # "CO": 3.690,
+    "COS": 4.130,
+    # "CO2": 3.941,
+    # "C2H6": 4.443,
+    "Cl2": 4.217,
+    "F2": 3.357,
+    "CHN": 3.630,
+    "ClH": 3.339,
+    # "H2": 2.827,
+    # "H2O": 2.641,
+    "H2S": 3.623,
+    "H3N": 2.900,
+    "NO": 3.492,
+    "N2": 3.798,
+    "N2O": 3.828,
+    # "O2": 3.467,
+    "O2S": 4.112,
 }
-r"""Sigma values for each species (10\ :sup:`-10` m) :cite:p:`ZD09{Table 4}`. Ensure these use Hill
-notation."""
+r"""Sigma values for each species (10\ :sup:`-10` m) :cite:p:`ZD09{Table 4}` and 
+:cite:p:`PPO00{Appendix B}`. Ensure these use Hill notation and prefer the values from 
+:cite:t:`ZD09` where available."""
 
 REFERENCE_EPSILON: float = epsilon_species["CH4"]
 """Reference epsilon"""
@@ -163,7 +214,7 @@ class ZhangDuanBase(RealGas):
         """Gets the parameter (coefficient) for the S1 term for polynomials involving Tr terms.
 
         Args:
-            Tr: Reduced temperature
+            Tr: Reduced temperature (dimensionless)
             coefficients: Coefficients for this term
 
         Returns:
@@ -177,8 +228,8 @@ class ZhangDuanBase(RealGas):
         """Computes the S1 term :cite:p:`ZD09{Equation 15}`.
 
         Args:
-            Tr: Reduced temperature
-            Vr: Reduced volume
+            Tr: Reduced temperature (dimensionless)
+            Vr: Reduced volume (dimensionless)
 
         Returns:
             S1 term
@@ -211,8 +262,8 @@ class ZhangDuanBase(RealGas):
         r"""Objective function to solve for the volume :cite:p:`ZD09{Equation 8}`.
 
         Note that the left-hand side of :cite:t:`ZD09{Equation 8}` is the compressibility factor,
-        which can be expressed in terms of P, V, R, and T. If the scaled equivalents are used
-        instead, care should be taken to ensure that the 1000 scaling factor is accounted for.
+        which can be expressed in terms of `P`, `V`, `R`, and `T`. If the scaled equivalents are
+        used instead, care should be taken to ensure that the 1000 scaling factor is accounted for.
 
         Args:
             volume: Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
@@ -228,20 +279,20 @@ class ZhangDuanBase(RealGas):
         # jax.debug.print("pressure = {pressure}", pressure=pressure)
         # jax.debug.print("mole_fractions = {mole_fractions}", mole_fractions=mole_fractions)
 
-        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
-        # jax.debug.print("Tm = {Tm}", Tm=Tm)
+        Tr: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
+        # jax.debug.print("Tr = {Tr}", Tr=Tr)
         Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
         # jax.debug.print("Vm = {Vm}", Vm=Vm)
         Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
         # jax.debug.print("ptr = {ptr}", ptr=ptr)
 
-        b: FloatArray = self._get_S1_parameter(Tm, self.coefficients[0:3])
+        b: FloatArray = self._get_S1_parameter(Tr, self.coefficients[0:3])
         # jax.debug.print("b = {b}", b=b)
-        c: FloatArray = self._get_S1_parameter(Tm, self.coefficients[3:6])
+        c: FloatArray = self._get_S1_parameter(Tr, self.coefficients[3:6])
         # jax.debug.print("c = {c}", c=c)
-        d: FloatArray = self._get_S1_parameter(Tm, self.coefficients[6:9])
+        d: FloatArray = self._get_S1_parameter(Tr, self.coefficients[6:9])
         # jax.debug.print("d = {d}", d=d)
-        e: FloatArray = self._get_S1_parameter(Tm, self.coefficients[9:12])
+        e: FloatArray = self._get_S1_parameter(Tr, self.coefficients[9:12])
         # jax.debug.print("e = {e}", e=e)
 
         term1: FloatArray = (
@@ -258,7 +309,7 @@ class ZhangDuanBase(RealGas):
         a15: float = self.coefficients[14]
         term2: FloatArray = (
             a13
-            / jnp.power(Tm, 3)
+            / jnp.power(Tr, 3)
             / jnp.power(Vm, 2)
             * (a14 + a15 / jnp.square(Vm))
             * safe_exp(-a15 / jnp.square(Vm))
@@ -339,8 +390,8 @@ class ZhangDuanBase(RealGas):
         molar volume.
 
         Args:
-            temperature: Temperature (K).
-            pressure: Pressure (bar).
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
             mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
                 pure fluids.
 
@@ -381,9 +432,9 @@ class ZhangDuanBase(RealGas):
         """
         volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
         Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
-        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
+        Tr: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
         Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
-        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tm, Vm) + Z - 1
+        log_fugacity_coefficient: FloatArray = -jnp.log(Z) + self.get_S1(Tr, Vm) + Z - 1
         # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
 
         return log_fugacity_coefficient
@@ -404,13 +455,13 @@ class ZhangDuanBase(RealGas):
         For pure fluids, this reduces to the standard definition of fugacity.
 
         Args:
-            temperature: Temperature (K).
-            pressure: Pressure (bar).
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
             mole_fractions: Mole fractions of species in the gas phase. Defaults
                 to ``None`` for pure fluids.
 
         Returns:
-            Logarithm of the mixture fugacity.
+            Logarithm of the mixture fugacity
         """
         return self.log_mixture_fugacity_coefficient(
             temperature, pressure, mole_fractions
@@ -554,32 +605,32 @@ class ZhangDuanMixture(ZhangDuanBase):
 
         return sigma
 
-    def _get_S2_parameter(self, Tm: ArrayLike, coefficients: tuple[float, ...]) -> FloatArray:
-        """Gets the parameter (coefficient) for the S2 term for polynomials involving Tm terms
+    def _get_S2_parameter(self, Tr: ArrayLike, coefficients: tuple[float, ...]) -> FloatArray:
+        """Gets the parameter (coefficient) for the S2 term for polynomials involving Tr terms
 
         Args:
-            Tm: Scaled temperature
+            Tr: Scaled temperature
             coefficients: Coefficients for this term
 
         Returns:
             Parameter (coefficient)
         """
-        return 2 * coefficients[1] / jnp.square(Tm) + 3 * coefficients[2] / jnp.power(Tm, 3)
+        return 2 * coefficients[1] / jnp.square(Tr) + 3 * coefficients[2] / jnp.power(Tr, 3)
 
-    def _S2(self, Tm: ArrayLike, Vm: ArrayLike) -> FloatArray:
+    def _S2(self, Tr: ArrayLike, Vm: ArrayLike) -> FloatArray:
         """S2 term :cite:p:`ZD09{Equation 16}`
 
         Args:
-            Tm: Scaled temperature
-            Vm: Scaled volume
+            Tr: Scaled temperature (dimensionless)
+            Vm: Scaled volume (dimensionless)
 
         Returns:
             S2 term
         """
-        b: FloatArray = self._get_S2_parameter(Tm, self.coefficients[0:3])
-        c: FloatArray = self._get_S2_parameter(Tm, self.coefficients[3:6])
-        d: FloatArray = self._get_S2_parameter(Tm, self.coefficients[6:9])
-        e: FloatArray = self._get_S2_parameter(Tm, self.coefficients[9:12])
+        b: FloatArray = self._get_S2_parameter(Tr, self.coefficients[0:3])
+        c: FloatArray = self._get_S2_parameter(Tr, self.coefficients[3:6])
+        d: FloatArray = self._get_S2_parameter(Tr, self.coefficients[6:9])
+        e: FloatArray = self._get_S2_parameter(Tr, self.coefficients[9:12])
         a13: float = self.coefficients[12]
         a14: float = self.coefficients[13]
         a15: float = self.coefficients[14]
@@ -592,20 +643,20 @@ class ZhangDuanMixture(ZhangDuanBase):
         ) + (
             3
             * a13
-            / (2 * a15 * jnp.power(Tm, 3))
+            / (2 * a15 * jnp.power(Tr, 3))
             * (a14 + 1 - (a14 + 1 + a15 / jnp.square(Vm)) * safe_exp(-a15 / jnp.square(Vm)))
         )
         # jax.debug.print("S2 = {out}", out=S2)
 
         return S2
 
-    def log_species_fugacity_coefficient_autodiff(
+    def log_partial_fugacity_coefficient_autodiff(
         self,
         temperature: ArrayLike,
         pressure: ArrayLike,
         mole_fractions: Float[Array, "... n_species"],
     ) -> FloatArray:
-        r"""Log species fugacity coefficient obtained using autodiff
+        r"""Log partial fugacity coefficient obtained using autodiff
 
         .. math::
             \ln \phi_i = \left(\frac{\partial(n \ln \phi)}{\partial n_i}\right)_{T,P,n_{j \neq i}}.
@@ -619,7 +670,7 @@ class ZhangDuanMixture(ZhangDuanBase):
             \ln \phi_i = \ln \phi + \frac{\partial \ln \phi}{\partial x_i} - \sum_k x_k \frac{\partial \ln \phi}{\partial x_k}.
 
         This method is not used in the final implementation, but it serves as a useful check on the
-        analytical expression for the species fugacity coefficient.
+        analytical expression for the species fugacity coefficient since the two should agree.
 
         Args:
             temperature: Temperature (K)
@@ -627,7 +678,7 @@ class ZhangDuanMixture(ZhangDuanBase):
             mole_fractions: Mole fractions of species in the gas phase
 
         Returns:
-            Log species fugacity coefficient
+            Log species fugacity coefficient (dimensionless)
         """
         log_fugacity_coeff_mix = self.log_mixture_fugacity_coefficient(
             temperature, pressure, mole_fractions
@@ -635,9 +686,8 @@ class ZhangDuanMixture(ZhangDuanBase):
 
         # Use vmap over the batch dimension when mole_fractions is batched (ndim > 1),
         # since eqx.filter_grad requires a scalar-output function.
-        # TODO: Not sure if this is taken care of before entering this method?
         if mole_fractions.ndim == 2:
-            grads = jax.vmap(self._grad_fn, in_axes=(0, None, None))(
+            grads = eqx.filter_vmap(self._grad_fn, in_axes=(0, None, None))(
                 mole_fractions, temperature, pressure
             )
         else:
@@ -667,12 +717,12 @@ class ZhangDuanMixture(ZhangDuanBase):
         Returns:
             Log partial fugacity coefficient (dimensionless)
         """
-        log_fugacity_coefficient_mix: FloatArray = self.log_mixture_fugacity_coefficient(
+        log_fugacity_coeff_mix: FloatArray = self.log_mixture_fugacity_coefficient(
             temperature, pressure, mole_fractions
         )
         volume: FloatArray = self.volume(temperature, pressure, mole_fractions)
         Vm: FloatArray = self.reduced_volume(volume, mole_fractions)
-        Tm: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
+        Tr: ArrayLike = self.reduced_temperature(temperature, mole_fractions)
         Z: ArrayLike = pressure * volume / (GAS_CONSTANT_BAR * temperature)
 
         # Compositional correction terms
@@ -680,17 +730,15 @@ class ZhangDuanMixture(ZhangDuanBase):
             ..., self.species_index
         ] / self.get_epsilon(mole_fractions)
         # jax.debug.print("correction1 = {out}", out=correction1)
-        log_fugacity_coefficient_i = log_fugacity_coefficient_mix - 2 * self._S2(Tm, Vm) * (
-            1 - correction1
-        )
+        log_fugacity_coeff_i = log_fugacity_coeff_mix - 2 * self._S2(Tr, Vm) * (1 - correction1)
         correction2 = self.get_species_sigma(mole_fractions)[
             ..., self.species_index
         ] / self.get_sigma(mole_fractions)
         # jax.debug.print("correction2 = {out}", out=correction2)
-        log_fugacity_coefficient_i = log_fugacity_coefficient_i + 6 * (1 - Z) * (1 - correction2)
-        # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
+        log_fugacity_coeff_i = log_fugacity_coeff_i + 6 * (1 - Z) * (1 - correction2)
+        # jax.debug.print("log_fugacity_coeff_i = {out}", out=log_fugacity_coeff_i)
 
-        return log_fugacity_coefficient_i
+        return log_fugacity_coeff_i
 
     @override
     def log_fugacity_coefficient(
@@ -708,6 +756,25 @@ class ZhangDuanMixture(ZhangDuanBase):
         pressure: ArrayLike,
         mole_fractions: Float[Array, "... n_species"],
     ) -> FloatArray:
+        r"""Logarithm of the species fugacity, excluding the mole fraction contribution
+
+        Computes
+
+        .. math::
+            \ln \phi_i + \ln P,
+
+        which is the species fugacity without the :math:`\ln x_i` term. The full species fugacity
+        is :math:`\ln f_i = \ln \phi_i + \ln x_i + \ln P`, where the :math:`\ln x_i` contribution
+        is accounted for externally.
+
+        Args:
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of species in the gas phase
+
+        Returns:
+            Logarithm of the species fugacity excluding the mole fraction term (dimensionless)
+        """
         return self.log_fugacity_coefficient(temperature, pressure, mole_fractions) + jnp.log(
             pressure
         )
@@ -928,18 +995,18 @@ def get_zhang_eos_models() -> dict[str, RealGas]:
     """
     eos_models: dict[str, RealGas] = {}
     eos_models["CH4_zhang09"] = CH4_zhang09_bounded
-    # eos_models["CH4_zhang09_unbounded"] = CH4_zhang09
+    eos_models["CH4_zhang09_unbounded"] = CH4_zhang09
     eos_models["H2O_zhang09"] = H2O_zhang09_bounded
-    # eos_models["H2O_zhang09_unbounded"] = H2O_zhang09
+    eos_models["H2O_zhang09_unbounded"] = H2O_zhang09
     eos_models["CO2_zhang09"] = CO2_zhang09_bounded
-    # eos_models["CO2_zhang09_unbounded"] = CO2_zhang09
+    eos_models["CO2_zhang09_unbounded"] = CO2_zhang09
     eos_models["H2_zhang09"] = H2_zhang09_bounded
-    # eos_models["H2_zhang09_unbounded"] = H2_zhang09
+    eos_models["H2_zhang09_unbounded"] = H2_zhang09
     eos_models["CO_zhang09"] = CO_zhang09_bounded
-    # eos_models["CO_zhang09_unbounded"] = CO2_zhang09
+    eos_models["CO_zhang09_unbounded"] = CO2_zhang09
     eos_models["O2_zhang09"] = O2_zhang09_bounded
-    # eos_models["O2_zhang09_unbounded"] = O2_zhang09
+    eos_models["O2_zhang09_unbounded"] = O2_zhang09
     eos_models["C2H6_zhang09"] = C2H6_zhang09_bounded
-    # eos_models["C2H6_zhang09_unbounded"] = C2H6_zhang09
+    eos_models["C2H6_zhang09_unbounded"] = C2H6_zhang09
 
     return eos_models
