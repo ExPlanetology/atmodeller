@@ -70,7 +70,7 @@ class Chabrier(RealGas):
                 steps will increase the run time but provide better accuracy.
 
         Returns:
-            Instance
+            An instance
         """
         log10_density_func: Callable = cls._get_interpolator(filename)
         He_fraction: float = cls.get_He_fraction_map()[filename.name]
@@ -136,10 +136,10 @@ class Chabrier(RealGas):
         r"""Converts density to molar density
 
         Args:
-            log10_density_gcc: Log10 density (g/cc)
+            log10_density_gcc: Log10 density (:math:`\mathrm{g}\ \mathrm{cm}^{-3}`)
 
         Returns:
-            Molar density (:math:`\mathrm{mol}\mathrm{m}^{-3}`)
+            Molar density (:math:`\mathrm{mol}\ \mathrm{m}^{-3}`)
         """
         molar_density: FloatArray = jnp.power(10, log10_density_gcc) / unit_conversion.cm3_to_m3
         composition_factor: float = (

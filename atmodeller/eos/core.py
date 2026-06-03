@@ -29,7 +29,11 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 class RealGasBase(eqx.Module):
-    """A real gas equation of state (EOS) without volume calculations"""
+    """A real gas equation of state (EOS) without volume calculations
+
+    The methods should support broadcasting of temperature and pressure, but not necessarily of
+    mole fractions.
+    """
 
     @abstractmethod
     def log_fugacity(
