@@ -22,13 +22,7 @@ def test_H2_volume_1kbar(check_values) -> None:
     check_values.volume(1000, 1000, model, 1.12342095e-4)
 
 
-def test_volume_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
+def test_broadcasting(check_values) -> None:
+    """Tests methods with broadcasting"""
     model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
-    check_values.check_broadcasting("volume", model)
-
-
-def test_fugacity_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
-    model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
-    check_values.check_broadcasting("fugacity", model)
+    check_values.check_broadcasting(model)

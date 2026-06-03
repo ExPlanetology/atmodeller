@@ -13,13 +13,14 @@ from collections.abc import Callable
 
 import equinox as eqx
 import jax.numpy as jnp
+import optimistix as optx
 from jax import jacfwd
 from jaxtyping import ArrayLike
 
 from atmodeller import override
-from atmodeller.constants import STANDARD_FUGACITY
-from atmodeller.eos import VOLUME_EPSILON
-from atmodeller.jax_utils import FloatArray, as_j64, safe_exp, to_native_floats
+from atmodeller.constants import STANDARD_FUGACITY, STANDARD_PRESSURE
+from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW, VOLUME_EPSILON
+from atmodeller.jax_utils import FloatArray, OptxSolver, as_j64, safe_exp, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
 from atmodeller.thermodata import CriticalData
 
@@ -464,6 +465,105 @@ class VirialCompensation(eqx.Module):
             * self._c(temperature, critical_data)
             * jnp.power(delta_pressure, (5.0 / 4.0))
         )
+
+        return volume_integral
+
+
+class VanderWaals(RealGas):
+    r"""Van der Waals EOS
+
+    Args:
+        a: a constant (:math:`\mathrm{m}^6 \mathrm{bar} \mathrm{mol}^{-2}`)
+        b: b constant (:math:`\mathrm{m}^3 \mathrm{mol}^{-1}`)
+    """
+
+    a: float = eqx.field(converter=float)
+    r"""a constant (:math:`\mathrm{m}^6 \mathrm{bar} \mathrm{mol}^{-2}`)"""
+    b: float = eqx.field(converter=float)
+    r"""b constant (:math:`\mathrm{m}^3 \mathrm{mol}^{-1}`)"""
+
+    def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
+        r"""Objective function to solve for the volume
+
+        Args:
+            volume: Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
+            kwargs: Dictionary with other required parameters
+
+        Returns:
+            Residual of the objective function
+        """
+        temperature: ArrayLike = kwargs["temperature"]
+        pressure: ArrayLike = kwargs["pressure"]
+
+        coeff0: ArrayLike = -self.a * self.b / pressure
+        coeff1: ArrayLike = -self.a / pressure
+        coeff2: ArrayLike = -self.b - GAS_CONSTANT_BAR * temperature / pressure
+        coeff3: ArrayLike = 1
+
+        residual: FloatArray = (
+            coeff3 * jnp.power(volume, 3)
+            + coeff2 * jnp.power(volume, 2)
+            + coeff1 * volume
+            + coeff0
+        )
+
+        return residual
+
+    @override
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
+        r"""Computes the volume numerically.
+
+        Args:
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
+
+        Returns:
+            Volume (:math:`\mathrm{m}^3 \mathrm{mol}^{-1}`)
+        """
+        del mole_fractions
+
+        ideal_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
+        # If the ideal volume is around the b constant value then the denominator becomes zero, so
+        # shift the volume and add a small epsilon to avoid this.
+        safe_volume: ArrayLike = ideal_volume + self.b + VOLUME_EPSILON
+        kwargs: dict[str, ArrayLike] = {"temperature": temperature, "pressure": pressure}
+
+        solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
+        sol = optx.root_find(
+            self._objective_function, solver, safe_volume, args=kwargs, throw=THROW
+        )
+        volume = sol.value
+        # jax.debug.print("volume = {out}", out=volume)
+
+        return volume
+
+    @override
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        r"""Volume integral
+
+        Args:
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
+
+        Returns:
+            Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
+        """
+        vol: ArrayLike = self.volume(temperature, pressure, mole_fractions)
+        vol0: ArrayLike = self.volume(temperature, STANDARD_PRESSURE, mole_fractions)
+        volume_integral: FloatArray = (
+            self.b * (vol0 - vol) / ((vol - self.b) * (vol0 - self.b))  # type: ignore
+            - jnp.log((vol - self.b) / (vol0 - self.b))
+        ) * GAS_CONSTANT_BAR * temperature - 2 * self.a * (1 / vol - 1 / vol0)
 
         return volume_integral
 
