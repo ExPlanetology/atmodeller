@@ -5,7 +5,8 @@
 """Tests for the MRK EOS models from :cite:t:`HP91,HP98`
 
 These are not intended to be used directly, but rather as a building block of the CORK models they
-serve as convenient tests in the absence of a virial correction term."""
+serve as convenient tests in the absence of a virial correction term.
+"""
 
 from atmodeller.eos import RealGas
 from atmodeller.eos._holland_powell import (
@@ -53,13 +54,13 @@ def test_H2O_below_Tc_above_Psat(check_values) -> None:
     check_values.fugacity_coefficient(600, 1e3, H2OMrkHolland91, expected)
 
 
-def test_volume_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
+def test_broadcasting_CO2(check_values) -> None:
+    """Tests CO2 properties with broadcasting"""
     model: RealGas = CO2MrkHolland91
-    check_values.check_broadcasting("volume", model)
+    check_values.check_broadcasting(model)
 
 
-def test_fugacity_with_broadcasting(check_values) -> None:
-    """Tests fugacity with broadcasting"""
-    model: RealGas = CO2MrkHolland91
-    check_values.check_broadcasting("fugacity", model)
+def test_broadcasting_H2O(check_values) -> None:
+    """Tests H2O properties with broadcasting"""
+    model: RealGas = H2OMrkHolland91
+    check_values.check_broadcasting(model)

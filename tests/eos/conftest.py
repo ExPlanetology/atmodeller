@@ -4,18 +4,20 @@
 
 """Utilities for tests"""
 
+import logging
 from collections.abc import Callable
 
 import numpy as np
 import numpy.testing as nptest
 import pytest
-from atmodeller.jax_utils import as_j64
 from jaxtyping import Array, ArrayLike
 
+from atmodeller import debug_logger
 from atmodeller.eos import RealGas, get_eos_models
 from atmodeller.eos.core import RealGasBase
+from atmodeller.jax_utils import as_j64
 
-# logger: logging.Logger = debug_logger()
+logger: logging.Logger = debug_logger()
 # logger.setLevel(logging.INFO)
 
 # Tolerances to compare the test results with target output.
@@ -65,32 +67,32 @@ class CheckValues:
         nptest.assert_allclose(result, expected, rtol, atol)
 
     @classmethod
-    def compressibility(cls, *args, **kwargs) -> None:
-        """Checks the compressibility factor"""
+    def compressibility_factor(cls, *args, **kwargs) -> None:
+        """Checks the compressibility factor."""
         cls._check_property("compressibility_factor", *args, **kwargs)
 
     @classmethod
     def fugacity(cls, *args, **kwargs) -> None:
-        """Checks the fugacity"""
+        """Checks the fugacity."""
         cls._check_property("fugacity", *args, **kwargs)
 
     @classmethod
     def fugacity_coefficient(cls, *args, **kwargs) -> None:
-        """Checks the fugacity coefficient"""
+        """Checks the fugacity coefficient."""
         cls._check_property("fugacity_coefficient", *args, **kwargs)
 
     @classmethod
     def volume(cls, *args, **kwargs) -> None:
-        """Checks the volume"""
+        """Checks the volume."""
         cls._check_property("volume", *args, **kwargs)
 
     @classmethod
     def volume_integral(cls, *args, **kwargs) -> None:
-        """Checks the volume integral"""
+        """Checks the volume integral."""
         cls._check_property("volume_integral", *args, **kwargs)
 
     @classmethod
-    def check_broadcasting(cls, property_name: str, eos: RealGas) -> None:
+    def check_broadcasting_for_property(cls, property_name: str, eos: RealGas) -> None:
         """Checks that the EOS model handles broadcasting correctly.
 
         Args:
@@ -108,34 +110,59 @@ class CheckValues:
         temperature = 2000
         pressure = np.array([1, 10, 100])
         result: Array = method(temperature, pressure)
+        logger.debug(f"Result of {property_name} with pressure broadcasting: {result}")
         assert result.shape == (3,)
 
         # Tests temperature broadcasting
         temperature = np.array([1500, 2000])
         pressure = 100
         result = method(temperature, pressure)
+        logger.debug(f"Result of {property_name} with temperature broadcasting: {result}")
         assert result.shape == (2,)
 
         # Tests both temperature and pressure broadcasting with equal length arrays
         temperature = np.array([1500, 2000])
         pressure = np.array([0.5, 100])
         results = method(temperature, pressure)
+        logger.debug(
+            f"Result of {property_name} with both temperature and pressure broadcasting: {results}"
+        )
         assert results.shape == (2,)
 
         # Tests both temperature and pressure broadcasting
         temperature = np.array([1500, 2000])[:, None]
         pressure = np.array([1, 10, 100])[None, :]
         result = method(temperature, pressure)
+        logger.debug(
+            f"Result of {property_name} with temperature and pressure broadcasting to form a grid: {result}"
+        )
         assert result.shape == (2, 3)
 
-        # Tests both temperature and pressure broadcasting with switched order
+        # Tests both temperature and pressure broadcasting with switched axes
         temperature = np.array([1500, 2000])[None, :]
         pressure = np.array([1, 10, 100])[:, None]
         result = method(temperature, pressure)
+        logger.debug(
+            f"Result of {property_name} with temperature and pressure broadcasting to form a grid with switched axes: {result}"
+        )
         assert result.shape == (3, 2)
 
+    def check_broadcasting(self, eos: RealGas) -> None:
+        """Checks that the EOS model handles broadcasting correctly for all properties.
+
+        Args:
+            eos: EOS model
+        """
+        self.check_broadcasting_for_property("compressibility_factor", eos)
+        self.check_broadcasting_for_property("log_fugacity", eos)
+        self.check_broadcasting_for_property("log_fugacity_coefficient", eos)
+        self.check_broadcasting_for_property("volume", eos)
+        self.check_broadcasting_for_property("volume_integral", eos)
+
+        assert True
+
     def get_eos_model(self, species_name: str, suffix: str) -> RealGasBase:
-        """Gets a model for a species
+        """Gets a model for a species.
 
         Args:
             species_name: Species name

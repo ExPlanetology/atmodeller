@@ -92,7 +92,7 @@ class CorrespondingStatesUnitConverter:
 
     @staticmethod
     def convert_virial_coefficients(virial_coefficients: tuple[Scalar, ...]) -> tuple[float, ...]:
-        r"""Converts the virial coefficients for corresponding states
+        r"""Converts the virial coefficients for corresponding states.
 
         The virial coefficients, for example associated with coefficients c and d in
         :cite:`HP91{Table 2}`, have units:
@@ -132,7 +132,7 @@ class FullUnitConverter:
 
     @staticmethod
     def convert_a_coefficients(a_coefficients: tuple[Scalar, ...]) -> tuple[float, ...]:
-        r"""Converts the a coefficients for the full CORK models
+        r"""Converts the a coefficients for the full CORK models.
 
         The a parameter has units :cite:p:`HP91{Table 1}`
 
@@ -158,7 +158,7 @@ class FullUnitConverter:
 
     @staticmethod
     def convert_b_coefficient(b_coefficient: Scalar) -> float:
-        r"""Converts the b coefficient for the full CORK models
+        r"""Converts the b coefficient for the full CORK models.
 
         The b parameter has units :cite:p:`HP91{Table 1}`
 
@@ -610,7 +610,7 @@ class H2OMrkHP91(RealGas):
     Tc: float = eqx.field(converter=float, default=Tc_H2O)
     """Critical temperature (K)"""
 
-    def Psat(self, temperature: ArrayLike) -> Array:
+    def Psat(self, temperature: ArrayLike) -> FloatArray:
         """Saturation curve
 
         Compared to :cite:t:`HP91` the pressure is returned in bar, as required by Atmodeller.
@@ -621,7 +621,7 @@ class H2OMrkHP91(RealGas):
         Returns:
             Saturation curve pressure (bar)
         """
-        Psat: Array = (
+        Psat: FloatArray = (
             -13.627
             + 7.29395e-4 * jnp.square(temperature)
             - 2.34622e-6 * jnp.power(temperature, 3)
