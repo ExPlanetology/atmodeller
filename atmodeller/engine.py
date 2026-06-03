@@ -206,8 +206,8 @@ def objective_function(
     # jax.debug.print("log_number_moles = {out}", out=log_number_moles)
     # jax.debug.print("log_stability = {out}", out=log_stability)
 
-    # jax.debug.print("total_pressure = {out}", out=total_pressure)
     total_pressure: FloatArray = parameters.state.get_pressure(log_number_moles)
+    # jax.debug.print("total_pressure = {out}", out=total_pressure)
 
     log_activity: Float[Array, "... n_species"] = get_log_activity(parameters, solution)
     # jax.debug.print("log_activity = {out}", out=log_activity)

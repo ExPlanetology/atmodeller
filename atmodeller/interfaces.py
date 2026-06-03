@@ -64,12 +64,15 @@ class ChemicalSpeciesData(eqx.Module):
 
 @runtime_checkable
 class ActivityProtocol(Protocol):
-    def log_activity(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def log_activity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: FloatArray
+    ) -> ArrayLike:
         """Log activity
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless)
 
         Returns:
             Log activity (dimensionless)

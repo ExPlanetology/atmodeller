@@ -34,3 +34,9 @@ def test_H4Si_volume_2540K_924e3bar(check_values) -> None:
     model: RealGas = H4Si_wang18_bounded
     expected: float = 1.41539090679e-05  # published value 1.401e-05 (+/- 0.007e-05) m3/mol
     check_values.volume(2540, 924e3, model, expected)  # 2540 (+/- 60) K, 924e3 (+/- 10e3) bar
+
+
+def test_broadcasting(check_values) -> None:
+    """Tests methods with broadcasting"""
+    model: RealGas = H4Si_wang18_bounded
+    check_values.check_broadcasting(model)

@@ -28,7 +28,7 @@ from jaxtyping import Array, ArrayLike, Bool, Float, PyTree
 from atmodeller import override
 from atmodeller.containers import MultiAttemptSolution
 from atmodeller.initial_solution import generate_auto_initial_guess
-from atmodeller.jax_utils import FloatArray
+from atmodeller.jax_utils import FloatArray, stack_broadcast
 from atmodeller.parameters import ActivityConstraintSet, MassConstraintSet, Parameters
 from atmodeller.phases import BasePhase, GasPhaseOutput, PhaseOutput
 
@@ -615,17 +615,18 @@ class OutputNamedArraysDict(BaseOutputDict):
             "number_moles",
         )
         species_out: dict = out["constraints"].setdefault("species", {})
-        evaluated_activity_constraints: Float[Array, "... n_species"] = jnp.exp(
-            jnp.stack(
-                [
-                    constraint.log_activity(
-                        jnp.squeeze(self.temperature), jnp.squeeze(self.pressure)
-                    )
-                    for constraint in self.parameters.activity_constraints.ordered_constraints
-                ],
-                axis=-1,
+
+        # Evaluated activity constraints
+        arrays: list[Array] = [
+            jnp.asarray(
+                constraint.log_activity(jnp.squeeze(self.temperature), jnp.squeeze(self.pressure))
             )
+            for constraint in self.parameters.activity_constraints.ordered_constraints
+        ]
+        evaluated_activity_constraints: Float[Array, "... n_species"] = jnp.exp(
+            stack_broadcast(arrays)
         )
+
         self._split_by_name_and_add(
             self.parameters.activity_constraints.species.species_names,
             evaluated_activity_constraints,

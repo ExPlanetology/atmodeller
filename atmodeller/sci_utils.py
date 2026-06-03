@@ -68,15 +68,15 @@ class PlanetParameters(eqx.Module):
 
     @property
     def bulk_density(self) -> float:
-        """Calculates bulk density from mass and radius
+        r"""Calculates bulk density from mass and radius
 
         .. math::
-                \\rho = \\frac{M}{\\frac{4}{3}\\pi R^3}
+                \rho = \frac{M}{\frac{4}{3}\pi R^3}
 
         where :math:`M` is the mass of the planet and :math:`R` is the radius of the planet.
 
         Returns:
-            Bulk density of the planet (kgm\\ :sup:`-3`)
+            Bulk density of the planet (kgm\ :sup:`-3`)
         """
         return self.mass / self.volume
 

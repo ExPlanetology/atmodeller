@@ -7,13 +7,13 @@
 import equinox as eqx
 import jax.numpy as jnp
 import optimistix as optx
-from jaxtyping import Array, ArrayLike
+from jaxtyping import ArrayLike
 
 from atmodeller import override
-from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW, VOLUME_EPSILON
+from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
 from atmodeller.eos._aggregators import CombinedRealGas
-from atmodeller.eos.core import RealGas
-from atmodeller.jax_utils import OptxSolver, Scalar
+from atmodeller.eos.core import RealGas, safe_ideal_initial_volume
+from atmodeller.jax_utils import FloatArray, OptxSolver, Scalar
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
 # Coefficients from Table I, which must be converted to the correct units scheme (SI and pressure
@@ -62,8 +62,7 @@ class BeattieBridgeman(RealGas):
     c: float = eqx.field(converter=float)
     """c empirical constant"""
 
-    @eqx.filter_jit
-    def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> Array:
+    def _objective_function(self, volume: ArrayLike, kwargs: dict[str, ArrayLike]) -> FloatArray:
         r"""Objective function to solve for the volume :cite:p:`HWZ58{Equation 2}`
 
         .. math::
@@ -85,20 +84,22 @@ class BeattieBridgeman(RealGas):
         # jax.debug.print("temperature = {out}", out=temperature)
         # jax.debug.print("pressure = {out}", out=pressure)
 
-        coeff0: Array = 1 / jnp.square(temperature) * -GAS_CONSTANT_BAR * self.c * self.b * self.B0
-        coeff1: Array = (
+        coeff0: FloatArray = (
+            1 / jnp.square(temperature) * -GAS_CONSTANT_BAR * self.c * self.b * self.B0
+        )
+        coeff1: FloatArray = (
             1 / jnp.square(temperature) * GAS_CONSTANT_BAR * self.c * self.B0
             + GAS_CONSTANT_BAR * temperature * self.b * self.B0
             - self.a * self.A0
         )
-        coeff2: Array = (
+        coeff2: FloatArray = (
             1 / jnp.square(temperature) * GAS_CONSTANT_BAR * self.c
             - GAS_CONSTANT_BAR * temperature * self.B0
             + self.A0
         )
         coeff3: ArrayLike = -GAS_CONSTANT_BAR * temperature
 
-        residual: Array = (
+        residual: FloatArray = (
             coeff0
             + coeff1 * volume
             + coeff2 * jnp.power(volume, 2)
@@ -109,19 +110,23 @@ class BeattieBridgeman(RealGas):
         return residual
 
     @override
-    @eqx.filter_jit
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Log fugacity :cite:p:`HWZ58{Equation 11}`.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
             Log fugacity
         """
-        volume: ArrayLike = self.volume(temperature, pressure)
-        log_fugacity: Array = (
+        volume: ArrayLike = self.volume(temperature, pressure, mole_fractions)
+        log_fugacity: FloatArray = (
             jnp.log(GAS_CONSTANT_BAR * temperature / volume)
             + (
                 self.B0
@@ -145,8 +150,9 @@ class BeattieBridgeman(RealGas):
         return log_fugacity
 
     @override
-    @eqx.filter_jit
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> ArrayLike:
         r"""Solves the BB equation numerically to compute the volume.
 
         :cite:t:`HWZ58` doesn't say which root to take, but one real root is very small and the
@@ -154,13 +160,18 @@ class BeattieBridgeman(RealGas):
         for all species.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        safe_volume: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure + VOLUME_EPSILON
+        del mole_fractions
+
+        safe_volume: FloatArray = safe_ideal_initial_volume(temperature, pressure)
         kwargs: dict[str, ArrayLike] = {"temperature": temperature, "pressure": pressure}
 
         solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
@@ -173,9 +184,14 @@ class BeattieBridgeman(RealGas):
         return volume
 
     @override
-    @eqx.filter_jit
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        return self.log_fugacity(temperature, pressure) * GAS_CONSTANT_BAR * temperature
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        return (
+            self.log_fugacity(temperature, pressure, mole_fractions)
+            * GAS_CONSTANT_BAR
+            * temperature
+        )
 
 
 pressure_min: float = atm2bar(0.1)
@@ -190,8 +206,7 @@ H2_beattie_holley58: RealGas = BeattieBridgeman(
 )
 """H2 Beattie-Bridgeman :cite:p:`HWZ58`"""
 H2_beattie_holley58_bounded: RealGas = CombinedRealGas.create(
-    [H2_beattie_holley58],
-    [ExperimentalCalibration(30, 1000, pressure_min, atm2bar(1000))],
+    [H2_beattie_holley58], [ExperimentalCalibration(30, 1000, pressure_min, atm2bar(1000))]
 )
 """H2 Beattie-Bridgeman bounded :cite:p:`HWZ58`"""
 
@@ -271,8 +286,7 @@ He_beattie_holley58: RealGas = BeattieBridgeman(
 )
 """He Beattie-Bridgeman :cite:p:`HWZ58`"""
 He_beattie_holley58_bounded: RealGas = CombinedRealGas.create(
-    [He_beattie_holley58],
-    [ExperimentalCalibration(10, 1000, pressure_min, atm2bar(1000))],
+    [He_beattie_holley58], [ExperimentalCalibration(10, 1000, pressure_min, atm2bar(1000))]
 )
 """He Beattie-Bridgeman bounded :cite:p:`HWZ58`"""
 

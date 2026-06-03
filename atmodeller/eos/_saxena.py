@@ -5,25 +5,22 @@
 """Real gas EOSs from :cite:t:`SF87,SF87a,SF88,SS92`
 
 The papers state a volume integration from :math:`P_0` to :math:`P`, where :math:`f(P_0=1)=1`.
-Hence for bounded EOS a minimum pressure of 1 bar is assumed.
+Hence for a bounded EOS a minimum pressure of 1 bar is assumed.
 """
 
-import logging
 from abc import abstractmethod
 
 import equinox as eqx
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
+from jaxtyping import ArrayLike
 
 from atmodeller import override
 from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas
-from atmodeller.jax_utils import as_j64, to_native_floats
+from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
 from atmodeller.thermodata import CriticalData, critical_data_dictionary
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class SaxenaABC(RealGas):
@@ -53,12 +50,12 @@ class SaxenaABC(RealGas):
     @abstractmethod
     def _get_compressibility_coefficient(
         self, scaled_temperature: ArrayLike, coefficients: tuple[float, ...]
-    ) -> Array:
+    ) -> FloatArray:
         """General form of the coefficients for the compressibility calculation
         :cite:p:`SS92{Equation 1}`
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients `a`, `b`, `c`, or `d`.
 
         Returns
@@ -67,101 +64,88 @@ class SaxenaABC(RealGas):
 
     @property
     def critical_pressure(self) -> float:
-        """Critical pressure in bar"""
+        """Critical Pressure (bar)"""
         return self.critical_data.pressure
 
     @property
     def critical_temperature(self) -> float:
-        """Critical temperature in K"""
+        """Critical temperature (K)"""
         return self.critical_data.temperature
 
-    @eqx.filter_jit
-    def a(self, scaled_temperature: ArrayLike) -> Array:
+    def a(self, scaled_temperature: ArrayLike) -> FloatArray:
         """`a` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             a parameter
         """
-        a: Array = self._get_compressibility_coefficient(scaled_temperature, self.a_coefficients)
+        return self._get_compressibility_coefficient(scaled_temperature, self.a_coefficients)
 
-        return a
-
-    @eqx.filter_jit
-    def b(self, scaled_temperature: ArrayLike) -> Array:
+    def b(self, scaled_temperature: ArrayLike) -> FloatArray:
         """`b` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             b parameter
         """
-        b: Array = self._get_compressibility_coefficient(scaled_temperature, self.b_coefficients)
+        return self._get_compressibility_coefficient(scaled_temperature, self.b_coefficients)
 
-        return b
-
-    @eqx.filter_jit
-    def c(self, scaled_temperature: ArrayLike) -> Array:
+    def c(self, scaled_temperature: ArrayLike) -> FloatArray:
         """`c` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             c parameter
         """
-        c: Array = self._get_compressibility_coefficient(scaled_temperature, self.c_coefficients)
+        return self._get_compressibility_coefficient(scaled_temperature, self.c_coefficients)
 
-        return c
-
-    @eqx.filter_jit
-    def d(self, scaled_temperature: ArrayLike) -> Array:
+    def d(self, scaled_temperature: ArrayLike) -> FloatArray:
         """`d` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             d parameter
         """
-        d: Array = self._get_compressibility_coefficient(scaled_temperature, self.d_coefficients)
+        return self._get_compressibility_coefficient(scaled_temperature, self.d_coefficients)
 
-        return d
-
-    @eqx.filter_jit
     def scaled_pressure(self, pressure: ArrayLike) -> ArrayLike:
         """Scaled (reduced) pressure
 
         Args:
-            pressure: Pressure in bar
+            pressure: Pressure (bar)
 
         Returns:
-            The scaled (reduced) pressure, which is dimensionless
+            The scaled (reduced) pressure (dimensionless)
         """
         scaled_pressure: ArrayLike = pressure / self.critical_pressure
 
         return scaled_pressure
 
-    @eqx.filter_jit
     def scaled_temperature(self, temperature: ArrayLike) -> ArrayLike:
         """Scaled (reduced) temperature
 
         Args:
-            temperature: Temperature in K
+            temperature: Temperature (K)
 
         Returns:
-            The scaled (reduced) temperature, which is dimensionless
+            The scaled (reduced) temperature (dimensionless)
         """
         scaled_temperature: ArrayLike = temperature / self.critical_temperature
 
         return scaled_temperature
 
     @override
-    @eqx.filter_jit
-    def compressibility_factor(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def compressibility_factor(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         """Compressibility factor :cite:p:`SS92{Equation 2}`
 
         This overrides the base class because the compressibility factor is used to determine the
@@ -169,15 +153,20 @@ class SaxenaABC(RealGas):
         factor.
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            The compressibility factor, which is dimensionless
+            The compressibility factor (dimensionless)
         """
+        del mole_fractions
+
         Tr: ArrayLike = self.scaled_temperature(temperature)
         Pr: ArrayLike = self.scaled_pressure(pressure)
-        Z: Array = (
+        Z: FloatArray = (
             self.a(Tr)
             + self.b(Tr) * Pr
             + self.c(Tr) * jnp.square(Pr)
@@ -187,48 +176,60 @@ class SaxenaABC(RealGas):
         return Z
 
     @override
-    @eqx.filter_jit
-    def log_fugacity(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        log_fugacity: Array = self.volume_integral(temperature, pressure) / (
+    def log_fugacity(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
+        del mole_fractions
+        log_fugacity: FloatArray = self.volume_integral(temperature, pressure) / (
             GAS_CONSTANT_BAR * temperature
         )
 
         return log_fugacity
 
     @override
-    @eqx.filter_jit
-    def volume(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         r"""Volume :cite:p:`SS92{Equation 1}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`
+            Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        Z: Array = self.compressibility_factor(temperature, pressure)
+        Z: FloatArray = self.compressibility_factor(temperature, pressure, mole_fractions)
         volume_ideal: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure
-        volume: Array = Z * volume_ideal
+        volume: FloatArray = Z * volume_ideal
 
         return volume
 
     @override
-    @eqx.filter_jit
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+    def volume_integral(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         r"""Volume integral :cite:p:`SS92{Equation 11}`
 
         Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
+            temperature: Temperature (K)
+            pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase (dimensionless). Ignored by
+                default for pure-phase EOSs; may be used by overriding subclasses. Defaults to
+                ``None``.
 
         Returns:
-            Volume integral in :math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`
+            Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)
         """
+        del mole_fractions
+
         Tr: ArrayLike = self.scaled_temperature(temperature)
         Pr: ArrayLike = self.scaled_pressure(pressure)
         STANDARD_PRESSURE_SCALED: float = STANDARD_PRESSURE / self.critical_pressure
-        volume_integral: Array = (
+        volume_integral: FloatArray = (
             (
                 self.a(Tr) * jnp.log(Pr / STANDARD_PRESSURE_SCALED)
                 + self.b(Tr) * (Pr - STANDARD_PRESSURE_SCALED)
@@ -246,21 +247,20 @@ class SaxenaFiveCoefficients(SaxenaABC):
     """Real gas EOS with five coefficients, which is generally used for low pressures"""
 
     @override
-    @eqx.filter_jit
     def _get_compressibility_coefficient(
         self, scaled_temperature: ArrayLike, coefficients: tuple[float, ...]
-    ) -> Array:
+    ) -> FloatArray:
         """General form of the coefficients for the compressibility calculation
         :cite:p:`SS92{Equation 3b}`
 
         Args:
-            temperature: Scaled temperature, which is dimensionless
+            temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients `a`, `b`, `c`, or `d`.
 
         Returns
             The relevant coefficient
         """
-        coefficient: Array = (
+        coefficient: FloatArray = (
             as_j64(coefficients[0])  # To keep type checker happy
             + coefficients[1] / scaled_temperature
             + coefficients[2] / jnp.power(scaled_temperature, 3.0 / 2)
@@ -275,21 +275,20 @@ class SaxenaEightCoefficients(SaxenaABC):
     """Real gas EOS with eight coefficients, which is generally used for high pressures"""
 
     @override
-    @eqx.filter_jit
     def _get_compressibility_coefficient(
         self, scaled_temperature: ArrayLike, coefficients: tuple[float, ...]
-    ) -> Array:
+    ) -> FloatArray:
         """General form of the coefficients for the compressibility calculation
         :cite:p:`SS92{Equation 3a}`
 
         Args:
-            temperature: Scaled temperature, which is dimensionless
+            temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients `a`, `b`, `c`, or `d`.
 
         Returns
             The relevant coefficient
         """
-        coefficient: Array = (
+        coefficient: FloatArray = (
             as_j64(coefficients[0])  # To keep type checker happy
             + coefficients[1] * scaled_temperature
             + coefficients[2] / scaled_temperature

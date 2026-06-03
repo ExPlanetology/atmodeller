@@ -30,7 +30,7 @@ from molmass import Composition, CompositionItem, Formula
 
 from atmodeller.containers import SolverParameters, SpeciesCollection
 from atmodeller.interfaces import ActivityConstraintProtocol, SpeciesProtocol
-from atmodeller.jax_utils import FloatArray, as_j64, get_batch_size, to_hashable
+from atmodeller.jax_utils import FloatArray, as_j64, get_batch_size, stack_broadcast, to_hashable
 from atmodeller.reactions import ReactionSystem
 from atmodeller.state import BaseThermodynamicState
 
@@ -160,10 +160,7 @@ class ActivityConstraintSet(eqx.Module):
             Mask indicating whether activity constraints are active or not
         """
         arrays: list[Array] = [constraint.active() for constraint in self.ordered_constraints]
-        # Find the maximum shape (excluding the last dimension, which is n_species)
-        max_shape: tuple[int, ...] = jnp.broadcast_shapes(*[arr.shape for arr in arrays])
-        arrays = [jnp.broadcast_to(arr, max_shape) for arr in arrays]
-        active_constraints: Bool[Array, "... species"] = jnp.stack(arrays, axis=-1)
+        active_constraints: Bool[Array, "... species"] = stack_broadcast(arrays)
         # jax.debug.print("active_constraints = {out}", out=active_constraints)
 
         return active_constraints
@@ -362,10 +359,7 @@ class MassConstraintSet(eqx.Module):
         arrays: list[Array] = [
             self.abundance_dict[element] for element in self.species.unique_elements
         ]
-        # Find the maximum shape (excluding the last dimension, which is n_elements)
-        max_shape: tuple[int, ...] = jnp.broadcast_shapes(*[arr.shape for arr in arrays])
-        arrays = [jnp.broadcast_to(arr, max_shape) for arr in arrays]
-        abundance_array: Float[Array, "... n_elements"] = jnp.stack(arrays, axis=-1)
+        abundance_array: Float[Array, "... n_elements"] = stack_broadcast(arrays)
         # jax.debug.print("abundance_array = {out}", out=abundance_array)
 
         return abundance_array
