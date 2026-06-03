@@ -5,15 +5,14 @@
 """Real gas EOSs from :cite:t:`SF87,SF87a,SF88,SS92`
 
 The papers state a volume integration from :math:`P_0` to :math:`P`, where :math:`f(P_0=1)=1`.
-Hence for bounded EOS a minimum pressure of 1 bar is assumed.
+Hence for a bounded EOS a minimum pressure of 1 bar is assumed.
 """
 
-import logging
 from abc import abstractmethod
 
 import equinox as eqx
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
+from jaxtyping import ArrayLike
 
 from atmodeller import override
 from atmodeller.constants import STANDARD_PRESSURE
@@ -22,8 +21,6 @@ from atmodeller.eos.core import RealGas
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
 from atmodeller.thermodata import CriticalData, critical_data_dictionary
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class SaxenaABC(RealGas):
@@ -53,12 +50,12 @@ class SaxenaABC(RealGas):
     @abstractmethod
     def _get_compressibility_coefficient(
         self, scaled_temperature: ArrayLike, coefficients: tuple[float, ...]
-    ) -> Array:
+    ) -> FloatArray:
         """General form of the coefficients for the compressibility calculation
         :cite:p:`SS92{Equation 1}`
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients `a`, `b`, `c`, or `d`.
 
         Returns
@@ -79,7 +76,7 @@ class SaxenaABC(RealGas):
         """`a` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             a parameter
@@ -90,7 +87,7 @@ class SaxenaABC(RealGas):
         """`b` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             b parameter
@@ -101,7 +98,7 @@ class SaxenaABC(RealGas):
         """`c` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             c parameter
@@ -112,7 +109,7 @@ class SaxenaABC(RealGas):
         """`d` parameter
 
         Args:
-            scaled_temperature: Scaled temperature, which is dimensionless
+            scaled_temperature: Scaled temperature (dimensionless)
 
         Returns:
             d parameter
@@ -126,7 +123,7 @@ class SaxenaABC(RealGas):
             pressure: Pressure (bar)
 
         Returns:
-            The scaled (reduced) pressure, which is dimensionless
+            The scaled (reduced) pressure (dimensionless)
         """
         scaled_pressure: ArrayLike = pressure / self.critical_pressure
 
@@ -139,7 +136,7 @@ class SaxenaABC(RealGas):
             temperature: Temperature (K)
 
         Returns:
-            The scaled (reduced) temperature, which is dimensionless
+            The scaled (reduced) temperature (dimensionless)
         """
         scaled_temperature: ArrayLike = temperature / self.critical_temperature
 
@@ -163,7 +160,7 @@ class SaxenaABC(RealGas):
                 ``None``.
 
         Returns:
-            The compressibility factor, which is dimensionless
+            The compressibility factor (dimensionless)
         """
         del mole_fractions
 
@@ -183,7 +180,7 @@ class SaxenaABC(RealGas):
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         del mole_fractions
-        log_fugacity: Array = self.volume_integral(temperature, pressure) / (
+        log_fugacity: FloatArray = self.volume_integral(temperature, pressure) / (
             GAS_CONSTANT_BAR * temperature
         )
 
@@ -192,7 +189,7 @@ class SaxenaABC(RealGas):
     @override
     def volume(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Volume :cite:p:`SS92{Equation 1}`
 
         Args:
@@ -214,7 +211,7 @@ class SaxenaABC(RealGas):
     @override
     def volume_integral(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Volume integral :cite:p:`SS92{Equation 11}`
 
         Args:
@@ -252,18 +249,18 @@ class SaxenaFiveCoefficients(SaxenaABC):
     @override
     def _get_compressibility_coefficient(
         self, scaled_temperature: ArrayLike, coefficients: tuple[float, ...]
-    ) -> Array:
+    ) -> FloatArray:
         """General form of the coefficients for the compressibility calculation
         :cite:p:`SS92{Equation 3b}`
 
         Args:
-            temperature: Scaled temperature, which is dimensionless
+            temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients `a`, `b`, `c`, or `d`.
 
         Returns
             The relevant coefficient
         """
-        coefficient: Array = (
+        coefficient: FloatArray = (
             as_j64(coefficients[0])  # To keep type checker happy
             + coefficients[1] / scaled_temperature
             + coefficients[2] / jnp.power(scaled_temperature, 3.0 / 2)
@@ -280,18 +277,18 @@ class SaxenaEightCoefficients(SaxenaABC):
     @override
     def _get_compressibility_coefficient(
         self, scaled_temperature: ArrayLike, coefficients: tuple[float, ...]
-    ) -> Array:
+    ) -> FloatArray:
         """General form of the coefficients for the compressibility calculation
         :cite:p:`SS92{Equation 3a}`
 
         Args:
-            temperature: Scaled temperature, which is dimensionless
+            temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients `a`, `b`, `c`, or `d`.
 
         Returns
             The relevant coefficient
         """
-        coefficient: Array = (
+        coefficient: FloatArray = (
             as_j64(coefficients[0])  # To keep type checker happy
             + coefficients[1] * scaled_temperature
             + coefficients[2] / scaled_temperature

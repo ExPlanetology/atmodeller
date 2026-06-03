@@ -5,7 +5,6 @@
 """Real gas EOS from :cite:t:`CD21`"""
 
 import importlib.resources
-import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -25,8 +24,6 @@ from atmodeller.eos._aggregators import CombinedRealGas, CombinedRealGasFugacity
 from atmodeller.eos.core import IdealGas, RealGas, RealGasBase
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class Chabrier(RealGas):

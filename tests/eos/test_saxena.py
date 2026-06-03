@@ -13,42 +13,42 @@ def test_Ar(check_values) -> None:
     """:cite:t:`SF87{Table 1}`"""
     model: RealGas = check_values.get_eos_model("Ar", "cs_saxena87")
     expected: float = 7.41624600755374
-    check_values.compressibility(2510, 100e3, model, expected)
+    check_values.compressibility_factor(2510, 100e3, model, expected)
 
 
 def test_CH4(check_values) -> None:
     """:cite:t:`SF87{Table 1}`"""
     model: RealGas = check_values.get_eos_model("CH4", "cs_shi92")
     expected: float = 17.77499804453072
-    check_values.compressibility(1912, 159e3, model, expected)
+    check_values.compressibility_factor(1912, 159e3, model, expected)
 
 
 def test_CO2(check_values) -> None:
     """:cite:t:`SF87{Table 1}`"""
     model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
     expected: float = 33.886349109271734
-    check_values.compressibility(1167, 184e3, model, expected)
+    check_values.compressibility_factor(1167, 184e3, model, expected)
 
 
 def test_H2_SF87(check_values) -> None:
     """:cite:t:`SF87{Table 1}`"""
     model: RealGas = H2_SF87
     expected: float = 4.975497264839999
-    check_values.compressibility(1222, 41.66e3, model, expected)
+    check_values.compressibility_factor(1222, 41.66e3, model, expected)
 
 
 def test_N2(check_values) -> None:
     """:cite:t:`SF87{Table 1}`"""
     model: RealGas = check_values.get_eos_model("N2", "cs_saxena87")
     expected: float = 10.293087737779091
-    check_values.compressibility(1573, 75e3, model, expected)
+    check_values.compressibility_factor(1573, 75e3, model, expected)
 
 
 def test_O2(check_values) -> None:
     """:cite:t:`SF87{Table 1}`"""
     model: RealGas = check_values.get_eos_model("O2", "cs_shi92")
     expected: float = 12.409268281002012
-    check_values.compressibility(1823, 133e3, model, expected)
+    check_values.compressibility_factor(1823, 133e3, model, expected)
 
 
 def test_H2_low_pressure_SS92(check_values) -> None:
@@ -131,11 +131,11 @@ def test_upper_extrapolation(check_values) -> None:
     pressure_above_max: float = 20e3  # To test pressure above the maximum
     # Expected compressibility factor at 3000 K and (the maximum calibrated pressure) 10000 bar
     expected: float = 4.472116811082408
-    check_values.compressibility(temperature, pressure, model, expected)
+    check_values.compressibility_factor(temperature, pressure, model, expected)
     # The upper bound extrapolation should maintain the same compressibility for higher pressures
     # for dz/dp if reinstated at some point
     # expected: float = 8.098866090720415
-    check_values.compressibility(temperature, pressure_above_max, model, expected)
+    check_values.compressibility_factor(temperature, pressure_above_max, model, expected)
 
 
 def test_volume_integral_standard_pressure(check_values) -> None:
@@ -178,13 +178,7 @@ def test_volume_integral_index2(check_values) -> None:
     check_values.volume_integral(temperature, pressure, model, expected)
 
 
-def test_volume_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
+def test_broadcasting(check_values) -> None:
+    """Tests methods with broadcasting"""
     model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
-    check_values.check_broadcasting("volume", model)
-
-
-def test_fugacity_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
-    model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
-    check_values.check_broadcasting("fugacity", model)
+    check_values.check_broadcasting(model)

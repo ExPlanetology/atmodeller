@@ -4,7 +4,6 @@
 
 """Real gas EOS from :cite:t:`HP91,HP98,HP11`"""
 
-import logging
 from abc import abstractmethod
 
 import equinox as eqx
@@ -24,8 +23,6 @@ from atmodeller.eos.redlich_kwong import (
 from atmodeller.jax_utils import FloatArray, Scalar, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
 from atmodeller.thermodata import CriticalData, critical_data_dictionary
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class CorrespondingStatesUnitConverter:

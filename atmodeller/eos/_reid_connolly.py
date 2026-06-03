@@ -4,14 +4,10 @@
 
 """Real gas EOSs from :cite:t:`RPS77,C16`"""
 
-import logging
-
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas
 from atmodeller.eos.redlich_kwong import RedlichKwong49
 from atmodeller.sci_utils import ExperimentalCalibration
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 experimental_calibration_connolly16: ExperimentalCalibration = ExperimentalCalibration(
     temperature_min=1000, temperature_max=10000, pressure_min=1, pressure_max=50e3
