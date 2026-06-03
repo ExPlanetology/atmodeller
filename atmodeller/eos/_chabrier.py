@@ -25,9 +25,9 @@ from atmodeller.eos.core import IdealGas, RealGas, RealGasBase
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
-MIN_LOG_FUGACITY_COEFFICIENT: float = -15
+MIN_LOG_FUGACITY_COEFFICIENT: float = -15.0
 """Minimum log fugacity coefficient to avoid numerical issues when solving with the Chabrier EOS"""
-MAX_LOG_FUGACITY_COEFFICIENT: float = 15
+MAX_LOG_FUGACITY_COEFFICIENT: float = 15.0
 """Maximum log fugacity coefficient to avoid numerical issues when solving with the Chabrier EOS"""
 
 
