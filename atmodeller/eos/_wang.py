@@ -8,11 +8,9 @@ The papers state a volume integration from :math:`P_0` to :math:`P`, where :math
 Hence for bounded EOS a minimum pressure of 1 bar is assumed.
 """
 
-import logging
-
 import equinox as eqx
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
+from jaxtyping import ArrayLike
 
 from atmodeller import override
 from atmodeller.constants import STANDARD_PRESSURE
@@ -20,8 +18,6 @@ from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas
 from atmodeller.jax_utils import FloatArray, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class VirialQuadratic(RealGas):
@@ -112,7 +108,7 @@ class VirialQuadratic(RealGas):
                 ``None``.
 
         Returns:
-            The compressibility factor, which is dimensionless
+            The compressibility factor (dimensionless)
         """
         del mole_fractions
 
@@ -159,7 +155,7 @@ class VirialQuadratic(RealGas):
     @override
     def volume_integral(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
-    ) -> Array:
+    ) -> FloatArray:
         r"""Volume integral
 
         Args:

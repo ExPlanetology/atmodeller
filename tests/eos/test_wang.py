@@ -36,13 +36,7 @@ def test_H4Si_volume_2540K_924e3bar(check_values) -> None:
     check_values.volume(2540, 924e3, model, expected)  # 2540 (+/- 60) K, 924e3 (+/- 10e3) bar
 
 
-def test_volume_with_broadcasting(check_values) -> None:
-    """Tests volume with broadcasting"""
+def test_broadcasting(check_values) -> None:
+    """Tests methods with broadcasting"""
     model: RealGas = H4Si_wang18_bounded
-    check_values.check_broadcasting("volume", model)
-
-
-def test_fugacity_with_broadcasting(check_values) -> None:
-    """Tests fugacity with broadcasting"""
-    model: RealGas = H4Si_wang18_bounded
-    check_values.check_broadcasting("fugacity", model)
+    check_values.check_broadcasting(model)
