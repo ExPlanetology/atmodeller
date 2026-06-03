@@ -7,7 +7,6 @@
 Units for temperature and pressure are K and bar, respectively.
 """
 
-import logging
 from collections.abc import Callable, Sequence
 
 import equinox as eqx
@@ -19,8 +18,6 @@ from atmodeller import override
 from atmodeller.eos.core import IdealGas, RealGas, RealGasBase
 from atmodeller.jax_utils import FloatArray, as_j64, to_hashable, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class CombinedRealGas(RealGas):
@@ -435,6 +432,9 @@ class CombinedRealGasFugacity(RealGasBase):
     This directly obtains the (log) fugacity at the relevant pressure by selecting the appropriate
     EOS model based on the pressure bounds of each calibration.
 
+    Note:
+        This is not presently compatible with batched mole_fractions.
+
     Args:
         real_gases: Real gases to use
         calibrations: Experimental calibrations that correspond to ``real_gases``
@@ -451,17 +451,17 @@ class CombinedRealGasFugacity(RealGasBase):
     upper_pressure_bounds: tuple[float, ...] = eqx.field(converter=to_native_floats)
     """Upper pressure bounds"""
     _log_fugacity_coefficient_functions: tuple[Callable, ...]
-    min_log_fugacity_coefficient: float
+    min_log_fugacity_coefficient: float | None
     """Minimum log fugacity coefficient to avoid numerical issues"""
-    max_log_fugacity_coefficient: float
+    max_log_fugacity_coefficient: float | None
     """Maximum log fugacity coefficient to avoid numerical issues"""
 
     def __init__(
         self,
         real_gases: tuple[RealGasBase, ...],
         calibrations: tuple[ExperimentalCalibration, ...],
-        min_log_fugacity_coefficient: float = -15,
-        max_log_fugacity_coefficient: float = 15,
+        min_log_fugacity_coefficient: float | None = None,
+        max_log_fugacity_coefficient: float | None = None,
     ):
         self.real_gases = real_gases
         self.calibrations = calibrations

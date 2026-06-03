@@ -25,6 +25,11 @@ from atmodeller.eos.core import IdealGas, RealGas, RealGasBase
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
 
+MIN_LOG_FUGACITY_COEFFICIENT: float = -15
+"""Minimum log fugacity coefficient to avoid numerical issues when solving with the Chabrier EOS"""
+MAX_LOG_FUGACITY_COEFFICIENT: float = 15
+"""Maximum log fugacity coefficient to avoid numerical issues when solving with the Chabrier EOS"""
+
 
 class Chabrier(RealGas):
     r"""Chabrier EOS from :cite:t:`CD21`
@@ -314,6 +319,8 @@ H2_3000K_chabrier21: RealGasBase = CombinedRealGasFugacity(
             temperature_min=3000, temperature_max=3000, pressure_min=1, pressure_max=1e6
         ),
     ),
+    min_log_fugacity_coefficient=MIN_LOG_FUGACITY_COEFFICIENT,
+    max_log_fugacity_coefficient=MAX_LOG_FUGACITY_COEFFICIENT,
 )
 """H2 Chabrier EOS at 3000 K between 1 bar and 1e6 bar :cite:p:`CD21`"""
 
@@ -330,6 +337,8 @@ H2_4000K_chabrier21: RealGasBase = CombinedRealGasFugacity(
             temperature_min=4000, temperature_max=4000, pressure_min=1, pressure_max=1e6
         ),
     ),
+    min_log_fugacity_coefficient=MIN_LOG_FUGACITY_COEFFICIENT,
+    max_log_fugacity_coefficient=MAX_LOG_FUGACITY_COEFFICIENT,
 )
 """H2 Chabrier EOS at 4000 K between 1 bar and 1e6 bar :cite:p:`CD21`"""
 
