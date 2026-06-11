@@ -16,10 +16,9 @@ from jaxtyping import Array, ArrayLike, Float
 
 from atmodeller import override
 from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
-from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas, safe_ideal_initial_volume
 from atmodeller.jax_utils import FloatArray, NpFloat, OptxSolver, as_j64, safe_exp
-from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration, unit_conversion
+from atmodeller.sci_utils import GAS_CONSTANT_BAR, unit_conversion
 
 epsilon_species: dict[str, float] = {
     # From Zhang and Duan (2009) Table 4. Ensure these use Hill notation.
@@ -99,6 +98,10 @@ REFERENCE_EPSILON: float = epsilon_species["CH4"]
 """Reference epsilon"""
 REFERENCE_SIGMA: float = sigma_species["CH4"]
 """Reference sigma"""
+K1_ZHANG_DUAN: dict[str, float] = {"CO2-H2O": 0.85, "CH4-H2O": 0.8}
+"""Default binary interaction parameters for k1 :cite:p:`ZD09`"""
+K2_ZHANG_DUAN: dict[str, float] = {"CO2-H2O": 1.02, "CH4-H2O": 1.0}
+"""Default binary interaction parameters for k2 :cite:p:`ZD09`"""
 
 
 class ZhangDuanBase(RealGas):
@@ -518,17 +521,27 @@ class ZhangDuanMixture(ZhangDuanBase):
     _grad_fn: Callable
 
     @override
-    def __init__(self, species: tuple[str, ...], species_to_output: str):
+    def __init__(
+        self,
+        species: tuple[str, ...],
+        species_to_output: str,
+        k1: dict[str, float] = K1_ZHANG_DUAN,
+        k2: dict[str, float] = K2_ZHANG_DUAN,
+    ):
         """Initializes the mixture model.
 
         Args:
             species: Tuple of species names
             species_to_output: Name of the species for which to output species-specific quantities,
                 such as partial fugacity
+            k1: Binary interaction parameter matrix for epsilon (n_species, n_species). Defaults to
+                :attr:`K1_ZHANG_DUAN` to use the Zhang and Duan (2009) coefficients.
+            k2: Binary interaction parameter matrix for sigma (n_species, n_species). Defaults to
+                :attr:`K2_ZHANG_DUAN` to use the Zhang and Duan (2009) coefficients.
         """
         self.species = species
-        self.k1 = self.get_k1_mixing_matrix(species)
-        self.k2 = self.get_k2_mixing_matrix(species)
+        self.k1 = self.build_mixing_matrix(species, k1)
+        self.k2 = self.build_mixing_matrix(species, k2)
         self.epsilon_matrix = self.get_epsilon_berthelot_rule(species)
         self.sigma_matrix = self.get_sigma_lorentz_rule(species)
         self.species_index = species.index(species_to_output)
@@ -826,54 +839,37 @@ class ZhangDuanMixture(ZhangDuanBase):
         return sigma_matrix
 
     @staticmethod
-    def get_k1_mixing_matrix(species: tuple[str, ...]) -> NpFloat:
-        """Gets the k1 matrix for a given set of species.
+    def build_mixing_matrix(species: tuple[str, ...], parameter_dict: dict[str, float]) -> NpFloat:
+        """Builds a mixing matrix for a given set of species and parameter dictionary.
+
+        This is a helper function to construct the k1 and k2 matrices from the provided parameter
+        dictionary. The parameter dictionary should have keys in the format "species1-species2" and
+        values corresponding to the interaction parameter for that pair of species.
 
         Args:
             species: Tuple of species names
+            parameter_dict: Dictionary with keys in the format "species1-species2" and values
+                corresponding to the interaction parameter for that pair of species
 
         Returns:
-            k1 matrix
+            Mixing matrix
         """
         num_species: int = len(species)
-        k1_matrix: NpFloat = np.ones((num_species, num_species))
+        mixing_matrix: NpFloat = np.ones((num_species, num_species))
 
-        # Values from Zhang and Duan (2009) for CO2-H2O
-        if "CO2" in species and "H2O" in species:
-            k1_matrix[species.index("CO2"), species.index("H2O")] = 0.85
-            k1_matrix[species.index("H2O"), species.index("CO2")] = 0.85
+        for i in range(num_species):
+            for j in range(i + 1, num_species):
+                key: str = f"{species[i]}-{species[j]}"
+                rev_key: str = f"{species[j]}-{species[i]}"
+                value: float | None = parameter_dict.get(key) or parameter_dict.get(rev_key)
+                if value is not None:
+                    mixing_matrix[i, j] = value
+                    mixing_matrix[j, i] = value
+                else:
+                    mixing_matrix[i, j] = 1.0  # Default value if not specified
+                    mixing_matrix[j, i] = 1.0  # Default value if not specified
 
-        # Values from Zhang and Duan (2009) for CH4-H2O
-        if "CH4" in species and "H2O" in species:
-            k1_matrix[species.index("CH4"), species.index("H2O")] = 0.8
-            k1_matrix[species.index("H2O"), species.index("CH4")] = 0.8
-
-        return k1_matrix
-
-    @staticmethod
-    def get_k2_mixing_matrix(species: tuple[str, ...]) -> NpFloat:
-        """Gets the k2 matrix for a given set of species.
-
-        Args:
-            species: Tuple of species names
-
-        Returns:
-            k2 matrix
-        """
-        num_species: int = len(species)
-        k2_matrix: NpFloat = np.ones((num_species, num_species))
-
-        # Values from Zhang and Duan (2009) for CO2-H2O
-        if "CO2" in species and "H2O" in species:
-            k2_matrix[species.index("CO2"), species.index("H2O")] = 1.02
-            k2_matrix[species.index("H2O"), species.index("CO2")] = 1.02
-
-        # Values from Zhang and Duan (2009) for CH4-H2O
-        if "CH4" in species and "H2O" in species:
-            k2_matrix[species.index("CH4"), species.index("H2O")] = 1.0
-            k2_matrix[species.index("H2O"), species.index("CH4")] = 1.0
-
-        return k2_matrix
+        return mixing_matrix
 
     @staticmethod
     def binary_mixing_rule(
@@ -892,121 +888,3 @@ class ZhangDuanMixture(ZhangDuanBase):
         return jnp.sum(
             jnp.einsum("...i,...j->...ij", mole_fraction, mole_fraction) * kn * arg, axis=(-2, -1)
         )
-
-
-CH4_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["CH4"], sigma_species["CH4"])
-"""CH4 unbounded :cite:p:`ZD09`"""
-CH4_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=273,
-    temperature_max=2573,
-    pressure_min=0.1 * unit_conversion.MPa_to_bar,
-    pressure_max=10000 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for CH4 :cite:p:`ZD09{Table 5}`"""
-CH4_zhang09_bounded: RealGas = CombinedRealGas.create(
-    [CH4_zhang09], [CH4_experimental_calibration]
-)
-"""CH4 bounded to data range :cite:p:`ZD09{Table 5}`"""
-
-H2O_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["H2O"], sigma_species["H2O"])
-"""H2O unbounded :cite:p:`ZD09`"""
-H2O_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=673,
-    temperature_max=2573,
-    pressure_min=0.1 * unit_conversion.MPa_to_bar,
-    pressure_max=10000 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for H2O :cite:p:`ZD09{Table 5}`"""
-H2O_zhang09_bounded: RealGas = CombinedRealGas.create(
-    [H2O_zhang09], [H2O_experimental_calibration]
-)
-"""H2O bounded to data range :cite:p:`ZD09{Table 5}`"""
-
-CO2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["CO2"], sigma_species["CO2"])
-"""CO2 unbounded :cite:p:`ZD09`"""
-CO2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=473,
-    temperature_max=2573,
-    pressure_min=0.1 * unit_conversion.MPa_to_bar,
-    pressure_max=10000 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for CO2 :cite:p:`ZD09{Table 5}`"""
-CO2_zhang09_bounded: RealGas = CombinedRealGas.create(
-    [CO2_zhang09], [CO2_experimental_calibration]
-)
-
-# Tested boundedness (not the same as physical correctness) for 500<T<10000 K and 0<P<10 GPa
-H2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["H2"], sigma_species["H2"])
-"""H2 unbounded :cite:p:`ZD09`"""
-H2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=250,
-    temperature_max=423,
-    pressure_min=2 * unit_conversion.MPa_to_bar,
-    pressure_max=700 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for H2 :cite:p:`ZD09{Table 5}`"""
-H2_zhang09_bounded: RealGas = CombinedRealGas.create([H2_zhang09], [H2_experimental_calibration])
-"""H2 bounded to data range :cite:p:`ZD09{Table 5}`"""
-
-CO_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["CO"], sigma_species["CO"])
-"""CO unbounded :cite:p:`ZD09`"""
-CO_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=300,
-    temperature_max=573.2,
-    pressure_min=10 * unit_conversion.MPa_to_bar,
-    pressure_max=1020.6 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for CO :cite:p:`ZD09{Table 5}`"""
-CO_zhang09_bounded: RealGas = CombinedRealGas.create([CO_zhang09], [CO_experimental_calibration])
-"""CO bounded to data range :cite:p:`ZD09{Table 5}`"""
-
-O2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["O2"], sigma_species["O2"])
-"""O2 unbounded :cite:p:`ZD09`"""
-O2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=300,
-    temperature_max=1000,
-    pressure_min=7 * unit_conversion.MPa_to_bar,
-    pressure_max=1013.2 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for O2 :cite:p:`ZD09{Table 5}`"""
-O2_zhang09_bounded: RealGas = CombinedRealGas.create([O2_zhang09], [O2_experimental_calibration])
-"""O2 bounded to data range :cite:p:`ZD09{Table 5}`"""
-
-C2H6_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["C2H6"], sigma_species["C2H6"])
-"""C2H6 unbounded :cite:p:`ZD09`"""
-C2H6_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
-    temperature_min=373,
-    temperature_max=673,
-    pressure_min=30 * unit_conversion.MPa_to_bar,
-    pressure_max=900 * unit_conversion.MPa_to_bar,
-)
-"""Experimental calibration for C2H6 :cite:p:`ZD09{Table 5}`"""
-C2H6_zhang09_bounded: RealGas = CombinedRealGas.create(
-    [C2H6_zhang09], [C2H6_experimental_calibration]
-)
-"""C2H6 bounded to data range :cite:p:`ZD09{Table 5}`"""
-
-
-def get_zhang_eos_models() -> dict[str, RealGas]:
-    """Gets a dictionary of Zhang and Duan EOS models.
-
-    Returns:
-        Dictionary of EOS models
-    """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["CH4_zhang09"] = CH4_zhang09_bounded
-    eos_models["CH4_zhang09_unbounded"] = CH4_zhang09
-    eos_models["H2O_zhang09"] = H2O_zhang09_bounded
-    eos_models["H2O_zhang09_unbounded"] = H2O_zhang09
-    eos_models["CO2_zhang09"] = CO2_zhang09_bounded
-    eos_models["CO2_zhang09_unbounded"] = CO2_zhang09
-    eos_models["H2_zhang09"] = H2_zhang09_bounded
-    eos_models["H2_zhang09_unbounded"] = H2_zhang09
-    eos_models["CO_zhang09"] = CO_zhang09_bounded
-    eos_models["CO_zhang09_unbounded"] = CO2_zhang09
-    eos_models["O2_zhang09"] = O2_zhang09_bounded
-    eos_models["O2_zhang09_unbounded"] = O2_zhang09
-    eos_models["C2H6_zhang09"] = C2H6_zhang09_bounded
-    eos_models["C2H6_zhang09_unbounded"] = C2H6_zhang09
-
-    return eos_models
