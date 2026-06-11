@@ -21,6 +21,6 @@ r"""Small volume offset in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`"""
 
 # Expose the public API
 from atmodeller.eos._aggregators import CombinedRealGas  # noqa: E402, F401
-from atmodeller.eos._zhang_duan import ZhangDuanMixture  # noqa: E402, F401
+from atmodeller.eos._zhang_duan_base import ZhangDuanMixture  # noqa: E402, F401
 from atmodeller.eos.core import IdealGas, RealGas  # noqa: E402, F401
 from atmodeller.eos.library import get_eos_models  # noqa: E402, F401

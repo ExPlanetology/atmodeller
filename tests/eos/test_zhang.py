@@ -13,8 +13,7 @@ import numpy.testing as nptest
 from scipy.constants import kilo
 
 from atmodeller import debug_logger
-from atmodeller.eos import get_eos_models
-from atmodeller.eos._zhang_duan import ZhangDuanMixture
+from atmodeller.eos import ZhangDuanMixture, get_eos_models
 from atmodeller.eos.core import RealGas
 from atmodeller.jax_utils import NpArray
 from atmodeller.sci_utils import unit_conversion
