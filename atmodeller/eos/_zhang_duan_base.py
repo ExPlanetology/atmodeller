@@ -324,7 +324,28 @@ class ZhangDuanBase(RealGas):
 
         return residual
 
-    def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> FloatArray:
+    def _residual_log_volume(
+        self, log_volume: ArrayLike, kwargs: dict[str, ArrayLike | None]
+    ) -> FloatArray:
+        r"""Wrapper around the objective function to solve for log volume
+
+        Transforms the log volume to volume and delegates to :meth:`_objective_function`. Solving
+        in log space improves numerical stability by ensuring the volume remains positive.
+
+        Args:
+            log_volume: Log of the volume (:math:`\ln V`)
+            kwargs: Dictionary with other required and optional parameters
+
+        Returns:
+            Residual of the objective function
+        """
+        volume: FloatArray = jnp.exp(log_volume)
+
+        return self._objective_function(volume, kwargs)
+
+    def initial_volume(
+        self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
+    ) -> FloatArray:
         r"""Initial guess volume is the ideal gas volume plus a small epsilon
 
         The factor of 10 biases the solver towards the largest (gas phase) root, otherwise an
@@ -334,11 +355,18 @@ class ZhangDuanBase(RealGas):
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
+            mole_fractions: Mole fractions of species in the gas phase. Defaults to ``None`` for
+                pure fluids.
 
         Returns:
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        return safe_ideal_initial_volume(temperature, pressure) * 10
+        volume_ideal: FloatArray = safe_ideal_initial_volume(temperature, pressure)
+
+        # Start deliberately on the vapor side
+        V0: FloatArray = 10 * volume_ideal
+
+        return V0
 
     # @eqx.debug.assert_max_traces(max_traces=1)
     def volume(
@@ -355,7 +383,9 @@ class ZhangDuanBase(RealGas):
         Returns:
             Volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
-        initial: FloatArray = self.initial_volume(temperature, pressure)
+        initial: FloatArray = self.initial_volume(temperature, pressure, mole_fractions)
+        log_initial: FloatArray = jnp.log(initial)
+
         kwargs: dict[str, ArrayLike | None] = {
             "temperature": temperature,
             "pressure": pressure,
@@ -363,8 +393,10 @@ class ZhangDuanBase(RealGas):
         }
 
         solver: OptxSolver = optx.Newton(rtol=RELATIVE_TOLERANCE, atol=ABSOLUTE_TOLERANCE)
-        sol = optx.root_find(self._objective_function, solver, initial, args=kwargs, throw=THROW)
-        volume: FloatArray = sol.value
+        sol = optx.root_find(
+            self._residual_log_volume, solver, log_initial, args=kwargs, throw=THROW
+        )
+        volume: FloatArray = jnp.exp(sol.value)
         # jax.debug.print("volume = {out}", out=volume)
         # jax.debug.print("Optimistix success. Number of steps = {out}", out=sol.stats["num_steps"])
 
