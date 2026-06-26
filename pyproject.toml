@@ -1,6 +1,6 @@
 [project]
 name = "atmodeller"
-version = "1.0.0"
+version = "1.0.2"
 description = "Volatile partitioning between a rocky interior and atmosphere"
 readme = "README.md"
 requires-python = ">=3.11,<=4.0"
