@@ -46,17 +46,17 @@ class ExperimentalCalibration(eqx.Module):
         log10_fO2_max: Maximum calibrated :math:`\log_{10} f\rm{O}_2`. Defaults to ``None``.
     """
 
-    temperature_min: Optional[float] = None
+    temperature_min: Optional[float]
     """Minimum calibrated temperature"""
-    temperature_max: Optional[float] = None
+    temperature_max: Optional[float]
     """Maximum calibrated temperature"""
-    pressure_min: Optional[float] = None
+    pressure_min: Optional[float]
     """Minimum calibrated pressure"""
-    pressure_max: Optional[float] = None
+    pressure_max: Optional[float]
     """Maximum calibrated pressure"""
-    log10_fO2_min: Optional[float] = None
+    log10_fO2_min: Optional[float]
     r"""Minimum calibrated :math:`\log_{10} f\rm{O}_2`"""
-    log10_fO2_max: Optional[float] = None
+    log10_fO2_max: Optional[float]
     r"""Maximum calibrated :math:`\log_{10} f\rm{O}_2`"""
 
     def __init__(
@@ -68,18 +68,12 @@ class ExperimentalCalibration(eqx.Module):
         log10_fO2_min: Optional[Scalar] = None,
         log10_fO2_max: Optional[Scalar] = None,
     ):
-        if temperature_min is not None:
-            self.temperature_min = float(temperature_min)
-        if temperature_max is not None:
-            self.temperature_max = float(temperature_max)
-        if pressure_min is not None:
-            self.pressure_min = float(pressure_min)
-        if pressure_max is not None:
-            self.pressure_max = float(pressure_max)
-        if log10_fO2_min is not None:
-            self.log10_fO2_min = float(log10_fO2_min)
-        if log10_fO2_max is not None:
-            self.log10_fO2_max = float(log10_fO2_max)
+        self.temperature_min = float(temperature_min) if temperature_min is not None else None
+        self.temperature_max = float(temperature_max) if temperature_max is not None else None
+        self.pressure_min = float(pressure_min) if pressure_min is not None else None
+        self.pressure_max = float(pressure_max) if pressure_max is not None else None
+        self.log10_fO2_min = float(log10_fO2_min) if log10_fO2_min is not None else None
+        self.log10_fO2_max = float(log10_fO2_max) if log10_fO2_max is not None else None
 
 
 def bulk_silicate_earth_abundances() -> dict[str, dict[str, float]]:

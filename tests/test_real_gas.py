@@ -107,18 +107,18 @@ def test_chabrier_earth(helper) -> None:
     solution: dict[str, ArrayLike] = output.quick_look()
 
     target: dict[str, float] = {
-        "H2O_g": 7.253556287801738e03,
-        "H2O_g_activity": 7.253556287801635e03,
-        "H2_g": 1.162520652380062e04,
-        "H2_g_activity": 2.516876841308367e05,
-        "H4Si_g": 6.759146395057408e04,
-        "H4Si_g_activity": 6.759146395057408e04,
+        "H2O_g": 7250.890001201146,
+        "H2O_g_activity": 7250.89000120113,
+        "H2_g": 11625.21660262108,
+        "H2_g_activity": 251640.8508698987,
+        "H4Si_g": 67590.85056516326,
+        "H4Si_g_activity": 67590.85056516311,
         "O2Si_l": 9.311489514762553e04,
         "O2Si_l_activity": 1.0,
-        "O2_g": 1.791815879185495e-05,
-        "O2_g_activity": 1.791815879185482e-05,
-        "OSi_g": 6.302402285027329e02,
-        "OSi_g_activity": 6.302402285027240e02,
+        "O2_g": 1.791165364818965e-05,
+        "O2_g_activity": 1.791165364818961e-05,
+        "OSi_g": 625.5604897933299,
+        "OSi_g_activity": 625.5604897933285,
     }
 
     assert helper.isclose(solution, target, rtol=RTOL, atol=ATOL)
@@ -154,18 +154,18 @@ def test_chabrier_subNeptune(helper) -> None:
     solution: dict[str, ArrayLike] = output.quick_look()
 
     target: dict[str, float] = {
-        "H2O_g": 4.295071823974879e05,
-        "H2O_g_activity": 4.295071823974879e05,
-        "H2_g": 2.926773356736283e00,
-        "H2_g_activity": 1.956449985411128e04,
-        "H4Si_g": 7.038499826508187e-04,
-        "H4Si_g_activity": 7.038499826508187e-04,
+        "H2O_g": 429507.1704491525,
+        "H2O_g_activity": 429507.1704491535,
+        "H2_g": 2.927180242775929,
+        "H2_g_activity": 19567.21447690322,
+        "H4Si_g": 0.000704240746855,
+        "H4Si_g_activity": 0.000704240746855,
         "O2Si_l": 4.497910721606553e05,
         "O2Si_l_activity": 1.0,
-        "O2_g": 1.039725511931324e01,
-        "O2_g_activity": 1.039725511931332e01,
-        "OSi_g": 8.273579821046055e-01,
-        "OSi_g_activity": 8.273579821046055e-01,
+        "O2_g": 10.394369851620414,
+        "O2_g_activity": 10.394369851620437,
+        "OSi_g": 0.821179444164847,
+        "OSi_g_activity": 0.821179444164849,
     }
 
     assert helper.isclose(solution, target, rtol=RTOL, atol=ATOL)

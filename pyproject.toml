@@ -58,9 +58,8 @@ dependencies = [
     "optax==0.2.5; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "optax>0.2.5; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "xmmutablemap>=0.2.1",
-    "optimistix>=0.0.11",
-    # Equinox 0.13.3 breaks the code. To fix.
-    "equinox==0.13.2",
+    "optimistix>=0.1.0",
+    "equinox>=0.13.8,!=0.13.3",
     "jaxmod>=0.4.0",
 ]
 
