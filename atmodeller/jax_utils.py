@@ -15,7 +15,6 @@ from typing import Any, Literal, TypeAlias
 import jax
 import jax.numpy as jnp
 import numpy as np
-import numpy.typing as npt
 import optimistix as optx
 import pandas as pd
 from jax.scipy.special import logsumexp
@@ -32,14 +31,14 @@ TINY_FLOAT64 = np.finfo(np.float64).tiny
 # Type aliases
 FloatArray: TypeAlias = Float[Array, "..."]
 """Type alias for a JAX float array of any shape"""
-NpArray: TypeAlias = npt.NDArray
+NpArray: TypeAlias = np.ndarray
 """Type alias for a NumPy array"""
-NpBool: TypeAlias = npt.NDArray[np.bool_]
+NpBool: TypeAlias = np.ndarray[Any, np.dtype[np.bool_]]
 """Type alias for a :obj:`numpy.bool_` array"""
-NpFloat: TypeAlias = npt.NDArray[np.float64]
+NpFloat: TypeAlias = np.ndarray[Any, np.dtype[np.float64]]
 """Type alias for a :obj:`numpy.float64` array"""
-NpInt: TypeAlias = npt.NDArray[np.int_]
-"""Type alias for a :obj:`numpy.int_` array"""
+NpInt: TypeAlias = np.ndarray[Any, np.dtype[np.intp]]
+"""Type alias for a :obj:`numpy.intp` array"""
 Scalar: TypeAlias = int | float
 """Scalar"""
 OptxSolver: TypeAlias = (
