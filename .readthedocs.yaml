@@ -21,6 +21,10 @@ build:
          - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
       install:
          - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --extra docs
+      pre_build:
+         # Regenerate the API doc module stubs fresh on every build, so they can never drift
+         # from the actual package structure (paths are relative to the repo root).
+         - sphinx-apidoc -f -o docs/source atmodeller
 
 formats:
   - epub

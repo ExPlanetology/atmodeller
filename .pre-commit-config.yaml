@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.6
+    rev: v0.15.8
     hooks:
       - id: ruff-check
         types_or: [ python, pyi, jupyter ]
@@ -8,6 +8,15 @@ repos:
       - id: ruff-format
         types_or: [ python, pyi, jupyter ]
   - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.407
+    rev: v1.1.411
     hooks:
     - id: pyright
+  - repo: local
+    hooks:
+    - id: sphinx-apidoc
+      name: sphinx-apidoc (regenerate API doc module stubs)
+      entry: sphinx-apidoc -f -o docs/source atmodeller
+      language: python
+      additional_dependencies: ["sphinx>=8.2.3"]
+      pass_filenames: false
+      files: ^atmodeller/.*\.py$
