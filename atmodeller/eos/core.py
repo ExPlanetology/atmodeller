@@ -496,7 +496,7 @@ class VanderWaals(RealGas):
         pressure: ArrayLike = kwargs["pressure"]
 
         coeff0: ArrayLike = -self.a * self.b / pressure
-        coeff1: ArrayLike = -self.a / pressure
+        coeff1: ArrayLike = self.a / pressure
         coeff2: ArrayLike = -self.b - GAS_CONSTANT_BAR * temperature / pressure
         coeff3: ArrayLike = 1
 
