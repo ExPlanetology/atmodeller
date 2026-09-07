@@ -277,17 +277,16 @@ def objective_function(
     # )
 
     # Stability residual
-    log_tau: FloatArray = jnp.log(parameters.solver_parameters.tau)
-    # jax.debug.print("log_tau = {out}", out=log_tau)
-    log_min_number_moles: Float[Array, "... n_species"] = (
-        get_min_log_elemental_abundance_per_species(parameters) + log_tau
+    # Delegates to compute_implied_log_stability() (rather than recomputing log_min_number_moles
+    # inline) so that species with active stability but no elemental mass constraint get the same
+    # NaN guard there (fallback to log_tau_val), instead of propagating NaN into the residual.
+    implied_log_stability: Float[Array, "... n_species"] = compute_implied_log_stability(
+        parameters, log_number_moles
     )
-    # jax.debug.print("log_min_number_moles = {out}", out=log_min_number_moles)
+    # jax.debug.print("implied_log_stability = {out}", out=implied_log_stability)
 
     # Dimensionless (log-ratio)
-    stability_residual: Float[Array, "... n_species"] = (
-        log_number_moles + log_stability - log_min_number_moles
-    )
+    stability_residual: Float[Array, "... n_species"] = log_stability - implied_log_stability
     # jax.debug.print("stability_residual = {out}", out=stability_residual)
     # jax.debug.print(
     #     "stability_residual min/max: {out}/{out2}",
