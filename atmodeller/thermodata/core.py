@@ -66,11 +66,15 @@ class ActivityCoefficient(eqx.Module):
         Returns:
             Log activity coefficient
         """
-        del temperature
-        del pressure
-        del mole_fractions
+        shape: tuple[int, ...] = jnp.broadcast_shapes(
+            jnp.shape(self.gamma), jnp.shape(temperature), jnp.shape(pressure)
+        )
+        if mole_fractions is not None:
+            # mole_fractions has shape (..., n_species); drop the trailing species axis so the
+            # broadcast shape matches the batch dimensions other activity models derive from it.
+            shape = jnp.broadcast_shapes(shape, jnp.shape(mole_fractions)[:-1])
 
-        return jnp.log(self.gamma)
+        return jnp.broadcast_to(jnp.log(self.gamma), shape)
 
 
 class ThermodynamicCoefficients(eqx.Module):
