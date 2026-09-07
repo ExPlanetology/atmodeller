@@ -40,7 +40,7 @@ H3N_lide: RealGas = VanderWaals(4.225e-6, 3.71e-5)
 """NH3 van der Waals :cite:p:`Lide2005`"""
 H3N_lide_bounded: RealGas = CombinedRealGas.create([H3N_lide], [experimental_calibration])
 """NH3 bounded to data range"""
-CHN_lide: RealGas = VanderWaals(1.29e-5, 8.81e-5)
+CHN_lide: RealGas = VanderWaals(1.129e-5, 8.81e-5)
 """HCN van der Waals :cite:p:`Lide2005`"""
 CHN_lide_bounded: RealGas = CombinedRealGas.create([CHN_lide], [experimental_calibration])
 """HCN bounded to data range"""
