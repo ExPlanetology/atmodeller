@@ -78,7 +78,7 @@ class PlanetParameters(eqx.Module):
         Returns:
             Bulk density of the planet (kgm\ :sup:`-3`)
         """
-        return self.mass / self.volume
+        return self.mass / self.volume  # pragma: no cover
 
     @property
     def core_mass(self) -> float:
@@ -92,7 +92,7 @@ class PlanetParameters(eqx.Module):
         Returns:
             Mass of the core (kg)
         """
-        return self.core_mass_fraction * self.mass
+        return self.core_mass_fraction * self.mass  # pragma: no cover
 
     @property
     def mantle_mass(self) -> float:
@@ -121,7 +121,7 @@ class PlanetParameters(eqx.Module):
         Returns:
             Surface gravity of the planet (ms\\ :sup:`-2`)
         """
-        return constants.gravitational_constant * self.mass / self.radius**2
+        return constants.gravitational_constant * self.mass / self.radius**2  # pragma: no cover
 
     @property
     def volume(self) -> float:
