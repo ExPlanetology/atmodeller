@@ -348,6 +348,14 @@ class BaseOutputDict(eqx.Module):
     def phase_to_dict(self, phase_output: PhaseOutput[BasePhase]) -> dict[str, Any]:
         """Phase-level properties such as total mass, number of moles, molar mass, etc.
 
+        Note:
+            ``"mass"`` (and ``"species_number_moles"``/``"molar_mass"``) is the phase's
+            self-consistent *total*: the ``"background_*"`` keys plus the mass of any species
+            with ``include_in_phase_mass=True`` (solved for). The ``"background_*"`` keys alone
+            are only the fixed, untracked portion set at construction time — see
+            :class:`~atmodeller.phases.BasePhase`'s docstring. ``"species_to_phase_mass_ratio"``
+            reports what fraction of ``"mass"`` the tracked species account for.
+
         Args:
             phase_output: The phase output to convert.
 

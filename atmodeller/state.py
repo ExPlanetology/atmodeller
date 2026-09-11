@@ -336,6 +336,27 @@ class ThermodynamicState(BaseThermodynamicState):
 class BasePlanet(BaseThermodynamicState):
     """A planet
 
+    Note:
+        ``background_planet_mass`` is a fixed quantity set once at construction (via
+        ``planet_mass``, ``core_mass_fraction``, and ``mantle_melt_fraction`` in
+        :meth:`from_species`) representing the mass *not* modeled by explicit chemical species.
+        Any species with ``include_in_phase_mass=True`` in the melt, solid, or metal phases adds
+        its solved mass on top of this background. The self-consistent total planet mass —
+        combining both — is what :meth:`get_planet_mass` returns, not ``background_planet_mass``
+        itself. See :class:`~atmodeller.phases.BasePhase`'s docstring for the same concept at the
+        individual-phase level.
+
+        The background mass is chemically inert (no species, no thermodynamic activity), but it
+        still counts physically: it's part of the reservoir size used for dissolution/dilution
+        calculations in condensed phases, and it feeds into :meth:`get_planet_mass`, which in turn
+        determines :meth:`get_surface_gravity` and the pressure-scaling law
+        (:class:`PressureScalingLawPlanet`).
+
+        :meth:`from_species`'s ``core_mass_fraction=None`` is how you express "no untracked core
+        mass at all" — the metal phase's mass then comes entirely from tracked ``metal_species``.
+        This choice is fixed at construction time (it depends on which species exist in the metal
+        phase) and cannot be toggled afterwards via :meth:`update`.
+
     Args:
         reaction_system: Reaction system representing the thermodynamic state of the planetary body
         surface_radius: Radius of the surface (m)
@@ -343,7 +364,8 @@ class BasePlanet(BaseThermodynamicState):
         pressure: Pressure (bar)
         background_planet_mass: Planet mass (kg) from only the background melt and solid mass,
             plus the metallic core mass. This value will only be equal to the actual planet mass if
-            ``include_in_phase_mass`` is ``False`` for all species in the melt and solid phases.
+            ``include_in_phase_mass`` is ``False`` for all species in the melt, solid, and metal
+            phases; otherwise use :meth:`get_planet_mass` for the actual total.
     """
 
     reaction_system: ReactionSystem
@@ -355,7 +377,8 @@ class BasePlanet(BaseThermodynamicState):
     pressure: FloatArray
     """Pressure (bar)"""
     background_planet_mass: FloatArray
-    """Planet mass (kg) from only the background melt and solid mass, plus the core mass"""
+    """Planet mass (kg) from only the background (untracked) melt and solid mass, plus the core
+    mass; see the class docstring for how this relates to the actual total planet mass"""
 
     # For helpful typing information since eqx.field(converter=as_j64) confuses the type checker
     @override
@@ -379,7 +402,7 @@ class BasePlanet(BaseThermodynamicState):
         gas_species: Iterable[ChemicalSpecies],
         *,
         planet_mass: ArrayLike = earth.mass,
-        core_mass_fraction: ArrayLike = earth.core_mass_fraction,
+        core_mass_fraction: ArrayLike | None = earth.core_mass_fraction,
         mantle_melt_fraction: ArrayLike = 1.0,
         surface_radius: ArrayLike = earth.radius,
         temperature: ArrayLike = 2000,
@@ -395,12 +418,32 @@ class BasePlanet(BaseThermodynamicState):
 
         Default values are for a fully molten Earth.
 
+        Note:
+            ``planet_mass``, ``core_mass_fraction``, and ``mantle_melt_fraction`` only size the
+            *background* (untracked) mass split between the metal, melt, and solid phases at
+            construction time — they do not account for any species you also track with
+            ``include_in_phase_mass=True`` in ``metal_species``/``silicate_melt_species``/
+            ``silicate_solid_species``, whose solved mass adds on top. If you need the actual
+            self-consistent total planet mass once species are tracked, use
+            :meth:`~BasePlanet.get_planet_mass` rather than assuming it equals ``planet_mass``.
+
+            ``core_mass_fraction=None`` is how you say there is no untracked/background core mass
+            at all — the entire metal phase mass must then come from ``metal_species`` you track
+            and solve for via ``mass_constraints``. In that case ``planet_mass`` is consumed
+            entirely by the mantle background, so it should be understood as excluding the core
+            (either because the planet genuinely has none, or because its mass isn't known until
+            the tracked species are solved for) rather than as the true total.
+
         Args:
             gas_species: Iterable of species in the gas phase
-            planet_mass: Mass of the planet (kg). Defaults to Earth.
-            core_mass_fraction: Mass fraction of the iron core relative to the planetary mass
-                (kg kg\\ :sup:`-1`). Defaults to Earth.
-            mantle_melt_fraction: Mantle melt fraction (kg kg\\ :sup:`-1`). Defaults to ``1.0``.
+            planet_mass: Mass of the planet (kg) used to size the background phase masses below.
+                Defaults to Earth.
+            core_mass_fraction: Mass fraction of the background (untracked) iron core relative to
+                ``planet_mass`` (kg kg\\ :sup:`-1`). Defaults to Earth. ``None`` means there is no
+                untracked core mass at all (see the note above) — the metal phase's background
+                mass is then exactly zero, and ``planet_mass`` sizes only the mantle background.
+            mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass
+                (kg kg\\ :sup:`-1`). Defaults to ``1.0``.
             surface_radius: Radius of the planetary surface (m). Defaults to Earth.
             temperature: Temperature (K). Defaults to ``2000``.
             pressure: Pressure (bar). Defaults to ``NaN`` to solve for the mechanical pressure
@@ -420,10 +463,14 @@ class BasePlanet(BaseThermodynamicState):
         Returns:
             An instance
         """
-        mantle_mass: ArrayLike = planet_mass * (1 - core_mass_fraction)
+        if core_mass_fraction is None:
+            mantle_mass: ArrayLike = planet_mass
+            metallic_core_mass: ArrayLike = 0.0
+        else:
+            mantle_mass = planet_mass * (1 - core_mass_fraction)
+            metallic_core_mass = planet_mass * core_mass_fraction
         background_melt_mass: ArrayLike = mantle_mass * mantle_melt_fraction
         background_solid_mass: ArrayLike = mantle_mass * (1 - mantle_melt_fraction)
-        metallic_core_mass: ArrayLike = planet_mass * core_mass_fraction
 
         gas: GasPhase = GasPhase(gas_species)
         silicate_melt: CondensedPhase = CondensedPhase(
@@ -452,19 +499,22 @@ class BasePlanet(BaseThermodynamicState):
 
     @property
     def background_metallic_core_mass(self) -> FloatArray:
-        """Mass of the metallic core from only the background metal mass (kg)
+        """Mass of the metallic core from only the background (untracked) metal mass (kg)
 
         This value will only be equal to the actual metallic core mass if ``include_in_phase_mass``
-        is ``False`` for all species in the metal phase.
+        is ``False`` for all species in the metal phase. For the actual, self-consistent metal
+        phase mass (background plus any tracked species), use :meth:`get_metal_mass` instead.
         """
         return self.phase_system.phases[self.metal_phase_index].background_mass
 
     @property
     def background_mantle_mass(self) -> FloatArray:  # pragma: no cover
-        """Mass of the mantle from only the background melt and solid mass (kg)
+        """Mass of the mantle from only the background (untracked) melt and solid mass (kg)
 
         This value will only be equal to the actual mantle mass if ``include_in_phase_mass`` is
-        ``False`` for all species in the melt and solid phases.
+        ``False`` for all species in the melt and solid phases. For the actual, self-consistent
+        mantle mass (background plus any tracked species), use
+        ``get_silicate_melt_mass() + get_silicate_solid_mass()`` instead.
         """
         return (
             self.phase_system.phases[self.silicate_melt_phase_index].background_mass
@@ -486,6 +536,10 @@ class BasePlanet(BaseThermodynamicState):
         """Gets the planet mass.
 
         Computes the planet mass from the mass of the condensed phases and the metallic core.
+        Unlike :attr:`background_planet_mass`, this is the self-consistent total: each of
+        ``get_silicate_melt_mass``/``get_silicate_solid_mass``/``get_metal_mass`` already includes
+        both the background (untracked) mass and the mass of any tracked species
+        (``include_in_phase_mass=True``) in that phase.
 
         Args:
             log_number_moles: Log number of moles for all species in the system
@@ -566,11 +620,23 @@ class BasePlanet(BaseThermodynamicState):
         leaf shapes stable helps avoid unnecessary JAX recompilation, including in jitted
         workflows.
 
+        Note:
+            As with :meth:`from_species`, these arguments only change the *background*
+            (untracked) mass split between phases — they do not account for any tracked species
+            mass. See :class:`BasePlanet`'s docstring.
+
         Args:
-            planet_mass: Mass of the planet (kg). Defaults to ``None``.
-            core_mass_fraction: Mass fraction of the iron core relative to the planetary mass
-                (kgkg\\ :sup:`-1`). Defaults to ``None``.
-            mantle_melt_fraction: Mantle melt fraction. Defaults to ``None``.
+            planet_mass: Mass of the planet (kg) used to re-size the background phase masses.
+                Defaults to ``None`` (no change).
+            core_mass_fraction: Mass fraction of the background (untracked) iron core relative to
+                the planetary mass (kgkg\\ :sup:`-1`). Defaults to ``None`` (no change). Only
+                meaningful for a planet that already has an untracked core, i.e. one constructed
+                with a numeric ``core_mass_fraction`` in :meth:`from_species`; a planet built with
+                ``core_mass_fraction=None`` there (core fully from tracked ``metal_species``)
+                cannot be switched to an untracked core here, since which species exist in the
+                metal phase is fixed at construction and unaffected by this method.
+            mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass.
+                Defaults to ``None`` (no change).
             surface_radius: Radius of the planetary surface (m). Defaults to ``None``.
             temperature: Temperature (K). Defaults to ``None``.
             pressure: Pressure (bar). Defaults to ``None``.
