@@ -4,51 +4,36 @@
 
 """Tests for the EOS models from :cite:t:`SF87,SF87a,SF88,SS92`"""
 
+import pytest
+
 from atmodeller.eos import RealGas
 from atmodeller.eos._saxena import H2_SF87, _H2_high_pressure_SS92, _H2_low_pressure_SS92
 from atmodeller.sci_utils import unit_conversion
 
-
-def test_Ar(check_values) -> None:
-    """:cite:t:`SF87{Table 1}`"""
-    model: RealGas = check_values.get_eos_model("Ar", "cs_saxena87")
-    expected: float = 7.41624600755374
-    check_values.compressibility_factor(2510, 100e3, model, expected)
-
-
-def test_CH4(check_values) -> None:
-    """:cite:t:`SF87{Table 1}`"""
-    model: RealGas = check_values.get_eos_model("CH4", "cs_shi92")
-    expected: float = 17.77499804453072
-    check_values.compressibility_factor(1912, 159e3, model, expected)
-
-
-def test_CO2(check_values) -> None:
-    """:cite:t:`SF87{Table 1}`"""
-    model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
-    expected: float = 33.886349109271734
-    check_values.compressibility_factor(1167, 184e3, model, expected)
+# species, model suffix (None means use the H2_SF87 model object directly), temperature (K),
+# pressure (bar), expected compressibility factor. All rows are :cite:t:`SF87{Table 1}` reference
+# values for the corresponding-states formulation; the model suffix differs per species only
+# because the calibration data differs, not the code path, so this is one test parametrized over
+# reference values rather than distinct branches of the implementation.
+COMPRESSIBILITY_FACTOR_CASES = [
+    pytest.param("Ar", "cs_saxena87", 2510, 100e3, 7.41624600755374, id="Ar"),
+    pytest.param("CH4", "cs_shi92", 1912, 159e3, 17.77499804453072, id="CH4"),
+    pytest.param("CO2", "cs_shi92", 1167, 184e3, 33.886349109271734, id="CO2"),
+    pytest.param("H2", None, 1222, 41.66e3, 4.975497264839999, id="H2_SF87"),
+    pytest.param("N2", "cs_saxena87", 1573, 75e3, 10.293087737779091, id="N2"),
+    pytest.param("O2", "cs_shi92", 1823, 133e3, 12.409268281002012, id="O2"),
+]
 
 
-def test_H2_SF87(check_values) -> None:
-    """:cite:t:`SF87{Table 1}`"""
-    model: RealGas = H2_SF87
-    expected: float = 4.975497264839999
-    check_values.compressibility_factor(1222, 41.66e3, model, expected)
-
-
-def test_N2(check_values) -> None:
-    """:cite:t:`SF87{Table 1}`"""
-    model: RealGas = check_values.get_eos_model("N2", "cs_saxena87")
-    expected: float = 10.293087737779091
-    check_values.compressibility_factor(1573, 75e3, model, expected)
-
-
-def test_O2(check_values) -> None:
-    """:cite:t:`SF87{Table 1}`"""
-    model: RealGas = check_values.get_eos_model("O2", "cs_shi92")
-    expected: float = 12.409268281002012
-    check_values.compressibility_factor(1823, 133e3, model, expected)
+@pytest.mark.parametrize(
+    "species, suffix, temperature, pressure, expected", COMPRESSIBILITY_FACTOR_CASES
+)
+def test_compressibility_factor(
+    check_values, species: str, suffix: str | None, temperature: float, pressure: float, expected: float
+) -> None:
+    """Tests compressibility factor against the reference value for each species"""
+    model: RealGas = H2_SF87 if suffix is None else check_values.get_eos_model(species, suffix)
+    check_values.compressibility_factor(temperature, pressure, model, expected)
 
 
 def test_H2_low_pressure_SS92(check_values) -> None:
