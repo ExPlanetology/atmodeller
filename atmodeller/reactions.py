@@ -117,7 +117,7 @@ class PhaseIndex(eqx.Module):
         mask[self.start : self.stop] = True
         return mask
 
-    def __len__(self) -> int:
+    def __len__(self) -> int:  # pragma: no cover
         return self.stop - self.start
 
     def __repr__(self) -> str:
@@ -309,7 +309,7 @@ class ReactionNetwork(BaseReactionBlock):
         )
 
     @classmethod
-    def available_species(cls) -> tuple[str, ...]:
+    def available_species(cls) -> tuple[str, ...]:  # pragma: no cover
         return thermodynamic_data_source.available_species()
 
     @property

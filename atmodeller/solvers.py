@@ -247,7 +247,7 @@ def make_batch_retry_solver(solver_function: Callable, objective_fn: Callable) -
             if log_number_moles.ndim == 2:
                 # Batched: shape (batch, n_species)
                 axis: Literal[0, None] = 0
-            else:
+            else:  # pragma: no cover
                 # Single system: shape (n_species,)
                 axis = None
 
