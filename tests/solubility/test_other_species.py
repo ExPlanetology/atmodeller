@@ -7,14 +7,16 @@
 import inspect
 import logging
 
+import jax.numpy as jnp
 import numpy as np
+import pytest
 from atmodeller.sci_utils import unit_conversion
 from jaxtyping import ArrayLike
 
 from atmodeller import debug_logger
 from atmodeller.interfaces import RedoxBufferProtocol
 from atmodeller.solubility import get_solubility_models
-from atmodeller.solubility.core import Solubility
+from atmodeller.solubility.core import NoSolubility, Solubility
 from atmodeller.thermodata import IronWustiteBuffer
 
 logger: logging.Logger = debug_logger()
@@ -45,6 +47,18 @@ logger.info("TEST_FO2 = %e bar", TEST_FO2)
 logger.info("TEST_FO2_GPA = %e bar", TEST_FO2_GPA)
 
 solubility_models: dict[str, Solubility] = get_solubility_models()
+
+
+def test_no_solubility() -> None:
+    """Tests that NoSolubility().concentration(...) always returns zero."""
+    no_solubility: NoSolubility = NoSolubility()
+
+    concentration = no_solubility.concentration(
+        TEST_FUGACITY, temperature=TEST_TEMPERATURE, pressure=TEST_PRESSURE, fO2=TEST_FO2
+    )
+
+    assert concentration == pytest.approx(0.0)
+    assert concentration == jnp.array(0.0)
 
 
 def test_Cl2_ano_dio_for_thomas(check_values) -> None:

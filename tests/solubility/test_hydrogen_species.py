@@ -191,6 +191,46 @@ def test_H2O_lunar_glass_newcombe(check_values) -> None:
     )
 
 
+def test_H2_chachan18(check_values) -> None:
+    """Tests H2 solubility :cite:p:`CS18`.
+
+    Evaluating at the calibration fugacity and temperature should recover the calibration mass
+    fraction (converted to ppmw) exactly, by construction of the model.
+    """
+    function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
+    solubility_model = solubility_models["H2_chachan18"]
+    target_concentration: ArrayLike = solubility_model.X_calibration * 1.0e6
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        target_concentration,
+        solubility_model.f_calibration,
+        solubility_model.T_calibration,
+        TEST_PRESSURE,
+        TEST_FO2,
+    )
+
+
+def test_H2_kite19(check_values) -> None:
+    """Tests H2 solubility :cite:p:`KFS19`.
+
+    Evaluating at the calibration fugacity and temperature should recover the calibration mass
+    fraction (converted to ppmw) exactly, by construction of the model.
+    """
+    function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
+    solubility_model = solubility_models["H2_kite19"]
+    target_concentration: ArrayLike = solubility_model.X_calibration * 1.0e6
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        target_concentration,
+        solubility_model.f_calibration,
+        solubility_model.T_calibration,
+        TEST_PRESSURE,
+        TEST_FO2,
+    )
+
+
 def test_H2O_peridotite_sossi(check_values) -> None:
     """Tests H2O in peridotite liquids :cite:p:`STB23`.
 
