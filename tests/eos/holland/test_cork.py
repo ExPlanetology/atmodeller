@@ -4,6 +4,8 @@
 
 """Tests for the CORK EOS models from :cite:t:`HP91,HP98`"""
 
+import pytest
+
 from atmodeller.eos import RealGas
 from atmodeller.eos._holland_powell import (
     CO2_cork_holland91,
@@ -27,94 +29,48 @@ def test_CO2_volume_1kbar(check_values) -> None:
     check_values.volume(873, 1000, model, expected)
 
 
-def test_CO_volume_1kbar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8a}`"""
-    model: RealGas = check_values.get_eos_model("CO", "cork_cs_holland91")
-    expected: float = 131.475184896045 * unit_conversion.cm3_to_m3
-    check_values.volume(1173, 1000, model, expected)
+# species, temperature (K), pressure (bar), expected volume (m3), citation figure. CO, CH4, and H2
+# all share the "cork_cs_holland91" corresponding-states formulation, so this is one code path
+# parametrized over each species' own reference points from the cited figure, not distinct
+# branches of the implementation.
+VOLUME_CASES = [
+    pytest.param("CO", 1173, 1000, 131.475184896045, id="CO-1kbar-Figure8a"),
+    pytest.param("CO", 973, 2000, 71.32153159834933, id="CO-2kbar-Figure8a"),
+    pytest.param("CO", 1473, 4000, 62.22167162862537, id="CO-4kbar-Figure8a"),
+    pytest.param("CH4", 1173, 1000, 131.6743085645421, id="CH4-1kbar-Figure8b"),
+    pytest.param("CH4", 973, 2000, 72.14376119913776, id="CH4-2kbar-Figure8b"),
+    pytest.param("CH4", 1473, 4000, 63.106094264549, id="CH4-4kbar-Figure8b"),
+    pytest.param("H2", 773, 500, 149.1657987388235, id="H2-500bar-Figure8c"),
+    pytest.param("H2", 773, 1800, 55.04174839002075, id="H2-1800bar-Figure8c"),
+    pytest.param("H2", 773, 10000, 20.67497630046999, id="H2-10kbar-Figure8c"),
+]
 
 
-def test_CO_volume_2kbar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8a}`"""
-    model: RealGas = check_values.get_eos_model("CO", "cork_cs_holland91")
-    expected: float = 71.32153159834933 * unit_conversion.cm3_to_m3
-    check_values.volume(973, 2000, model, expected)
+@pytest.mark.parametrize("species, temperature, pressure, expected_cm3", VOLUME_CASES)
+def test_cork_cs_holland91_volume(
+    check_values, species: str, temperature: float, pressure: float, expected_cm3: float
+) -> None:
+    """Tests volume against the reference value for each species/pressure point"""
+    model: RealGas = check_values.get_eos_model(species, "cork_cs_holland91")
+    expected: float = expected_cm3 * unit_conversion.cm3_to_m3
+    check_values.volume(temperature, pressure, model, expected)
 
 
-def test_CO_volume_4kbar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8a}`"""
-    model: RealGas = check_values.get_eos_model("CO", "cork_cs_holland91")
-    expected: float = 62.22167162862537 * unit_conversion.cm3_to_m3
-    check_values.volume(1473, 4000, model, expected)
+# species, expected fugacity coefficient at T=2000 K, P=10 kbar. All species share the
+# "cork_cs_holland91" formulation, so this is one code path parametrized over each species'
+# reference value, not distinct branches of the implementation.
+FUGACITY_COEFFICIENT_CASES = [
+    pytest.param("H2", 4.67146087585007, id="H2"),
+    pytest.param("CO", 7.735168014913625, id="CO"),
+    pytest.param("CH4", 8.01145999484921, id="CH4"),
+    pytest.param("CO2", 7.118598073639082, id="simple_CO2"),
+]
 
 
-def test_CH4_volume_1kbar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8b}`"""
-    model: RealGas = check_values.get_eos_model("CH4", "cork_cs_holland91")
-    expected: float = 131.6743085645421 * unit_conversion.cm3_to_m3
-    check_values.volume(1173, 1000, model, expected)
-
-
-def test_CH4_volume_2kbar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8b}`"""
-    model: RealGas = check_values.get_eos_model("CH4", "cork_cs_holland91")
-    expected: float = 72.14376119913776 * unit_conversion.cm3_to_m3
-    check_values.volume(973, 2000, model, expected)
-
-
-def test_CH4_volume_4kbar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8b}`"""
-    model: RealGas = check_values.get_eos_model("CH4", "cork_cs_holland91")
-    expected: float = 63.106094264549 * unit_conversion.cm3_to_m3
-    check_values.volume(1473, 4000, model, expected)
-
-
-def test_H2_volume_500bar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8c}`"""
-    model: RealGas = check_values.get_eos_model("H2", "cork_cs_holland91")
-    expected: float = 149.1657987388235 * unit_conversion.cm3_to_m3
-    check_values.volume(773, 500, model, expected)
-
-
-def test_H2_volume_1800bar(check_values) -> None:
-    """:cite:t:`HP91{Figure 8c}`"""
-    model: RealGas = check_values.get_eos_model("H2", "cork_cs_holland91")
-    expected: float = 55.04174839002075 * unit_conversion.cm3_to_m3
-    check_values.volume(773, 1800, model, expected)
-
-
-def test_H2_volume_10kb(check_values) -> None:
-    """:cite:t:`HP91{Figure 8c}`"""
-    model: RealGas = check_values.get_eos_model("H2", "cork_cs_holland91")
-    expected: float = 20.67497630046999 * unit_conversion.cm3_to_m3
-    check_values.volume(773, 10000, model, expected)
-
-
-def test_H2(check_values) -> None:
-    """H2"""
-    model: RealGas = check_values.get_eos_model("H2", "cork_cs_holland91")
-    expected: float = 4.67146087585007
-    check_values.fugacity_coefficient(2000, 10e3, model, expected)
-
-
-def test_CO(check_values) -> None:
-    """CO"""
-    model: RealGas = check_values.get_eos_model("CO", "cork_cs_holland91")
-    expected: float = 7.735168014913625
-    check_values.fugacity_coefficient(2000, 10e3, model, expected)
-
-
-def test_CH4(check_values) -> None:
-    """CH4"""
-    model: RealGas = check_values.get_eos_model("CH4", "cork_cs_holland91")
-    expected: float = 8.01145999484921
-    check_values.fugacity_coefficient(2000, 10e3, model, expected)
-
-
-def test_simple_CO2(check_values) -> None:
-    """Simple CO2"""
-    model: RealGas = check_values.get_eos_model("CO2", "cork_cs_holland91")
-    expected: float = 7.118598073639082
+@pytest.mark.parametrize("species, expected", FUGACITY_COEFFICIENT_CASES)
+def test_cork_cs_holland91_fugacity_coefficient(check_values, species: str, expected: float) -> None:
+    """Tests fugacity coefficient against the reference value for each species"""
+    model: RealGas = check_values.get_eos_model(species, "cork_cs_holland91")
     check_values.fugacity_coefficient(2000, 10e3, model, expected)
 
 
