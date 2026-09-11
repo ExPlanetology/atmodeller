@@ -251,7 +251,7 @@ def to_native_floats(value: Any) -> Any:
     # Generic iterables (lists, tuples, etc.)
     try:
         iterable = list(value)
-    except Exception:
+    except Exception:  # pragma: no cover
         raise TypeError(f"Cannot convert to float or iterate over type {type(value)}")
 
     return tuple(to_native_floats(item) for item in iterable)
