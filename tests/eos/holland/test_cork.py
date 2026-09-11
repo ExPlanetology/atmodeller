@@ -5,7 +5,11 @@
 """Tests for the CORK EOS models from :cite:t:`HP91,HP98`"""
 
 from atmodeller.eos import RealGas
-from atmodeller.eos._holland_powell import H2O_cork_holland91_bounded, H2O_cork_holland98_bounded
+from atmodeller.eos._holland_powell import (
+    CO2_cork_holland91,
+    H2O_cork_holland91_bounded,
+    H2O_cork_holland98_bounded,
+)
 from atmodeller.sci_utils import unit_conversion
 
 
@@ -146,3 +150,15 @@ def test_broadcasting(check_values) -> None:
     """Tests methods with broadcasting"""
     model: RealGas = check_values.get_eos_model("H2O", "cork_holland98")
     check_values.check_broadcasting(model)
+
+
+def test_CO2_raw_cork_log_fugacity(check_values) -> None:
+    """Tests the raw (unbounded) CORK class's log_fugacity called directly
+
+    This exercises :meth:`~atmodeller.eos.core.CORK.log_fugacity`, which is inherited from
+    :class:`~atmodeller.eos.core.RealGas` and delegates to :meth:`CORK.volume_integral`, without
+    going via :class:`~atmodeller.eos._aggregators.CombinedRealGas`.
+    """
+    model: RealGas = CO2_cork_holland91
+    expected: float = 7.171588313368521
+    check_values._check_property("log_fugacity", 873, 1000, model, expected)

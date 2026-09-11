@@ -13,6 +13,7 @@ from atmodeller.eos._holland_powell import (
     CO2_mrk_cs_holland91,
     CO2MrkHolland91,
     H2O_mrk_fluid_holland91,
+    H2O_mrk_gas_fluid_holland91,
     H2O_mrk_gas_holland91,
     H2OMrkHolland91,
 )
@@ -64,3 +65,14 @@ def test_broadcasting_H2O(check_values) -> None:
     """Tests H2O properties with broadcasting"""
     model: RealGas = H2OMrkHolland91
     check_values.check_broadcasting(model)
+
+
+def test_H2O_gas_fluid_log_fugacity(check_values) -> None:
+    """Tests H2OMrkGasFluid91.log_fugacity called directly
+
+    This method is never called by :class:`~atmodeller.eos.core.CORK`, which only uses
+    ``volume`` and ``volume_integral`` on its wrapped MRK model, so it is otherwise uncovered.
+    """
+    model: RealGas = H2O_mrk_gas_fluid_holland91
+    expected: float = 4.370827630613034
+    check_values._check_property("log_fugacity", 600, 100, model, expected)
