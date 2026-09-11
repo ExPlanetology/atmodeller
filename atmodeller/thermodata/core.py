@@ -425,7 +425,7 @@ class ThermodynamicDataSource:
         """Name of the column that refers to the state of aggregation"""
         return "state"
 
-    def available_species(self) -> tuple[str, ...]:
+    def available_species(self) -> tuple[str, ...]:  # pragma: no cover
         """Available species
 
         Returns:

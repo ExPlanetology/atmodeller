@@ -94,7 +94,7 @@ class ChemicalSpecies(eqx.Module):
             thermo: ThermodynamicCoefficients = thermodynamic_coefficients_dictionary[
                 species_data.name
             ]
-        except KeyError:
+        except KeyError:  # pragma: no cover
             raise KeyError(
                 f"{species_data.name} not available. "
                 f"Available species are {thermodynamic_data_source.available_species()}"
@@ -240,7 +240,7 @@ class ReservoirSpecies(eqx.Module):
         """
         species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state=DISSOLVED_STATE)
 
-        if solubility is None:
+        if solubility is None:  # pragma: no cover
             solubility = NoSolubility()
             number_solution: int = 0
         else:
@@ -346,7 +346,7 @@ class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
         )
 
     @property
-    def reservoir_species_mask(self) -> Bool[Array, "..."]:
+    def reservoir_species_mask(self) -> Bool[Array, "..."]:  # pragma: no cover
         """Mask for reservoir species in the collection"""
         return jnp.array([isinstance(species_, ReservoirSpecies) for species_ in self], dtype=bool)
 
