@@ -38,11 +38,12 @@ class ActivityCoefficient(eqx.Module):
     gamma: Array = eqx.field(converter=as_j64, default=1)
     """Activity coefficient"""
 
-    def active(self) -> Bool[Array, "..."]:
+    def active(self) -> Bool[Array, "..."]:  # pragma: no cover
         """Active activity constraint
 
         Condensate activity is imposed in the reaction network and therefore is never part of an
-        active constraint in the residual.
+        active constraint in the residual. Not part of :class:`~atmodeller.interfaces.
+        ActivityProtocol` and not currently called anywhere.
 
         Returns:
             Always ``False`` because it does not require solution.
@@ -124,7 +125,7 @@ class ThermodynamicCoefficients(eqx.Module):
 
         return index
 
-    def _cp_over_R(
+    def _cp_over_R(  # pragma: no cover
         self, cp_coefficients: Float[Array, "... 7"], temperature: ArrayLike
     ) -> FloatArray:
         """Heat capacity relative to :const:`~atmodeller.constants.GAS_CONSTANT`
@@ -280,7 +281,7 @@ class ThermodynamicCoefficients(eqx.Module):
 
         return gibbs_for_index
 
-    def cp(self, temperature: ArrayLike) -> FloatArray:
+    def cp(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
         r"""Gets heat capacity.
 
         This is :math:`C_p^\circ` in the JANAF tables.
@@ -300,7 +301,7 @@ class ThermodynamicCoefficients(eqx.Module):
 
         return cp
 
-    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
         r"""Gets enthalpy.
 
         This is :math:`H` in the JANAF tables.
@@ -324,7 +325,7 @@ class ThermodynamicCoefficients(eqx.Module):
 
         return enthalpy
 
-    def reference_enthalpy(self) -> Float[Array, ""]:
+    def reference_enthalpy(self) -> Float[Array, ""]:  # pragma: no cover
         r"""Gets reference enthalpy.
 
         This is :math:`H^{\circ}(T_r)` in the JANAF tables.
@@ -348,7 +349,7 @@ class ThermodynamicCoefficients(eqx.Module):
 
         return reference_enthalpy
 
-    def enthalpy_function(self, temperature: ArrayLike) -> FloatArray:
+    def enthalpy_function(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
         r"""Gets enthalpy function/increment.
 
         This is :math:`H-H^{\circ}(T_r)` in the JANAF tables.
@@ -361,7 +362,7 @@ class ThermodynamicCoefficients(eqx.Module):
         """
         return self.enthalpy(temperature) - self.reference_enthalpy()
 
-    def entropy(self, temperature: ArrayLike) -> FloatArray:
+    def entropy(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
         r"""Gets entropy
 
         This is :math:`S^\circ` in the JANAF tables.
@@ -383,7 +384,7 @@ class ThermodynamicCoefficients(eqx.Module):
 
         return entropy
 
-    def gibbs_function(self, temperature: ArrayLike) -> FloatArray:
+    def gibbs_function(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
         r"""Gets Gibbs energy function.
 
         This is :math:`-[G^\circ-H^{\circ}(T_r)]/T` in the JANAF tables.
