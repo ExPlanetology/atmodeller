@@ -352,6 +352,11 @@ class BasePlanet(BaseThermodynamicState):
         determines :meth:`get_surface_gravity` and the pressure-scaling law
         (:class:`PressureScalingLawPlanet`).
 
+        :meth:`from_species`'s ``core_mass_fraction=None`` is how you express "no untracked core
+        mass at all" — the metal phase's mass then comes entirely from tracked ``metal_species``.
+        This choice is fixed at construction time (it depends on which species exist in the metal
+        phase) and cannot be toggled afterwards via :meth:`update`.
+
     Args:
         reaction_system: Reaction system representing the thermodynamic state of the planetary body
         surface_radius: Radius of the surface (m)
@@ -397,7 +402,7 @@ class BasePlanet(BaseThermodynamicState):
         gas_species: Iterable[ChemicalSpecies],
         *,
         planet_mass: ArrayLike = earth.mass,
-        core_mass_fraction: ArrayLike = earth.core_mass_fraction,
+        core_mass_fraction: ArrayLike | None = earth.core_mass_fraction,
         mantle_melt_fraction: ArrayLike = 1.0,
         surface_radius: ArrayLike = earth.radius,
         temperature: ArrayLike = 2000,
@@ -422,12 +427,21 @@ class BasePlanet(BaseThermodynamicState):
             self-consistent total planet mass once species are tracked, use
             :meth:`~BasePlanet.get_planet_mass` rather than assuming it equals ``planet_mass``.
 
+            ``core_mass_fraction=None`` is how you say there is no untracked/background core mass
+            at all — the entire metal phase mass must then come from ``metal_species`` you track
+            and solve for via ``mass_constraints``. In that case ``planet_mass`` is consumed
+            entirely by the mantle background, so it should be understood as excluding the core
+            (either because the planet genuinely has none, or because its mass isn't known until
+            the tracked species are solved for) rather than as the true total.
+
         Args:
             gas_species: Iterable of species in the gas phase
             planet_mass: Mass of the planet (kg) used to size the background phase masses below.
                 Defaults to Earth.
             core_mass_fraction: Mass fraction of the background (untracked) iron core relative to
-                ``planet_mass`` (kg kg\\ :sup:`-1`). Defaults to Earth.
+                ``planet_mass`` (kg kg\\ :sup:`-1`). Defaults to Earth. ``None`` means there is no
+                untracked core mass at all (see the note above) — the metal phase's background
+                mass is then exactly zero, and ``planet_mass`` sizes only the mantle background.
             mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass
                 (kg kg\\ :sup:`-1`). Defaults to ``1.0``.
             surface_radius: Radius of the planetary surface (m). Defaults to Earth.
@@ -449,10 +463,14 @@ class BasePlanet(BaseThermodynamicState):
         Returns:
             An instance
         """
-        mantle_mass: ArrayLike = planet_mass * (1 - core_mass_fraction)
+        if core_mass_fraction is None:
+            mantle_mass: ArrayLike = planet_mass
+            metallic_core_mass: ArrayLike = 0.0
+        else:
+            mantle_mass = planet_mass * (1 - core_mass_fraction)
+            metallic_core_mass = planet_mass * core_mass_fraction
         background_melt_mass: ArrayLike = mantle_mass * mantle_melt_fraction
         background_solid_mass: ArrayLike = mantle_mass * (1 - mantle_melt_fraction)
-        metallic_core_mass: ArrayLike = planet_mass * core_mass_fraction
 
         gas: GasPhase = GasPhase(gas_species)
         silicate_melt: CondensedPhase = CondensedPhase(
@@ -609,11 +627,16 @@ class BasePlanet(BaseThermodynamicState):
 
         Args:
             planet_mass: Mass of the planet (kg) used to re-size the background phase masses.
-                Defaults to ``None``.
+                Defaults to ``None`` (no change).
             core_mass_fraction: Mass fraction of the background (untracked) iron core relative to
-                the planetary mass (kgkg\\ :sup:`-1`). Defaults to ``None``.
+                the planetary mass (kgkg\\ :sup:`-1`). Defaults to ``None`` (no change). Only
+                meaningful for a planet that already has an untracked core, i.e. one constructed
+                with a numeric ``core_mass_fraction`` in :meth:`from_species`; a planet built with
+                ``core_mass_fraction=None`` there (core fully from tracked ``metal_species``)
+                cannot be switched to an untracked core here, since which species exist in the
+                metal phase is fixed at construction and unaffected by this method.
             mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass.
-                Defaults to ``None``.
+                Defaults to ``None`` (no change).
             surface_radius: Radius of the planetary surface (m). Defaults to ``None``.
             temperature: Temperature (K). Defaults to ``None``.
             pressure: Pressure (bar). Defaults to ``None``.
