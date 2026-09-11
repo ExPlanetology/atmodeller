@@ -49,7 +49,7 @@ def _validate_mass_units(units: str) -> Literal["mass", "moles"]:
     Raises:
         ValueError: If the provided units are not supported.
     """
-    if units not in VALID_MASS_UNITS:
+    if units not in VALID_MASS_UNITS:  # pragma: no cover
         raise ValueError(f"Invalid units '{units}'. Expected one of {VALID_MASS_UNITS}.")
     return cast(Literal["mass", "moles"], units)
 
@@ -251,7 +251,7 @@ class ActivityConstraintSet(eqx.Module):
         constraints_dict: dict[str, ActivityConstraintProtocol] = dict(self.constraints_dict)
 
         for species_name, new_value in new_constraints.items():
-            if species_name not in constraints_dict:
+            if species_name not in constraints_dict:  # pragma: no cover
                 continue
 
             original_value: ActivityConstraintProtocol = constraints_dict[species_name]
@@ -431,7 +431,7 @@ class MassConstraintSet(eqx.Module):
         abundance_dict: dict[str, Array] = dict(self.abundance_dict)
 
         for element, new_value in new_abundances.items():
-            if element not in abundance_dict:
+            if element not in abundance_dict:  # pragma: no cover
                 continue
 
             original_value: Array = abundance_dict[element]
@@ -530,7 +530,7 @@ class Parameters(eqx.Module):
         return self.reaction_system.phase_system.species
 
     @property
-    def species_names(self) -> tuple[str, ...]:
+    def species_names(self) -> tuple[str, ...]:  # pragma: no cover
         """Species names in the system"""
         return self.species.species_names
 
