@@ -56,7 +56,7 @@ class BaseThermodynamicState(eqx.Module):
         return self.reaction_system.phase_system
 
     @property
-    def gas_phase_index(self) -> int:
+    def gas_phase_index(self) -> int:  # pragma: no cover
         return GAS_PHASE_INDEX
 
     @property
@@ -460,7 +460,7 @@ class BasePlanet(BaseThermodynamicState):
         return self.phase_system.phases[self.metal_phase_index].background_mass
 
     @property
-    def background_mantle_mass(self) -> FloatArray:
+    def background_mantle_mass(self) -> FloatArray:  # pragma: no cover
         """Mass of the mantle from only the background melt and solid mass (kg)
 
         This value will only be equal to the actual mantle mass if ``include_in_phase_mass`` is
@@ -721,7 +721,9 @@ class PressureScalingLawPlanet(BasePlanet):
     """
 
     @override
-    def get_pressure(self, log_number_moles: Float[Array, "... n_species"]) -> FloatArray:
+    def get_pressure(  # pragma: no cover
+        self, log_number_moles: Float[Array, "... n_species"]
+    ) -> FloatArray:
         """Gets the pressure.
 
         A pressure is used if specified, otherwise it is computed from the scaling law.
