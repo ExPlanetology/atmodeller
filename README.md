@@ -11,7 +11,7 @@
 [![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
 [![bear-ified](https://raw.githubusercontent.com/beartype/beartype-assets/main/badge/bear-ified.svg)](https://beartype.readthedocs.io)
 [![Claude reviewed](https://img.shields.io/badge/Claude-reviewed-D97757)](https://anthropic.com)
-[![Test coverage](https://img.shields.io/badge/Coverage-92%25-brightgreen)](https://github.com/ExPlanetology/atmodeller)
+[![Test coverage](https://img.shields.io/badge/Coverage-99%25-brightgreen)](https://github.com/ExPlanetology/atmodeller)
 
 ## About
 Atmodeller is a Python package for thermochemical equilibrium modeling of planetary interiors and atmospheres, built on [JAX](https://jax.readthedocs.io/en/latest/index.html). It is released under [The GNU General Public License v3.0 or later](https://www.gnu.org/licenses/gpl-3.0.en.html).
