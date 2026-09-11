@@ -5,7 +5,7 @@
 """Tests for the EOS models from :cite:t:`SF87,SF87a,SF88,SS92`"""
 
 from atmodeller.eos import RealGas
-from atmodeller.eos._saxena import H2_SF87
+from atmodeller.eos._saxena import H2_SF87, _H2_high_pressure_SS92, _H2_low_pressure_SS92
 from atmodeller.sci_utils import unit_conversion
 
 
@@ -182,3 +182,31 @@ def test_broadcasting(check_values) -> None:
     """Tests methods with broadcasting"""
     model: RealGas = check_values.get_eos_model("CO2", "cs_shi92")
     check_values.check_broadcasting(model)
+
+
+def test_five_coefficient_raw_log_fugacity(check_values) -> None:
+    """Tests the raw SaxenaFiveCoefficients class's log_fugacity override directly"""
+    model: RealGas = _H2_low_pressure_SS92
+    expected: float = 6.3353125137981205
+    check_values._check_property("log_fugacity", 1000, 500, model, expected)
+
+
+def test_five_coefficient_raw_log_fugacity_coefficient(check_values) -> None:
+    """Tests the raw SaxenaFiveCoefficients class's log_fugacity_coefficient directly"""
+    model: RealGas = _H2_low_pressure_SS92
+    expected: float = 0.12070441537592913
+    check_values._check_property("log_fugacity_coefficient", 1000, 500, model, expected)
+
+
+def test_eight_coefficient_raw_log_fugacity(check_values) -> None:
+    """Tests the raw SaxenaEightCoefficients class's log_fugacity override directly"""
+    model: RealGas = _H2_high_pressure_SS92
+    expected: float = 14.947216154643423
+    check_values._check_property("log_fugacity", 1222, 41.66e3, model, expected)
+
+
+def test_eight_coefficient_raw_log_fugacity_coefficient(check_values) -> None:
+    """Tests the raw SaxenaEightCoefficients class's log_fugacity_coefficient directly"""
+    model: RealGas = _H2_high_pressure_SS92
+    expected: float = 4.309919439828459
+    check_values._check_property("log_fugacity_coefficient", 1222, 41.66e3, model, expected)

@@ -5,7 +5,7 @@
 """Tests for the Viral Quadratic EOS models :cite:p:`WLL18`"""
 
 from atmodeller.eos import RealGas
-from atmodeller.eos._wang import H4Si_wang18_bounded
+from atmodeller.eos._wang import H4Si_wang18, H4Si_wang18_bounded
 
 
 def test_H4Si_fugacity_coefficient_300K_1bar(check_values) -> None:
@@ -40,3 +40,17 @@ def test_broadcasting(check_values) -> None:
     """Tests methods with broadcasting"""
     model: RealGas = H4Si_wang18_bounded
     check_values.check_broadcasting(model)
+
+
+def test_H4Si_raw_log_fugacity(check_values) -> None:
+    """Tests the raw (unbounded) VirialQuadratic class's log_fugacity override directly"""
+    model: RealGas = H4Si_wang18
+    expected: float = 104.81336782777828
+    check_values._check_property("log_fugacity", 1230, 515e3, model, expected)
+
+
+def test_H4Si_raw_log_fugacity_coefficient(check_values) -> None:
+    """Tests the raw (unbounded) VirialQuadratic class's log_fugacity_coefficient directly"""
+    model: RealGas = H4Si_wang18
+    expected: float = 91.6614456481324
+    check_values._check_property("log_fugacity_coefficient", 1230, 515e3, model, expected)

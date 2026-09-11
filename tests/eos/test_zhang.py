@@ -14,6 +14,7 @@ from scipy.constants import kilo
 
 from atmodeller import debug_logger
 from atmodeller.eos import ZhangDuanMixture, get_eos_models
+from atmodeller.eos._zhang_duan import H2O_zhang09
 from atmodeller.eos.core import RealGas
 from atmodeller.jax_utils import NpArray
 from atmodeller.sci_utils import unit_conversion
@@ -134,6 +135,111 @@ def test_RTlnfCO2() -> None:
     # decimal place in the paper. The expected values are likely rounded, but the model is not,
     # so we need to allow for some tolerance in the comparison.
     nptest.assert_allclose(RTlnfCO2, expected, rtol=3.3e-4, atol=ATOL)
+
+
+def test_pure_fluid_reduced_pressure() -> None:
+    """Tests reduced_pressure directly on a raw (unbounded) pure fluid model
+
+    :meth:`~atmodeller.eos._zhang_duan_base.ZhangDuanBase.reduced_pressure` has no callers
+    elsewhere in the codebase, so it is exercised directly here.
+    """
+    pressure: float = 9500  # 950 MPa
+    expected: float = 136.27603142024816
+
+    nptest.assert_allclose(
+        H2O_zhang09.reduced_pressure(pressure), expected, rtol=RTOL, atol=ATOL
+    )
+
+
+def test_pure_fluid_log_fugacity_coefficient_override() -> None:
+    """Tests the ZhangDuanPureFluid.log_fugacity_coefficient and log_fugacity overrides directly"""
+    temperature: float = 1203.15
+    pressure: float = 9500  # 950 MPa
+
+    expected_log_fugacity_coefficient: float = 0.4811010236111326
+    expected_log_fugacity: float = 9.640148101199765
+
+    nptest.assert_allclose(
+        H2O_zhang09.log_fugacity_coefficient(temperature, pressure),
+        expected_log_fugacity_coefficient,
+        rtol=RTOL,
+        atol=ATOL,
+    )
+    nptest.assert_allclose(
+        H2O_zhang09.log_fugacity(temperature, pressure),
+        expected_log_fugacity,
+        rtol=RTOL,
+        atol=ATOL,
+    )
+
+
+def test_mixture_reduced_pressure() -> None:
+    """Tests reduced_pressure directly on a mixture model"""
+    species: tuple[str, ...] = ("H2O", "CO2")
+    model = ZhangDuanMixture(species, "H2O")
+
+    mole_fractions = jnp.array([0.6125, 0.3875])
+    pressure: float = 14500  # 1450 MPa
+    expected: float = 421.68136410672736
+
+    nptest.assert_allclose(
+        model.reduced_pressure(pressure, mole_fractions), expected, rtol=RTOL, atol=ATOL
+    )
+
+
+def test_mixture_log_fugacity_coefficient_override() -> None:
+    """Tests the ZhangDuanMixture.log_fugacity_coefficient and log_fugacity overrides directly"""
+    species: tuple[str, ...] = ("H2O", "CO2")
+    model = ZhangDuanMixture(species, "H2O")
+
+    mole_fractions = jnp.array([0.6125, 0.3875])
+    temperature: float = 1573.15
+    pressure: float = 14500
+
+    expected_log_fugacity_coefficient: float = 1.066156716099858
+    expected_log_fugacity: float = 10.648060644508524
+
+    nptest.assert_allclose(
+        model.log_fugacity_coefficient(temperature, pressure, mole_fractions),
+        expected_log_fugacity_coefficient,
+        rtol=RTOL,
+        atol=ATOL,
+    )
+    nptest.assert_allclose(
+        model.log_fugacity(temperature, pressure, mole_fractions),
+        expected_log_fugacity,
+        rtol=RTOL,
+        atol=ATOL,
+    )
+
+
+def test_analytical_autodiff_batched_mole_fractions() -> None:
+    """Tests the vmap branch of log_partial_fugacity_coefficient_autodiff for batched inputs
+
+    Existing tests only exercise :meth:`~atmodeller.eos._zhang_duan_base.ZhangDuanMixture.
+    log_partial_fugacity_coefficient_autodiff` with a 1D (unbatched) mole fractions array. Here two
+    identical compositions are stacked to form a 2D (batched) array so that the ``mole_fractions.
+    ndim == 2`` branch (which uses ``eqx.filter_vmap``) is exercised, while still allowing the
+    result to be checked against the (per-row) analytical expression.
+    """
+    species: tuple[str, ...] = ("H2O", "CO2", "CH4", "O2", "CO", "H2", "C2H6")
+    eos_H2O = ZhangDuanMixture(species, "H2O")
+
+    moles_in = jnp.array([0.1, 0.2, 0.2, 0.2, 0.2, 0.05, 0.05])
+    moles_in_batched = jnp.stack([moles_in, moles_in])
+    pressure = 2.4e3 * 10
+    temperature = 1273
+
+    ln_phi_i_autodiff = eos_H2O.log_partial_fugacity_coefficient_autodiff(
+        temperature, pressure, moles_in_batched
+    )
+    assert ln_phi_i_autodiff.shape == (2,)
+
+    ln_phi_i_analytical = eos_H2O.log_partial_fugacity_coefficient(temperature, pressure, moles_in)
+
+    tol: float = 1.0e-10
+    nptest.assert_allclose(ln_phi_i_autodiff[0], ln_phi_i_analytical, atol=tol, rtol=tol)
+    nptest.assert_allclose(ln_phi_i_autodiff[1], ln_phi_i_analytical, atol=tol, rtol=tol)
 
 
 def test_analytical_autodiff() -> None:
