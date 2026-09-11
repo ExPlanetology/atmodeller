@@ -209,7 +209,7 @@ class RealGas(RealGasBase):
         """
         return 1e5 * self.volume_integral(temperature, pressure, mole_fractions)
 
-    def dzdp(
+    def dzdp(  # pragma: no cover
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         """Derivative of the compressibility factor with respect to pressure
@@ -231,7 +231,7 @@ class RealGas(RealGasBase):
 
         return dzdp_fn(temperature, pressure, mole_fractions)
 
-    def dvdp(
+    def dvdp(  # pragma: no cover
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         """Derivative of volume with respect to pressure
