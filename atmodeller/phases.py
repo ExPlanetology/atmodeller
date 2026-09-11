@@ -153,13 +153,16 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         )
 
     @classmethod
-    def empty(cls) -> "BasePhase":
+    def empty(cls) -> "BasePhase":  # pragma: no cover
         """Creates an empty phase instance with no species and zero background mass.
 
         Returns:
             An empty phase instance
         """
-        return cls("empty")
+        # Use a keyword argument since concrete subclasses override __init__ with a different
+        # positional argument order (species before name), whereas the base class signature here
+        # has name first.
+        return cls(name="empty")
 
     @property
     def is_empty(self) -> bool:
@@ -806,7 +809,7 @@ class PurePhase(CondensedPhase):
         super().__init__(species, name, background_mass, background_molar_mass)
 
     def __check_init__(self):
-        if self.species.number_species != 1:
+        if self.species.number_species != 1:  # pragma: no cover
             raise ValueError("A pure phase must contain exactly one species.")
 
     @classmethod
