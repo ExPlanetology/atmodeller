@@ -5,16 +5,13 @@
 """Core container classes for species collections and solver configuration."""
 
 import logging
-from collections.abc import Callable, Iterable, Iterator
-from typing import Any, Generic, Literal, Optional, Self
+from collections.abc import Iterable, Iterator
+from typing import Any, Generic, Optional, Self
 
 import equinox as eqx
 import jax.numpy as jnp
-import lineax as lx
 import numpy as np
-import optimistix as optx
 from jaxtyping import Array, ArrayLike, Bool, Float
-from lineax import AbstractLinearSolver
 from molmass import Formula
 
 from atmodeller.constants import (
@@ -35,7 +32,7 @@ from atmodeller.interfaces import (
     SpeciesProtocol,
     TSpecies_co,
 )
-from atmodeller.jax_utils import NpFloat, NpInt, OptxSolver, as_j64
+from atmodeller.jax_utils import NpFloat, NpInt, RootFindParameters, as_j64
 from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
 from atmodeller.thermodata import ActivityCoefficient, thermodynamic_data_source
@@ -406,50 +403,6 @@ def get_formula_matrix(species: SpeciesCollection[SpeciesProtocol]) -> NpInt:
     # logger.debug("formula_matrix = %s", formula_matrix)
 
     return formula_matrix
-
-
-class RootFindParameters(eqx.Module):
-    """Parameters for Optimistix root finding
-
-    Args:
-        solver: Solver. Defaults to :class:`optimistix.Newton`.
-        atol: Absolute tolerance. Defaults to ``1.0e-6``.
-        rtol: Relative tolerance. Defaults to ``1.0e-6``.
-        linear_solver: Linear solver. Defaults to ``AutoLinearSolver(well_posed=None)``.
-        norm: Norm. Defaults to :func:`optimistix.max_norm`.
-        throw: How to report any failures. Defaults to ``False``.
-        max_steps: The maximum number of steps the solver can take. Defaults to ``256``.
-        jac: Whether to use forward- or reverse-mode autodifferentiation to compute the Jacobian.
-            Can be either ``fwd`` or ``bwd``. Defaults to ``fwd``.
-    """
-
-    solver: type[OptxSolver] = optx.Newton
-    """Solver"""
-    atol: float = 1.0e-6
-    """Absolute tolerance"""
-    rtol: float = 1.0e-6
-    """Relative tolerance"""
-    linear_solver: AbstractLinearSolver = lx.AutoLinearSolver(well_posed=None)
-    """Linear solver (see https://docs.kidger.site/lineax/api/solvers/)"""
-    norm: Callable = optx.max_norm
-    """Norm"""
-    throw: bool = False
-    """How to report any failures"""
-    max_steps: int = 256
-    """Maximum number of steps the solver can take"""
-    jac: Literal["fwd", "bwd"] = "fwd"
-    """Whether to use forward- or reverse-mode autodifferentiation to compute the Jacobian"""
-
-    def get_solver_instance(self) -> OptxSolver:
-        """Instantiates the solver"""
-        return self.solver(
-            rtol=self.rtol,
-            atol=self.atol,
-            norm=self.norm,
-            linear_solver=self.linear_solver,  # type: ignore because there is a parameter
-            # For debugging LM solver. Not valid for all solvers (e.g. Newton)
-            # verbose=frozenset({"step_size", "y", "loss", "accepted"}),
-        )
 
 
 class SolverParameters(RootFindParameters):  # pragma: no cover
