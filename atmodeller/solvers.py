@@ -61,10 +61,9 @@ from atmodeller.constants import (
     TAU_MAX,
     TAU_NUM,
 )
-from atmodeller.containers import MultiAttemptSolution
 from atmodeller.engine import compute_implied_log_stability, objective_function
 from atmodeller.initial_solution import generate_initial_guess
-from atmodeller.jax_utils import FloatArray, max_norm, vmap_axes_spec
+from atmodeller.jax_utils import FloatArray, MultiAttemptSolution, max_norm, vmap_axes_spec
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 

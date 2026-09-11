@@ -9,9 +9,11 @@ batch handling, and linear algebra helpers for use with JAX, NumPy, and related 
 designed to be standalone and does not depend on other modules within the atmodeller package.
 """
 
+import logging
 from collections.abc import Callable, Iterable, Sequence
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, cast
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -19,7 +21,7 @@ import optimistix as optx
 import pandas as pd
 from jax.scipy.special import logsumexp
 from jax.tree_util import tree_map
-from jaxtyping import Array, ArrayLike, Bool, Float, PyTree
+from jaxtyping import Array, ArrayLike, Bool, Float, Integer, PyTree
 
 MAX_FLOAT64 = np.finfo(np.float64).max
 """Largest finite value representable by float64 (approximately 1.8e308)"""
@@ -45,6 +47,8 @@ OptxSolver: TypeAlias = (
     optx.AbstractRootFinder | optx.AbstractLeastSquaresSolver | optx.AbstractMinimiser
 )
 """Optimistix solver"""
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 def as_j64(x: ArrayLike | tuple) -> FloatArray:  # pragma: no cover
@@ -400,3 +404,126 @@ def stack_broadcast(arrays: Sequence[Array], axis: int = -1) -> Array:
     arrays_: list[Array] = [jnp.broadcast_to(arr, target_shape) for arr in arrays]
 
     return jnp.stack(arrays_, axis=axis)
+
+
+class MultiAttemptSolution(eqx.Module):  # pragma: no cover
+    """A solution wrapper for handling multiple solver attempts per problem
+
+    This class standardises solver outputs from multi-attempt strategies. Some attributes
+    (e.g. ``converged``, ``solver_success``, ``num_steps``) are broadcast to the batch dimension
+    to ensure consistent shapes across all outputs, whether the underlying solver returns scalar
+    or per-attempt values.
+
+    Args:
+        solution: Optimistix solution
+        _attempts: Number of attempts required for each batch element to converge (``0`` indicates
+            no successful attempt). Defaults to ``0``.
+    """
+
+    solution: optx.Solution
+    _attempts: ArrayLike = 0
+
+    @property
+    def attempts(self) -> Integer[Array, " batch"]:
+        return jnp.broadcast_to(self._attempts, self.batch_shape)
+
+    @property
+    def aux(self) -> Any:
+        """Auxiliary payload returned by the underlying solver"""
+        return self.solution.aux
+
+    @property
+    def batch_shape(self) -> tuple[int, ...]:
+        """Batch shape (all dimensions except the trailing solution dimension)"""
+        return self.solution.value.shape[:-1]
+
+    @property
+    def converged(self) -> Bool[Array, " batch"]:
+        """Boolean mask indicating objective-based convergence"""
+        return jnp.broadcast_to(self.attempts > 0, self.batch_shape)
+
+    @property
+    def num_steps(self) -> Integer[Array, " batch"]:
+        """Number of steps"""
+        return jnp.broadcast_to(self.stats["num_steps"], self.batch_shape)
+
+    @property
+    def result(self) -> optx.RESULTS:
+        """Raw Optimistix solver result code"""
+        return self.solution.result
+
+    @property
+    def value(self) -> Float[Array, "batch solution"]:
+        return self.solution.value
+
+    @property
+    def solver_success(self) -> Bool[Array, " batch"]:
+        """Whether the underlying solver claims success"""
+        return jnp.broadcast_to(self.solution.result == optx.RESULTS.successful, self.batch_shape)
+
+    @property
+    def state(self) -> Any:
+        """Internal solver state from the underlying Optimistix solution"""
+        return self.solution.state
+
+    @property
+    def stats(self) -> dict[str, PyTree[ArrayLike]]:
+        """Solver statistics from the underlying Optimistix solution"""
+        return self.solution.stats
+
+    @property
+    def success(self) -> Bool[Array, " batch"]:
+        """Whether the solution is successful based on both convergence and solver success"""
+        return jnp.logical_and(self.converged, self.solver_success)
+
+    def asdict(self) -> dict[str, ArrayLike]:
+        """Converts pertinent solution statistics to a dictionary"""
+        return {
+            "solver_success": self.solver_success,
+            "steps": self.num_steps,
+            "attempts": self.attempts,
+            "converged": self.converged,
+            "success": self.success,
+        }
+
+    def stats_to_logger(self, logger_: logging.Logger = logger) -> None:
+        """Logs solver statistics.
+
+        .. warning::
+            Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
+
+        Args:
+            logger_: Logger to log the statistics to. Defaults to :obj:`logger`.
+        """
+        total_models: int = int(self.converged.size)
+        num_successful_models: int = jnp.count_nonzero(self.converged).item()
+        num_failed_models: int = jnp.count_nonzero(~self.converged).item()
+
+        logger_.info(
+            "Solve complete: %d (%0.2f%%) successful model(s)",
+            num_successful_models,
+            num_successful_models * 100 / total_models,
+        )
+        if num_failed_models > 0:
+            logger_.warning(
+                "%d (%0.2f%%) model(s) still failed",
+                num_failed_models,
+                num_failed_models * 100 / total_models,
+            )
+
+        # Count unique values and their frequencies, ignoring failed models (attempts == 0)
+        successful_attempts = self.attempts[self.attempts > 0]
+        unique_vals, counts = jnp.unique(successful_attempts, return_counts=True)
+        for val, count in zip(unique_vals.tolist(), counts.tolist()):
+            if val == 1:
+                msg = "Solve attempt %d: %d (%0.2f%%) model(s) solved"
+            else:
+                msg = "Solve attempt %d: %d (%0.2f%%) additional model(s) solved"
+            logger_.info(msg, val, count, count * 100 / total_models)
+
+        # Steps of 0 indicate no solution; replace with nan and report the max over solved models
+        steps_float: Array = cast(
+            Array, jnp.where(self.num_steps == 0, jnp.nan, self.num_steps.astype(float))
+        )
+        max_steps: Array = jnp.nanmax(steps_float)
+        logger_.info("Solver steps (max) = %s", int(max_steps.item()))
