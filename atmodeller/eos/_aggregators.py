@@ -365,7 +365,7 @@ class UpperBoundRealGas(RealGas):
 
     @override
     # @eqx.debug.assert_max_traces(max_traces=1)
-    def log_fugacity(
+    def log_fugacity(  # pragma: no cover
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> Array:
         """Log fugacity cannot be computed.
@@ -549,8 +549,8 @@ class CombinedRealGasFugacity(RealGasBase):
 
         log_fugacity_coefficient = jnp.clip(
             log_fugacity_coefficient,
-            a_min=self.min_log_fugacity_coefficient,
-            a_max=self.max_log_fugacity_coefficient,
+            min=self.min_log_fugacity_coefficient,
+            max=self.max_log_fugacity_coefficient,
         )
         # jax.debug.print("log_fugacity_coefficient = {out}", out=log_fugacity_coefficient)
 
