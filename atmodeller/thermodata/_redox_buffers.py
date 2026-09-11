@@ -374,7 +374,7 @@ class IronWustiteBufferHirschmann(RedoxBuffer):
         )
 
     @override
-    def convert_pressure_units(self, pressure: ArrayLike) -> ArrayLike:
+    def convert_pressure_units(self, pressure: ArrayLike) -> ArrayLike:  # pragma: no cover
         """Units are bar
 
         Not used for a composite redox buffer but required by the interface.
