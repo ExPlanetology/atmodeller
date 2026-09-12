@@ -94,4 +94,6 @@ output.to_excel("example_single")
 ## Funding
 Atmodeller was created as part of a SERI-funded ERC Starting grant '2ATMO' granted to P. Sossi (Contract no. MB22.00033), with additional funding provided through a Swiss National Science Foundation (SNSF) Eccellenza Professorship (#203668).
 
+M. Thompson was supported by NASA through the NASA Hubble Fellowship grant #HST-HF2-51545 awarded by the Space Telescope Science Institute, United States, which is operated by the Association of Universities for Research in Astronomy, Inc., for NASA under contract NAS5-26555.
+
 K\. Hakim acknowledges the FED-tWIN research program STELLA (Prf-2021-022) funded by the Belgian Science Policy Office (BELSPO) and the research grant G014425N funded by the Research Foundation Flanders (FWO).
