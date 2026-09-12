@@ -132,6 +132,28 @@ def safe_exp(x: ArrayLike) -> Array:  # pragma: no cover
     return y
 
 
+def safe_log10(x: ArrayLike) -> Array:  # pragma: no cover
+    """Computes a numerically stable elementwise base-10 logarithm.
+
+    Floors the input at the smallest positive representable value for its dtype before taking the
+    logarithm, so ``log10(0)`` (``-inf``) cannot occur.
+
+    Args:
+        x: Input array-like values
+
+    Returns:
+        Array of the same shape as ``x`` containing ``log10(x)``, with non-positive entries floored
+        at ``log10(finfo(dtype).tiny)``.
+    """
+    x = jnp.asarray(x)
+    if not jnp.issubdtype(x.dtype, jnp.inexact):
+        x = x.astype(jnp.float64)
+
+    tiny = jnp.finfo(x.dtype).tiny
+
+    return jnp.log10(jnp.maximum(x, tiny))
+
+
 def masked_logsumexp(
     log_x: Float[Array, "... n"], axis: int = -1, keepdims: bool = True
 ) -> FloatArray:  # pragma: no cover
