@@ -15,7 +15,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import optimistix as optx
 from jax import jacfwd
-from jaxtyping import ArrayLike
+from jaxtyping import Array, ArrayLike, Bool
 
 from atmodeller import override
 from atmodeller.constants import STANDARD_FUGACITY, STANDARD_PRESSURE
@@ -404,7 +404,7 @@ class VirialCompensation(eqx.Module):
             Pressure difference relative to :attr:`P0` (bar)
         """
         pressure_array: FloatArray = as_j64(pressure)
-        condition: FloatArray = pressure_array > self.P0
+        condition: Bool[Array, "..."] = pressure_array > self.P0
 
         def pressure_above_P0() -> FloatArray:
             return pressure_array - self.P0

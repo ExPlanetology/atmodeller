@@ -4,6 +4,8 @@
 
 """Tests for the CORK EOS models from :cite:t:`HP91,HP98`"""
 
+from typing import cast
+
 import pytest
 
 from atmodeller.eos import RealGas
@@ -24,7 +26,7 @@ def test_H2O_volume_1kbar(check_values) -> None:
 
 def test_CO2_volume_1kbar(check_values) -> None:
     """:cite:t:`HP91{Figure 7}`"""
-    model: RealGas = check_values.get_eos_model("CO2", "cork_holland91")
+    model: RealGas = cast(RealGas, check_values.get_eos_model("CO2", "cork_holland91"))
     expected: float = 96.13326116472262 * unit_conversion.cm3_to_m3
     check_values.volume(873, 1000, model, expected)
 
@@ -51,7 +53,7 @@ def test_cork_cs_holland91_volume(
     check_values, species: str, temperature: float, pressure: float, expected_cm3: float
 ) -> None:
     """Tests volume against the reference value for each species/pressure point"""
-    model: RealGas = check_values.get_eos_model(species, "cork_cs_holland91")
+    model: RealGas = cast(RealGas, check_values.get_eos_model(species, "cork_cs_holland91"))
     expected: float = expected_cm3 * unit_conversion.cm3_to_m3
     check_values.volume(temperature, pressure, model, expected)
 
@@ -68,22 +70,24 @@ FUGACITY_COEFFICIENT_CASES = [
 
 
 @pytest.mark.parametrize("species, expected", FUGACITY_COEFFICIENT_CASES)
-def test_cork_cs_holland91_fugacity_coefficient(check_values, species: str, expected: float) -> None:
+def test_cork_cs_holland91_fugacity_coefficient(
+    check_values, species: str, expected: float
+) -> None:
     """Tests fugacity coefficient against the reference value for each species"""
-    model: RealGas = check_values.get_eos_model(species, "cork_cs_holland91")
+    model: RealGas = cast(RealGas, check_values.get_eos_model(species, "cork_cs_holland91"))
     check_values.fugacity_coefficient(2000, 10e3, model, expected)
 
 
 def test_CO2_at_P0(check_values) -> None:
     """CO2 below P0 so virial contribution excluded"""
-    model: RealGas = check_values.get_eos_model("CO2", "cork_holland98")
+    model: RealGas = cast(RealGas, check_values.get_eos_model("CO2", "cork_holland98"))
     expected: float = 1.57505991404597
     check_values.fugacity_coefficient(2000, 2e3, model, expected)
 
 
 def test_CO2_above_P0(check_values) -> None:
     """CO2 above P0 so virial contribution included"""
-    model: RealGas = check_values.get_eos_model("CO2", "cork_holland98")
+    model: RealGas = cast(RealGas, check_values.get_eos_model("CO2", "cork_holland98"))
     expected: float = 7.142958711915495
     check_values.fugacity_coefficient(2000, 10e3, model, expected)
 
@@ -104,7 +108,7 @@ def test_H2O_below_Tc_above_P0(check_values) -> None:
 
 def test_broadcasting(check_values) -> None:
     """Tests methods with broadcasting"""
-    model: RealGas = check_values.get_eos_model("H2O", "cork_holland98")
+    model: RealGas = cast(RealGas, check_values.get_eos_model("H2O", "cork_holland98"))
     check_values.check_broadcasting(model)
 
 

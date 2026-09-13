@@ -75,7 +75,7 @@ def test_H2O_vol_high_TP2(check_values) -> None:
 
 def test_broadcasting(check_values) -> None:
     """Tests methods with broadcasting"""
-    model: RealGas = check_values.get_eos_model("H2O", MODEL_SUFFIX)
+    model: RealGas = cast(RealGas, check_values.get_eos_model("H2O", MODEL_SUFFIX))
     check_values.check_broadcasting(model)
 
 
@@ -146,9 +146,7 @@ def test_pure_fluid_reduced_pressure() -> None:
     pressure: float = 9500  # 950 MPa
     expected: float = 136.27603142024816
 
-    nptest.assert_allclose(
-        H2O_zhang09.reduced_pressure(pressure), expected, rtol=RTOL, atol=ATOL
-    )
+    nptest.assert_allclose(H2O_zhang09.reduced_pressure(pressure), expected, rtol=RTOL, atol=ATOL)
 
 
 def test_pure_fluid_log_fugacity_coefficient_override() -> None:

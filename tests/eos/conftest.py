@@ -39,7 +39,7 @@ class CheckValues:
         property_name: str,
         temperature: ArrayLike,
         pressure: ArrayLike,
-        eos: RealGas,
+        eos: RealGasBase,
         expected: ArrayLike,
         *,
         rtol=RTOL,

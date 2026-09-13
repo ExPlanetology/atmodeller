@@ -11,6 +11,7 @@ from atmodeller.eos._chabrier import (
     H2_chabrier21,
     _H2_3000K_chabrier21,
 )
+from atmodeller.eos.core import RealGasBase
 from atmodeller.sci_utils import unit_conversion
 
 
@@ -54,7 +55,7 @@ def test_H2_3000K_ideal_branch(check_values) -> None:
     This exercises :meth:`CombinedRealGasFugacity._get_index` and
     :meth:`CombinedRealGasFugacity.log_fugacity` for the first (ideal gas) EOS in the composite.
     """
-    model: RealGas = H2_3000K_chabrier21
+    model: RealGasBase = H2_3000K_chabrier21
     # An ideal gas has a fugacity coefficient of unity by construction
     expected: float = 1.0
     check_values.fugacity_coefficient(3000, 0.5, model, expected)
@@ -62,7 +63,7 @@ def test_H2_3000K_ideal_branch(check_values) -> None:
 
 def test_H2_3000K_fit_branch(check_values) -> None:
     """Tests the Chabrier function-fit branch above 1 bar for the 3000 K function fit"""
-    model: RealGas = H2_3000K_chabrier21
+    model: RealGasBase = H2_3000K_chabrier21
     expected: float = 1.1909553080149688
     check_values.fugacity_coefficient(3000, 100, model, expected)
     expected_log_fugacity: float = 4.77992595090065
@@ -71,14 +72,14 @@ def test_H2_3000K_fit_branch(check_values) -> None:
 
 def test_H2_4000K_ideal_branch(check_values) -> None:
     """Tests the ideal gas (extrapolated) branch below 1 bar for the 4000 K function fit"""
-    model: RealGas = H2_4000K_chabrier21
+    model: RealGasBase = H2_4000K_chabrier21
     expected: float = 1.0
     check_values.fugacity_coefficient(4000, 0.5, model, expected)
 
 
 def test_H2_4000K_fit_branch(check_values) -> None:
     """Tests the Chabrier function-fit branch above 1 bar for the 4000 K function fit"""
-    model: RealGas = H2_4000K_chabrier21
+    model: RealGasBase = H2_4000K_chabrier21
     expected: float = 4.239207102263808
     check_values.fugacity_coefficient(4000, 1000, model, expected)
     expected_log_fugacity: float = 8.352131526555477
@@ -92,6 +93,6 @@ def test_ChabrierFunction_raw_log_fugacity(check_values) -> None:
     ``log_fugacity_coefficient`` on its constituent EOS models (not ``log_fugacity``), so
     :meth:`~atmodeller.eos._chabrier.ChabrierFunction.log_fugacity` is otherwise never exercised.
     """
-    model: RealGas = _H2_3000K_chabrier21
+    model: RealGasBase = _H2_3000K_chabrier21
     expected: float = 4.77992595090065
     check_values._check_property("log_fugacity", 3000, 100, model, expected)

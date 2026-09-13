@@ -4,6 +4,8 @@
 
 """Tests for the EOS models from :cite:t:`HWZ58`"""
 
+from typing import cast
+
 import pytest
 
 from atmodeller.eos import RealGas
@@ -41,24 +43,28 @@ COMPRESSIBILITY_FACTOR_CASES = [
 ]
 
 
-@pytest.mark.parametrize("species, temperature, pressure_atm, expected", COMPRESSIBILITY_FACTOR_CASES)
+@pytest.mark.parametrize(
+    "species, temperature, pressure_atm, expected", COMPRESSIBILITY_FACTOR_CASES
+)
 def test_compressibility_factor(
     check_values, species: str, temperature: float, pressure_atm: float, expected: float
 ) -> None:
     """Tests compressibility factor against the reference value for each species/table entry"""
-    model: RealGas = check_values.get_eos_model(species, MODEL_SUFFIX)
+    model: RealGas = cast(RealGas, check_values.get_eos_model(species, MODEL_SUFFIX))
     pressure: float = pressure_atm * unit_conversion.atmosphere_to_bar
-    check_values.compressibility_factor(temperature, pressure, model, expected, rtol=RTOL, atol=ATOL)
+    check_values.compressibility_factor(
+        temperature, pressure, model, expected, rtol=RTOL, atol=ATOL
+    )
 
 
 def test_H2_high_fugacity(check_values) -> None:
     """Tests that a fugacity can be calculated"""
-    model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
+    model: RealGas = cast(RealGas, check_values.get_eos_model("H2", MODEL_SUFFIX))
     pressure: float = 1000 * unit_conversion.atmosphere_to_bar
     check_values.fugacity(1000, pressure, model, 1301.672235770893, rtol=RTOL, atol=ATOL)
 
 
 def test_broadcasting(check_values) -> None:
     """Tests methods with broadcasting"""
-    model: RealGas = check_values.get_eos_model("H2", MODEL_SUFFIX)
+    model: RealGas = cast(RealGas, check_values.get_eos_model("H2", MODEL_SUFFIX))
     check_values.check_broadcasting(model)

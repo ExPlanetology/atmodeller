@@ -6,6 +6,7 @@
 
 import inspect
 import logging
+from typing import cast
 
 import numpy as np
 from jaxtyping import ArrayLike
@@ -13,6 +14,7 @@ from jaxtyping import ArrayLike
 from atmodeller import debug_logger
 from atmodeller.interfaces import RedoxBufferProtocol
 from atmodeller.solubility import get_solubility_models
+from atmodeller.solubility._hydrogen_species import _H2_chachan18
 from atmodeller.solubility.core import Solubility
 from atmodeller.thermodata import IronWustiteBuffer
 
@@ -198,7 +200,7 @@ def test_H2_chachan18(check_values) -> None:
     fraction (converted to ppmw) exactly, by construction of the model.
     """
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
-    solubility_model = solubility_models["H2_chachan18"]
+    solubility_model = cast(_H2_chachan18, solubility_models["H2_chachan18"])
     target_concentration: ArrayLike = solubility_model.X_calibration * 1.0e6
     check_values.concentration(
         function_name,
@@ -218,7 +220,7 @@ def test_H2_kite19(check_values) -> None:
     fraction (converted to ppmw) exactly, by construction of the model.
     """
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
-    solubility_model = solubility_models["H2_kite19"]
+    solubility_model = cast(_H2_chachan18, solubility_models["H2_kite19"])
     target_concentration: ArrayLike = solubility_model.X_calibration * 1.0e6
     check_values.concentration(
         function_name,
