@@ -43,14 +43,14 @@ Most solvers return results as :class:`atmodeller.containers.MultiAttemptSolutio
 """
 
 from collections.abc import Callable
-from typing import Literal, cast
+from typing import cast
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optimistix as optx
 from equinox._enum import EnumerationItem
-from jax import lax, random
+from jax import lax
 from jaxtyping import Array, Bool, Float, Integer, PRNGKeyArray
 from optimistix import Solution
 
@@ -63,7 +63,13 @@ from atmodeller.constants import (
 )
 from atmodeller.engine import compute_implied_log_stability, objective_function
 from atmodeller.initial_solution import generate_initial_guess
-from atmodeller.jax_utils import FloatArray, MultiAttemptSolution, max_norm, vmap_axes_spec
+from atmodeller.jax_utils import (
+    FloatArray,
+    MultiAttemptSolution,
+    perturb_around_converged,
+    vmap_axes_spec,
+)
+from atmodeller.jax_utils import make_batch_retry_solver as generic_make_batch_retry_solver
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 
@@ -150,6 +156,15 @@ def make_batch_solver(parameters: Parameters) -> Callable:
 def make_batch_retry_solver(solver_function: Callable, objective_fn: Callable) -> Callable:
     """Makes a batch retry solver.
 
+    A thin, atmodeller-specific wrapper around the generic
+    :func:`~atmodeller.jax_utils.make_batch_retry_solver`: supplies a ``perturb_fn`` that splits
+    the solution into ``log_number_moles``/``log_stability``, perturbs only the former around its
+    already-converged rows (via :func:`~atmodeller.jax_utils.perturb_around_converged`), and
+    re-derives the latter via :func:`~atmodeller.engine.compute_implied_log_stability`. The
+    retry-loop mechanics themselves (perturb failed rows, re-solve, check objective-based
+    convergence, keep newly-successful rows, repeat) live in the generic factory, shared with
+    downstream packages (e.g. mcmodeller) that have a different solution-vector layout.
+
     ``solver_function`` and ``objective_fn`` must be pure JAX-callable functions compatible
     with :func:`equinox.filter_jit`. They must not close over non-JAX state or produce Python side
     effects.
@@ -163,293 +178,29 @@ def make_batch_retry_solver(solver_function: Callable, objective_fn: Callable) -
         Callable that returns a :class:`atmodeller.containers.MultiAttemptSolution` object
     """
 
-    # For debugging to determine if this function is jittable in isolation
-    # @eqx.filter_jit
-    # @eqx.debug.assert_max_traces(max_traces=1)
-    def batch_retry_solver(
-        initial_guess: Float[Array, "... solution"],
-        parameters: Parameters,
+    def perturb_fn(
+        solution: Float[Array, "... twice_species"],
+        attempt: Integer[Array, "..."],
         key: PRNGKeyArray,
-        max_retries: int,
-        tolerance: float = POSTCHECK_TOLERANCE,
-    ) -> MultiAttemptSolution:
-        """Batched solver with retry and perturbation for failed cases
+        parameters: Parameters,
+    ) -> Float[Array, "... twice_species"]:
+        """Perturbs ``log_number_moles`` around its converged rows, then re-derives stability."""
+        log_number_moles, _ = jnp.split(solution, 2, axis=-1)
 
-        Runs a batched solver function on a set of initial guesses. If some entries fail to
-        converge, the function perturbs only the failed solutions and retries, up to
-        ``max_retries``. Successfully converged solutions are kept fixed throughout.
-
-        This approach is useful when solving large batches of nonlinear systems where certain
-        initial guesses may fail. Perturbations help the solver escape poor local minima or flat
-        regions of the objective function.
-
-        Note:
-            - ``solution.result``: solver's internal convergence classification
-            - ``attempts``: first iteration satisfying objective-based check
-            - ``attempts == 0``: never converged within the initial attempt plus
-              ``max_retries`` retries
-
-        Args:
-            initial_guess: Batched array of initial guesses for the solver
-            parameters: Model parameters passed to the solver
-            key: JAX PRNG key for reproducible random perturbations
-            max_retries: Maximum number of solver retries per batch entry
-            tolerance: Tolerance for the objective-based convergence validation performed after
-                each solve attempt. Defaults to :obj:`POSTCHECK_TOLERANCE`.
-
-        Returns:
-            :class:`atmodeller.containers.MultiAttemptSolution` object
-        """
-
-        def body_fn(state: tuple[Array, Array, Array, Array, Array, Array]) -> tuple:
-            """Performs one retry iteration for failed solutions.
-
-            This function executes a single iteration of the solver retry loop. It perturbs only
-            the solutions that previously failed, reruns the solver, and updates the batch state
-            accordingly. Successfully converged entries remain unchanged.
-
-            Args:
-                tuple:
-                    i: Current attempt index
-                    key: Random key for perturbation generation
-                    solution: Current batch of solution estimates
-                    result_value: Current result value of the solver for each entry
-                    steps: Number of solver steps recorded for each entry
-                    attempt: Attempt index when each entry first succeeded or 0 if it did not
-                         converge at all.
-
-            Returns:
-                Updated state tuple with the same structure as in the input
-            """
-            i, key, solution, result_value, steps, attempt = state
-            # jax.debug.print("Iteration: {out}", out=i)
-
-            failed_mask: Bool[Array, "..."] = attempt == 0  # Not yet converged per objective check
-            # jax.debug.print("failed_mask = {out}", out=failed_mask)
-
-            # Split solution into log_number_moles and log_stability
-            log_number_moles, log_stability = jnp.split(solution, 2, axis=-1)
-
-            # Perturbation for log number of moles
-            key, subkey = random.split(key)
-            perturb_shape: tuple[int, ...] = log_number_moles.shape
-            raw_perturb = random.uniform(subkey, shape=perturb_shape, minval=-1.0, maxval=1.0)
-            # jax.debug.print("raw_perturb = {out}", out=raw_perturb)
-
-            # Compute a central tendency for perturbation:
-            # - In a batch, leverage the successful solves to find a central value for each species
-            #   (column), and perturb failed cases around this value. This assumes batch entries
-            #   are similar enough for the median to be a meaningful reference, which is often true
-            #   in practice.
-            # - For a single system, simply use the median of the log_number_moles as the central
-            #   value for perturbation, and similarly compute the data range across all species.
-
-            if log_number_moles.ndim == 2:
-                # Batched: shape (batch, n_species)
-                axis: Literal[0, None] = 0
-            else:  # pragma: no cover
-                # Single system: shape (n_species,)
-                axis = None
-
-            central_value: FloatArray = jnp.median(log_number_moles, axis=axis, keepdims=True)
-            data_max: FloatArray = jnp.max(log_number_moles, axis=axis, keepdims=True)
-            data_min: FloatArray = jnp.min(log_number_moles, axis=axis, keepdims=True)
-            data_range: FloatArray = data_max - data_min
-            # jax.debug.print("central_value = {out}", out=central_value)
-            # jax.debug.print("data_range = {out}", out=data_range)
-            perturbed: Float[Array, "... n_species"] = data_range / 2 * raw_perturb + central_value
-            perturbed = jnp.minimum(perturbed, LOG_NUMBER_MOLES_UPPER)
-            perturbed = jnp.maximum(perturbed, LOG_NUMBER_MOLES_LOWER)
-            # jax.debug.print("perturbed = {out}", out=perturbed)
-
-            # Perturb only the failed cases, keep successful cases unchanged
-            new_log_number_moles: Float[Array, "... n_species"] = cast(
-                Float[Array, "... n_species"],
-                jnp.where(failed_mask[..., None], perturbed, log_number_moles),
-            )
-            # jax.debug.print("new_log_number_moles = {out}", out=new_log_number_moles)
-
-            # Re-compute log stability for the new perturbed guess for failed cases, keep unchanged
-            # for successful cases
-            new_log_stability: Float[Array, "... n_species"] = compute_implied_log_stability(
-                parameters, new_log_number_moles
-            )
-            new_log_stability = jnp.where(failed_mask[..., None], new_log_stability, log_stability)
-            # jax.debug.print("new_log_stability = {out}", out=new_log_stability)
-
-            # Recombine
-            new_initial_solution: Float[Array, "... twice_species"] = jnp.concatenate(
-                [new_log_number_moles, new_log_stability], axis=-1
-            )
-            # jax.debug.print("new_initial_solution = {out}", out=new_initial_solution)
-
-            new_sol: MultiAttemptSolution = solver_function(new_initial_solution, parameters)
-            new_solution: Float[Array, "... solution"] = new_sol.value
-            # jax.debug.print("new_solution = {out}", out=new_solution)
-
-            new_result_value: Integer[Array, "..."] = new_sol.result._value  # pyright: ignore
-            # jax.debug.print("new_result_value = {out}", out=new_result_value)
-
-            # Perform a per-system convergence check.
-            new_converged: Bool[Array, "..."] = (
-                max_norm(objective_fn, new_solution, parameters) < tolerance
-            )
-            # jax.debug.print("new_converged = {out}", out=new_converged)
-
-            # Also get the status of the solver
-            new_solver_success: Bool[Array, "..."] = new_sol.solver_success
-            # jax.debug.print("new_solver_success = {out}", out=new_solver_success)
-
-            # Failback solution to initial guess for failed models
-            new_success: Bool[Array, "..."] = jnp.logical_and(new_converged, new_solver_success)
-            # jax.debug.print("new_success = {out}", out=new_success)
-
-            new_num_steps: Integer[Array, "..."] = new_sol.stats["num_steps"]
-            # jax.debug.print("new_num_steps = {out}", out=new_num_steps)
-
-            # Determine which entries to update: previously failed, now succeeded
-            update_mask: Bool[Array, "..."] = jnp.logical_and(failed_mask, new_success)
-            # jax.debug.print("update_mask = {out}", out=update_mask)
-            updated_solution: Float[Array, "... solution"] = cast(
-                Array, jnp.where(update_mask[..., None], new_solution, solution)
-            )
-            updated_result_value: Integer[Array, "..."] = jnp.where(
-                update_mask, new_result_value, result_value
-            )
-            # jax.debug.print("updated_result_value = {out}", out=updated_result_value)
-            updated_num_steps: Integer[Array, "..."] = cast(
-                Array, jnp.where(update_mask, new_num_steps, steps)
-            )
-            # jax.debug.print("updated_num_steps = {out}", out=updated_num_steps)
-            updated_attempt: Array = jnp.where(update_mask, i, attempt)  # pyright: ignore
-            # jax.debug.print("updated_attempt = {out}", out=updated_attempt)
-
-            return (
-                i + 1,
-                key,
-                updated_solution,
-                updated_result_value,
-                updated_num_steps,
-                updated_attempt,
-            )
-
-        def cond_fn(
-            state: tuple[Array, Array, Array, Array, Array, Array],
-        ) -> Bool[Array, "..."]:
-            """Determines whether additional solver retries are needed.
-
-            This condition function controls the ``lax.while_loop``. The retry loop continues as
-            long as at least one batch entry has not converged and the maximum number of attempts
-            has not been reached.
-
-            Args:
-                tuple:
-                    i: Current attempt index
-                    _: Unused (PRNG key)
-                    _: Unused (current batch solution)
-                    _: Unused (result value)
-                    _: Unused (number of steps)
-                    attempts: Unused (success attempt index)
-
-            Returns:
-                ``True`` if any entry has failed and the number of attempts is less than
-                    ``max_retries``; otherwise ``False``.
-            """
-            i, _, _, _, _, attempt = state
-
-            # For debugging to force the loop to run to the maximum allowable value
-            # return jnp.logical_and(i < max_retries, True)
-
-            # Convergence is determined by `check_convergence`, which enforces the objective
-            # tolerance on each batch entry individually. We track the first successful attempt
-            # index in `attempts`. An entry is considered converged if attempts > 0, ensuring
-            # consistency with the convergence mask used elsewhere in the code.
-            # i starts at 2 (second overall attempt), so to allow max_retries retries we need
-            # the body to run at i in {2, ..., max_retries+1}, hence the condition
-            # i < max_retries+2.
-            continue_loop: Bool[Array, "..."] = jnp.logical_and(
-                jnp.any(attempt == 0), i < max_retries + 2
-            )
-
-            return continue_loop
-
-        # Try first solution
-        # jax.debug.print("Iteration: 1")
-        first_sol: MultiAttemptSolution = solver_function(initial_guess, parameters)
-        first_solution: Float[Array, "... solution"] = first_sol.value
-        # jax.debug.print("first_solution = {out}", out=first_solution)
-
-        # Check the solver result
-        # jax.debug.print("first_sol.result = {out}", out=first_sol.result)
-
-        # Perform a per-system check
-        first_converged: Bool[Array, "..."] = (
-            max_norm(objective_fn, first_solution, parameters) < tolerance
-        )
-        # jax.debug.print("first_converged = {out}", out=first_converged)
-
-        first_solver_success: Bool[Array, "..."] = first_sol.solver_success
-        # jax.debug.print("first_solver_success = {out}", out=first_solver_success)
-
-        first_result_value: Integer[Array, "..."] = jnp.broadcast_to(
-            first_sol.result._value, first_converged.shape
-        )
-        # jax.debug.print("first_result_value = {out}", out=first_result_value)
-
-        first_num_steps: Integer[Array, "..."] = jnp.broadcast_to(
-            first_sol.stats["num_steps"], first_converged.shape
-        )
-        # jax.debug.print("first_num_steps = {out}", out=first_num_steps)
-
-        # Failback solution to initial guess for failed models
-        first_success: Bool[Array, "..."] = jnp.logical_and(first_converged, first_solver_success)
-        # jax.debug.print("first_success = {out}", out=first_success)
-
-        solution: Float[Array, "... solution"] = cast(
-            Array, jnp.where(first_success[..., None], first_solution, initial_guess)
-        )
-        # jax.debug.print("solution = {out}", out=solution)
-        # jax.debug.print("Completed iteration: 1")
-
-        initial_state: tuple = (
-            jnp.array(2),  # Second overall attempt
+        perturbed_log_number_moles: Float[Array, "... n_species"] = perturb_around_converged(
+            log_number_moles,
+            attempt,
             key,
-            solution,
-            first_result_value,
-            first_num_steps,
-            first_success.astype(int),  # 1 for solved, otherwise 0
+            LOG_NUMBER_MOLES_LOWER,
+            LOG_NUMBER_MOLES_UPPER,
+        )
+        new_log_stability: Float[Array, "... n_species"] = compute_implied_log_stability(
+            parameters, perturbed_log_number_moles
         )
 
-        _, _, final_solution, final_result_value, final_num_steps, final_attempt = lax.while_loop(
-            cond_fn, body_fn, initial_state
-        )
-        # jax.debug.print("After lax.while_loop")
+        return jnp.concatenate([perturbed_log_number_moles, new_log_stability], axis=-1)
 
-        # jax.debug.print("final_solution = {out}", out=final_solution)
-        # jax.debug.print("final_result_value = {out}", out=final_result_value)
-        # jax.debug.print("final_num_steps = {out}", out=final_num_steps)
-        # jax.debug.print("final_attempt = {out}", out=final_attempt)
-
-        # Bundle the final outputs into a single optimistix Solution object
-        final_result: optx.RESULTS = cast(
-            optx.RESULTS,
-            EnumerationItem(final_result_value, optx.RESULTS),  # pyright: ignore
-        )
-
-        # This solution instance does not return all the information from the solves, but it
-        # encapsulates the most important (final) quantities. Zero out steps for failed entries so
-        # that reported steps are not misleadingly non-zero for models that never converged.
-        final_num_steps_out: Integer[Array, "..."] = cast(
-            Array, jnp.where(final_attempt > 0, final_num_steps, jnp.zeros_like(final_num_steps))
-        )
-        sol: optx.Solution = optx.Solution(
-            final_solution, final_result, None, {"num_steps": final_num_steps_out}, None
-        )
-        multi_sol: MultiAttemptSolution = MultiAttemptSolution(sol, final_attempt)
-
-        return multi_sol
-
-    return batch_retry_solver
+    return generic_make_batch_retry_solver(solver_function, objective_fn, perturb_fn)
 
 
 def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:

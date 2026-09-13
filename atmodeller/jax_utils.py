@@ -20,9 +20,11 @@ import lineax as lx
 import numpy as np
 import optimistix as optx
 import pandas as pd
+from equinox._enum import EnumerationItem
+from jax import lax
 from jax.scipy.special import logsumexp
 from jax.tree_util import tree_map
-from jaxtyping import Array, ArrayLike, Bool, Float, Integer, PyTree
+from jaxtyping import Array, ArrayLike, Bool, Float, Integer, PRNGKeyArray, PyTree
 from lineax import AbstractLinearSolver
 
 MAX_FLOAT64 = np.finfo(np.float64).max
@@ -595,3 +597,253 @@ class MultiAttemptSolution(eqx.Module):  # pragma: no cover
         )
         max_steps: Array = jnp.nanmax(steps_float)
         logger_.info("Solver steps (max) = %s", int(max_steps.item()))
+
+
+def perturb_around_converged(
+    array: Float[Array, "batch dim"],
+    attempt: Integer[Array, " batch"],
+    key: PRNGKeyArray,
+    lower: ArrayLike,
+    upper: ArrayLike,
+) -> Float[Array, "batch dim"]:  # pragma: no cover
+    """Perturbs each column of ``array`` around the central tendency of its converged rows.
+
+    Intended for use inside a :func:`make_batch_retry_solver` ``perturb_fn``: computes a per-column
+    median and range from the rows that have already converged (``attempt > 0``), then draws a
+    uniform perturbation scaled by that range around the median. Each retry draws a fresh key, so
+    repeated calls already sample different candidate points without needing to widen the window --
+    an earlier version scaled the window by the retry count, but that made the window's endpoint
+    depend on ``max_retries`` (an unrelated, caller-side setting) and, for a large retry budget,
+    collapsed into clipping almost every draw onto ``lower``/``upper`` instead of usefully covering
+    a wide range. Falls back to the whole array's own statistics on the rare chance that no row has
+    converged yet.
+
+    Note:
+        Returns candidate perturbed values for *every* row, including already-converged ones.
+        Callers are expected to select which rows to actually keep; :func:`make_batch_retry_solver`
+        only substitutes rows where ``attempt == 0``, so this function does not need to preserve
+        converged rows itself.
+
+    Args:
+        array: Batched array to perturb, shape ``(batch, dim)``
+        attempt: Attempt index at which each row first converged (``0`` if not yet converged)
+        key: JAX PRNG key
+        lower: Lower bound to clip the perturbed values to
+        upper: Upper bound to clip the perturbed values to
+
+    Returns:
+        Candidate perturbed array, same shape as ``array``
+    """
+    converged_mask: Bool[Array, " batch"] = attempt > 0
+    has_converged: Bool[Array, ""] = jnp.any(converged_mask)
+
+    reference: Float[Array, "batch dim"] = jnp.where(converged_mask[:, None], array, jnp.nan)
+    central_value: Float[Array, "1 dim"] = jnp.where(
+        has_converged,
+        jnp.nanmedian(reference, axis=0, keepdims=True),
+        jnp.median(array, axis=0, keepdims=True),
+    )
+    data_max: Float[Array, "1 dim"] = jnp.where(
+        has_converged,
+        jnp.nanmax(reference, axis=0, keepdims=True),
+        jnp.max(array, axis=0, keepdims=True),
+    )
+    data_min: Float[Array, "1 dim"] = jnp.where(
+        has_converged,
+        jnp.nanmin(reference, axis=0, keepdims=True),
+        jnp.min(array, axis=0, keepdims=True),
+    )
+    data_range: Float[Array, "1 dim"] = data_max - data_min
+
+    raw_perturb: Float[Array, "batch dim"] = jax.random.uniform(
+        key, shape=array.shape, minval=-1.0, maxval=1.0
+    )
+    perturbed: Float[Array, "batch dim"] = data_range / 2 * raw_perturb + central_value
+
+    return cast(Array, jnp.clip(perturbed, lower, upper))
+
+
+def make_batch_retry_solver(
+    solver_function: Callable,
+    objective_fn: Callable,
+    perturb_fn: Callable[
+        [Float[Array, "... solution"], Integer[Array, "..."], PRNGKeyArray, PyTree],
+        Float[Array, "... solution"],
+    ],
+) -> Callable:  # pragma: no cover
+    """Makes a generic batch retry solver, with the perturbation strategy supplied by the caller.
+
+    This factors out the retry-loop mechanics (perturb failed rows, re-solve, check objective-based
+    convergence, keep newly-successful rows, repeat) that are identical across every batch-retry
+    solver built on top of :class:`MultiAttemptSolution` -- both within this package and in
+    downstream packages -- which otherwise differ only in what the solution vector represents and
+    how it should be perturbed. See :func:`perturb_around_converged` for a ready-made perturbation
+    strategy that can be composed into ``perturb_fn``.
+
+    ``solver_function``, ``objective_fn``, and ``perturb_fn`` must be pure JAX-callable functions
+    compatible with :func:`equinox.filter_jit`. They must not close over non-JAX state or produce
+    Python side effects.
+
+    Args:
+        solver_function: Callable that performs a single (batched) solve. Must accept an initial
+            guess and a pytree of parameters, and return a :class:`MultiAttemptSolution`.
+        objective_fn: Callable for the (batched) objective function
+        perturb_fn: Callable ``(solution, attempt, key, parameters) -> perturbed`` returning a
+            candidate perturbed solution for *every* row (converged or not); this
+            factory only substitutes the rows where ``attempt == 0``, so ``perturb_fn`` does not
+            need to preserve converged rows itself
+
+    Returns:
+        Callable that returns a :class:`MultiAttemptSolution` object
+    """
+
+    def batch_retry_solver(
+        initial_guess: Float[Array, "... solution"],
+        parameters: PyTree,
+        key: PRNGKeyArray,
+        max_retries: int,
+        tolerance: float = 1.0e-6,
+    ) -> MultiAttemptSolution:
+        """Batched solver with retry and perturbation for failed cases.
+
+        Runs a batched solver function on a set of initial guesses. If some entries fail to
+        converge, the function perturbs only the failed solutions (via ``perturb_fn``) and
+        retries, up to ``max_retries``. Successfully converged solutions are kept fixed throughout.
+
+        Note:
+            - ``solution.result``: solver's internal convergence classification
+            - ``attempts``: first iteration satisfying objective-based check
+            - ``attempts == 0``: never converged within the initial attempt plus ``max_retries``
+              retries
+
+        Args:
+            initial_guess: Batched array of initial guesses for the solver
+            parameters: Model parameters passed to the solver and to ``perturb_fn``
+            key: JAX PRNG key for reproducible random perturbations
+            max_retries: Maximum number of solver retries per batch entry
+            tolerance: Tolerance for the objective-based convergence validation performed after
+                each solve attempt. Defaults to ``1.0e-6``.
+
+        Returns:
+            :class:`MultiAttemptSolution` object
+        """
+
+        def body_fn(state: tuple[Array, Array, Array, Array, Array, Array]) -> tuple:
+            """Performs one retry iteration for failed solutions."""
+            i, key, solution, result_value, steps, attempt = state
+
+            failed_mask: Bool[Array, "..."] = attempt == 0
+
+            key, subkey = jax.random.split(key)
+            perturbed: Float[Array, "... solution"] = perturb_fn(
+                solution, attempt, subkey, parameters
+            )
+            new_initial_solution: Float[Array, "... solution"] = cast(
+                Array, jnp.where(failed_mask[..., None], perturbed, solution)
+            )
+
+            new_sol: MultiAttemptSolution = solver_function(new_initial_solution, parameters)
+            new_solution: Float[Array, "... solution"] = new_sol.value
+            new_result_value: Integer[Array, "..."] = new_sol.result._value  # pyright: ignore
+
+            new_converged: Bool[Array, "..."] = (
+                max_norm(objective_fn, new_solution, parameters) < tolerance
+            )
+            new_solver_success: Bool[Array, "..."] = new_sol.solver_success
+            new_success: Bool[Array, "..."] = jnp.logical_and(new_converged, new_solver_success)
+            new_num_steps: Integer[Array, "..."] = new_sol.num_steps
+
+            # Determine which entries to update: previously failed, now succeeded
+            update_mask: Bool[Array, "..."] = jnp.logical_and(failed_mask, new_success)
+            updated_solution: Float[Array, "... solution"] = cast(
+                Array, jnp.where(update_mask[..., None], new_solution, solution)
+            )
+            updated_result_value: Integer[Array, "..."] = jnp.where(
+                update_mask, new_result_value, result_value
+            )
+            updated_num_steps: Integer[Array, "..."] = cast(
+                Array, jnp.where(update_mask, new_num_steps, steps)
+            )
+            updated_attempt: Array = jnp.where(update_mask, i, attempt)  # pyright: ignore
+
+            return (
+                i + 1,
+                key,
+                updated_solution,
+                updated_result_value,
+                updated_num_steps,
+                updated_attempt,
+            )
+
+        def cond_fn(
+            state: tuple[Array, Array, Array, Array, Array, Array],
+        ) -> Bool[Array, "..."]:
+            """Determines whether additional solver retries are needed.
+
+            ``i`` starts at 2 (the second overall attempt), so to allow ``max_retries`` retries the
+            body must run while ``i`` is in ``{2, ..., max_retries + 1}``, hence the ``+ 2`` below.
+            """
+            i, _, _, _, _, attempt = state
+
+            continue_loop: Bool[Array, "..."] = jnp.logical_and(
+                jnp.any(attempt == 0), i < max_retries + 2
+            )
+
+            return continue_loop
+
+        # Try first solution
+        first_sol: MultiAttemptSolution = solver_function(initial_guess, parameters)
+        first_solution: Float[Array, "... solution"] = first_sol.value
+
+        # Perform a per-system check
+        first_converged: Bool[Array, "..."] = (
+            max_norm(objective_fn, first_solution, parameters) < tolerance
+        )
+        first_solver_success: Bool[Array, "..."] = first_sol.solver_success
+        first_result_value: Integer[Array, "..."] = jnp.broadcast_to(
+            first_sol.result._value,  # pyright: ignore
+            first_converged.shape,
+        )
+        first_num_steps: Integer[Array, "..."] = jnp.broadcast_to(
+            first_sol.num_steps, first_converged.shape
+        )
+
+        # Failback solution to initial guess for failed models
+        first_success: Bool[Array, "..."] = jnp.logical_and(first_converged, first_solver_success)
+        solution: Float[Array, "... solution"] = cast(
+            Array, jnp.where(first_success[..., None], first_solution, initial_guess)
+        )
+
+        initial_state: tuple = (
+            jnp.array(2),  # Second overall attempt
+            key,
+            solution,
+            first_result_value,
+            first_num_steps,
+            first_success.astype(int),  # 1 for solved, otherwise 0
+        )
+
+        _, _, final_solution, final_result_value, final_num_steps, final_attempt = lax.while_loop(
+            cond_fn, body_fn, initial_state
+        )
+
+        # Bundle the final outputs into a single optimistix Solution object
+        final_result: optx.RESULTS = cast(
+            optx.RESULTS,
+            EnumerationItem(final_result_value, optx.RESULTS),  # pyright: ignore
+        )
+
+        # This solution instance does not return all the information from the solves, but it
+        # encapsulates the most important (final) quantities. Zero out steps for failed entries so
+        # that reported steps are not misleadingly non-zero for models that never converged.
+        final_num_steps_out: Integer[Array, "..."] = cast(
+            Array, jnp.where(final_attempt > 0, final_num_steps, jnp.zeros_like(final_num_steps))
+        )
+        sol: optx.Solution = optx.Solution(
+            final_solution, final_result, None, {"num_steps": final_num_steps_out}, None
+        )
+        multi_sol: MultiAttemptSolution = MultiAttemptSolution(sol, final_attempt)
+
+        return multi_sol
+
+    return batch_retry_solver
