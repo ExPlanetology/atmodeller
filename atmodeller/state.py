@@ -16,8 +16,8 @@ The hierarchy is:
 """
 
 from abc import abstractmethod
-from collections.abc import Iterable
-from typing import Optional, Self, cast
+from collections.abc import Callable, Iterable
+from typing import Any, Optional, Self, cast
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -320,15 +320,27 @@ class ThermodynamicState(BaseThermodynamicState):
         Returns:
             Updated state
         """
-        state_updated: ThermodynamicState = self
+        # Collected as (selector, new_value) pairs and applied via a single eqx.tree_at call
+        # below, rather than one eqx.tree_at per field: each eqx.tree_at call re-traverses the
+        # whole pytree, so doing this one field at a time is wasteful when several fields change
+        # together (e.g. in a tight per-timestep update loop).
+        updates: list[tuple[Callable[[Self], Any], Any]] = []
 
         if temperature is not None:
             temperature = jnp.broadcast_to(as_j64(temperature), self.temperature.shape)
-            state_updated = eqx.tree_at(lambda s: s.temperature, state_updated, temperature)
+            updates.append((lambda s: s.temperature, temperature))
 
         if pressure is not None:
             pressure = jnp.broadcast_to(as_j64(pressure), self.pressure.shape)
-            state_updated = eqx.tree_at(lambda s: s.pressure, state_updated, pressure)
+            updates.append((lambda s: s.pressure, pressure))
+
+        if not updates:
+            return cast(Self, self)
+
+        selectors, values = zip(*updates)
+        state_updated: ThermodynamicState = eqx.tree_at(
+            lambda s: tuple(sel(s) for sel in selectors), self, tuple(values)
+        )
 
         return cast(Self, state_updated)
 
@@ -644,60 +656,83 @@ class BasePlanet(BaseThermodynamicState):
         Returns:
             Updated state
         """
-        state_updated: BasePlanet = self
+        # Collected as (selector, new_value) pairs and applied via a single eqx.tree_at call
+        # below, rather than one eqx.tree_at per field: this pytree carries the full reaction
+        # system (thermodynamic data for every species/phase), so each eqx.tree_at call
+        # re-traverses thousands of leaves regardless of how small the change is. Batching every
+        # field changed in one `update()` call into one traversal instead of up to six matters a
+        # lot in tight per-timestep update loops. New values are computed from `self`/local
+        # variables (never from a partially-"updated" tree, since none is built until the end),
+        # mirroring the sequential dependency the field-at-a-time version had (planet_mass and
+        # core_mass_fraction feed into the mantle mass split).
+        updates: list[tuple[Callable[[Self], Any], Any]] = []
 
+        new_planet_mass: FloatArray = self.background_planet_mass
         if planet_mass is not None:
-            planet_mass = jnp.broadcast_to(as_j64(planet_mass), self.background_planet_mass.shape)
-            state_updated = eqx.tree_at(
-                lambda s: s.background_planet_mass, state_updated, planet_mass
+            new_planet_mass = jnp.broadcast_to(
+                as_j64(planet_mass), self.background_planet_mass.shape
             )
+            updates.append((lambda s: s.background_planet_mass, new_planet_mass))
 
+        new_core_mass: FloatArray = self.background_metallic_core_mass
         if core_mass_fraction is not None:
             core_mass_fraction = jnp.broadcast_to(
                 as_j64(core_mass_fraction), self.background_metallic_core_mass.shape
             )
-            state_updated = eqx.tree_at(
-                lambda s: (
-                    s.reaction_system.phase_system.phases[self.metal_phase_index].background_mass
-                ),
-                state_updated,
-                state_updated.background_planet_mass * core_mass_fraction,
+            new_core_mass = new_planet_mass * core_mass_fraction
+            updates.append(
+                (
+                    lambda s: (
+                        s.reaction_system.phase_system.phases[
+                            self.metal_phase_index
+                        ].background_mass
+                    ),
+                    new_core_mass,
+                )
             )
 
         if mantle_melt_fraction is not None:
-            mantle_mass: FloatArray = (
-                state_updated.background_planet_mass - state_updated.background_metallic_core_mass
+            mantle_mass: FloatArray = new_planet_mass - new_core_mass
+            updates.append(
+                (
+                    lambda s: (
+                        s.reaction_system.phase_system.phases[
+                            self.silicate_melt_phase_index
+                        ].background_mass
+                    ),
+                    mantle_mass * mantle_melt_fraction,
+                )
             )
-            state_updated = eqx.tree_at(
-                lambda s: (
-                    s.reaction_system.phase_system.phases[
-                        self.silicate_melt_phase_index
-                    ].background_mass
-                ),
-                state_updated,
-                mantle_mass * mantle_melt_fraction,
-            )
-            state_updated = eqx.tree_at(
-                lambda s: (
-                    s.reaction_system.phase_system.phases[
-                        self.silicate_solid_phase_index
-                    ].background_mass
-                ),
-                state_updated,
-                mantle_mass * (1 - mantle_melt_fraction),
+            updates.append(
+                (
+                    lambda s: (
+                        s.reaction_system.phase_system.phases[
+                            self.silicate_solid_phase_index
+                        ].background_mass
+                    ),
+                    mantle_mass * (1 - mantle_melt_fraction),
+                )
             )
 
         if surface_radius is not None:
             surface_radius = jnp.broadcast_to(as_j64(surface_radius), self.surface_radius.shape)
-            state_updated = eqx.tree_at(lambda s: s.surface_radius, state_updated, surface_radius)
+            updates.append((lambda s: s.surface_radius, surface_radius))
 
         if temperature is not None:
             temperature = jnp.broadcast_to(as_j64(temperature), self.temperature.shape)
-            state_updated = eqx.tree_at(lambda s: s.temperature, state_updated, temperature)
+            updates.append((lambda s: s.temperature, temperature))
 
         if pressure is not None:
             pressure = jnp.broadcast_to(as_j64(pressure), self.pressure.shape)
-            state_updated = eqx.tree_at(lambda s: s.pressure, state_updated, pressure)
+            updates.append((lambda s: s.pressure, pressure))
+
+        if not updates:
+            return cast(Self, self)
+
+        selectors, values = zip(*updates)
+        state_updated: BasePlanet = eqx.tree_at(
+            lambda s: tuple(sel(s) for sel in selectors), self, tuple(values)
+        )
 
         return cast(Self, state_updated)
 
