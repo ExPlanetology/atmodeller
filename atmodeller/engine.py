@@ -26,7 +26,6 @@ Note:
     mask concatenation order in :func:`get_active_mask`.
 """
 
-import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Integer
 
@@ -176,7 +175,6 @@ def compute_implied_log_stability(
     return implied_log_stability
 
 
-@eqx.filter_jit
 def objective_function(
     solution: Float[Array, "... twice_species"], parameters: Parameters
 ) -> Float[Array, "... residual"]:
