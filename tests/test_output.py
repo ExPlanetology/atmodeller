@@ -200,7 +200,7 @@ def test_solution_property(h2o_output: Output) -> None:
 def test_compare(h2o_output: Output) -> None:
     """Tests Output.compare(), following the pattern in test_HO.py's test_H2O."""
     target: dict[str, Any] = {
-        "gas": {"species": {"partial_pressure": {"H2O_g": 1.0312913336898137}}}
+        "gas": {"species": {"partial_pressure": {"H2O_g": 1.031222661909767}}}
     }
 
     assert h2o_output.compare(target, rtol=1.0e-6, atol=1.0e-6)

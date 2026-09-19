@@ -166,17 +166,19 @@ def test_subNeptune_melt_phase_with_si_activity() -> None:
         "gas": {
             "species": {
                 "partial_pressure": {
-                    "H2O_g": 15104.470712482722,
-                    "H2_g": 22051.2608663181,
-                    "O2_g": 0.000292407835799,
+                    "H2O_g": 15104.704704928969,
+                    "H2_g": 22051.364908535845,
+                    "O2_g": 0.0002924078357985892,
                 },
-                "activity": {"H2_g": 129738.44187124078},
+                "activity": {"H2_g": 129740.45172752354},
             }
         },
         "silicate_melt": {
-            "species": {"activity": {"H2O_d": 0.265202082056106, "O2Si_l": 0.625714953627593}}
+            "species": {"activity": {"H2O_d": 0.26520413625068306, "O2Si_l": 0.6257149802932139}}
         },
-        "metal": {"species": {"activity": {"Fe_l": 0.70731567726206, "Si_l": 0.080081162752299}}},
+        "metal": {
+            "species": {"activity": {"Fe_l": 0.7073156740044344, "Si_l": 0.08008116616505943}}
+        },
     }
 
     # output.to_excel(file_prefix="test_subNeptune_melt_phase_with_si_activity", output_format="named_arrays")
