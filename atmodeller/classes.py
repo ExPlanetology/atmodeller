@@ -23,7 +23,6 @@ Typical usage:
     output = model.solve_with_default()
 """
 
-import logging
 from collections.abc import Callable, Mapping
 from typing import Literal, Self, cast
 
@@ -38,8 +37,6 @@ from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.solvers import make_solver_with_jit
 from atmodeller.state import BaseThermodynamicState
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 SolverCallable = Callable[
     [Parameters, PRNGKeyArray, Float[Array, "#n_batch twice_species"]], Output
