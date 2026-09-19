@@ -135,7 +135,7 @@ def test_chabrier_earth() -> None:
                 },
             }
         },
-        "condensates": {"activity": {"O2Si_l": 1.0}},
+        "O2Si_l": {"species": {"activity": {"O2Si_l": 1.0}}},
     }
 
     assert output.compare(target, rtol=RTOL, atol=ATOL)
@@ -197,7 +197,7 @@ def test_chabrier_subNeptune() -> None:
                 },
             }
         },
-        "condensates": {"activity": {"O2Si_l": 1.0}},
+        "O2Si_l": {"species": {"activity": {"O2Si_l": 1.0}}},
     }
 
     assert output.compare(target, rtol=RTOL, atol=ATOL)
@@ -390,11 +390,11 @@ def test_subNeptune_melt_phase() -> None:
                 },
             }
         },
-        "melt": {
+        "silicate_melt": {
             "species": {
                 "activity": {
-                    "H2O_d": np.array([0.398791191345742, 0.401658333667266, 0.4023896095421]),
-                    "O2Si_l": np.array([0.442946540896139, 0.442946543278513, 0.442946543844512]),
+                    "H2O_d": np.array([0.398789655701731, 0.401659141224754, 0.402390685959212]),
+                    "O2Si_l": np.array([0.44294654092776, 0.442946543294337, 0.44294654385622]),
                 }
             }
         },
