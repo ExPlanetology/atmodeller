@@ -149,7 +149,7 @@ class EarthParameters(PlanetParameters):
     """Mass of H\\ :sub:`2`\\ O in present-day Earth's ocean (kg)"""
 
     def __init__(self):
-        self.mass = 5.972e24
+        self.mass = 5.9722e24
         self.radius = 6371000.0
         self.core_mass_fraction = 0.295334691460966
         self.ocean_moles = 7.68894973907177e22
