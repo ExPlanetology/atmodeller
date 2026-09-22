@@ -156,6 +156,11 @@ def safe_log10(x: ArrayLike) -> Array:  # pragma: no cover
     return jnp.log10(jnp.maximum(x, tiny))
 
 
+def safe_pow10(x: ArrayLike) -> Float[Array, "..."]:
+    """Numerically safe ``10**x``"""
+    return safe_exp(jnp.asarray(x) * jnp.log(10.0))
+
+
 def masked_logsumexp(
     log_x: Float[Array, "... n"], axis: int = -1, keepdims: bool = True
 ) -> FloatArray:  # pragma: no cover
