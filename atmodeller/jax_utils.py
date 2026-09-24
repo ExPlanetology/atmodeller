@@ -161,6 +161,27 @@ def safe_pow10(x: ArrayLike) -> Float[Array, "..."]:
     return safe_exp(jnp.asarray(x) * jnp.log(10.0))
 
 
+def safe_divide(numerator: ArrayLike, denominator: ArrayLike, fallback: ArrayLike = 0.0) -> Array:
+    """Elementwise `numerator / denominator`, substituting `fallback` wherever `denominator` is
+    exactly zero.
+
+    The denominator is guarded (replaced with 1.0) before dividing, so the branch discarded by the
+    final `jnp.where` never computes an actual 0/0 - which would otherwise corrupt `jax.grad`
+    through the `jnp.where` even though that branch is never selected.
+
+    Args:
+        numerator: Dividend
+        denominator: Divisor; may be zero.
+        fallback: Value to substitute wherever `denominator == 0`. Defaults to 0.0.
+
+    Returns:
+        `numerator / denominator` elementwise, or `fallback` wherever `denominator == 0`.
+    """
+    safe_denominator: Array = jnp.where(denominator == 0, 1.0, denominator)
+
+    return jnp.where(denominator == 0, fallback, numerator / safe_denominator)
+
+
 def masked_logsumexp(
     log_x: Float[Array, "... n"], axis: int = -1, keepdims: bool = True
 ) -> FloatArray:  # pragma: no cover
