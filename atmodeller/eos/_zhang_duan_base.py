@@ -103,6 +103,11 @@ K1_ZHANG_DUAN: dict[str, float] = {"CO2-H2O": 0.85, "CH4-H2O": 0.8}
 K2_ZHANG_DUAN: dict[str, float] = {"CO2-H2O": 1.02, "CH4-H2O": 1.0}
 """Default binary interaction parameters for k2 :cite:p:`ZD09`"""
 
+K1_YU: dict[str, float] = {"CO2-H2O": 0.66, "H2-H2O": 2.032, "CO2-H2": 1.526}
+"""Binary interaction parameters for k1 from Yuna Yu"""
+K2_YU: dict[str, float] = {"CO2-H2O": 1.028, "H2-H2O": 1.053, "CO2-H2": 0.842}
+"""Binary interaction parameters for k2 from Yuna Yu"""
+
 
 class ZhangDuanBase(RealGas):
     """A real gas EOS from :cite:t:`ZD09`"""
