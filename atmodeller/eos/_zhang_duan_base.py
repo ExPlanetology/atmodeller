@@ -104,9 +104,9 @@ K2_ZHANG_DUAN: dict[str, float] = {"CO2-H2O": 1.02, "CH4-H2O": 1.0}
 """Default binary interaction parameters for k2 :cite:p:`ZD09`"""
 
 K1_YU: dict[str, float] = {"CO2-H2O": 0.66, "H2-H2O": 2.032, "CO2-H2": 1.526}
-"""Binary interaction parameters for k1 from Yuna Yu"""
+"""Binary interaction parameters for k1 :cite:p:`Yu2026`"""
 K2_YU: dict[str, float] = {"CO2-H2O": 1.028, "H2-H2O": 1.053, "CO2-H2": 0.842}
-"""Binary interaction parameters for k2 from Yuna Yu"""
+"""Binary interaction parameters for k2 :cite:p:`Yu2026`"""
 
 
 class ZhangDuanBase(RealGas):
@@ -357,6 +357,10 @@ class ZhangDuanBase(RealGas):
         incorrect root may be found. But this does not guarantee that the correct root will always
         be found.
 
+        For mixtures, the initial volume is broadcast to the batch shape of the mole fractions so
+        that a separate volume is solved for each composition, even if temperature and pressure
+        are scalars.
+
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
@@ -370,6 +374,12 @@ class ZhangDuanBase(RealGas):
 
         # Start deliberately on the vapor side
         V0: FloatArray = 10 * volume_ideal
+
+        if mole_fractions is not None:
+            batch_shape: tuple[int, ...] = jnp.broadcast_shapes(
+                jnp.shape(V0), jnp.shape(mole_fractions)[:-1]
+            )
+            V0 = jnp.broadcast_to(V0, batch_shape)
 
         return V0
 
