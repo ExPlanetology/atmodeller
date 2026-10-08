@@ -71,7 +71,7 @@ def _debye_integral(y: ArrayLike) -> Array:
     return jnp.where(y < _DEBYE_Y_SWITCH, small, large)
 
 
-class VassilievThermodynamicModel(eqx.Module):
+class VassilievHeatCapacity(eqx.Module):
     n: float
     T0: float
     A: tuple[float, float, float]
@@ -81,18 +81,43 @@ class VassilievThermodynamicModel(eqx.Module):
     sigma1e2: float
 
     def _cp_over_R(self, temperature: ArrayLike) -> FloatArray:
+        """Heat capacity relative to :const:`~atmodeller.constants.GAS_CONSTANT`
+
+        Args:
+            cp_coefficients: Heat capacity coefficients
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity relative to :const:`~atmodeller.constants.GAS_CONSTANT`
+        """
         return self.cp(temperature) / GAS_CONSTANT
 
     def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity at constant pressure.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
         f = (
             self.a
             + self.b * temperature / 1000
             + (3 * GAS_CONSTANT - self.a) / (1 + jnp.square(temperature / self.T0))
         ) / (3 * GAS_CONSTANT)
 
-        return f * self.cv(temperature)
+        return jnp.asarray(f) * self.cv(temperature)
 
     def cv(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity at constant volume.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
         return (
             3
             * GAS_CONSTANT
@@ -126,19 +151,19 @@ class VassilievThermodynamicModel(eqx.Module):
         return 12 * _debye_integral(y) / y**3 - 3 * y * jnp.exp(-y) / -jnp.expm1(-y)
 
 
-diamond_1a: VassilievThermodynamicModel = VassilievThermodynamicModel(
+diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
     186, 812.3, (0.454, 0.503, 0.043), (1886.0, 1879.6, 1501.6), 24.59, 0.287, 6
 )
 """Diamond 1a :cite:t:`Vassiliev2021{Table 6}`."""
-diamond_1b: VassilievThermodynamicModel = VassilievThermodynamicModel(
+diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
     32, 1366, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 2
 )
 """Diamond 1b :cite:t:`Vassiliev2021{Table 6}`."""
-diamond_1c: VassilievThermodynamicModel = VassilievThermodynamicModel(
+diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
     32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0, 2
 )
 """Diamond 1c :cite:t:`Vassiliev2021{Table 6}`."""
-diamond_1d: VassilievThermodynamicModel = VassilievThermodynamicModel(
+diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
     27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0, 5
 )
 """Diamond 1d :cite:t:`Vassiliev2021{Table 6}`."""
