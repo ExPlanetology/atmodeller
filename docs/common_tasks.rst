@@ -29,19 +29,23 @@ Rather than editing the packaged file, you can also load your own file of coeffi
 
 ``GlennDataBase()`` uses the packaged data, which is also what ``ChemicalSpecies.create_gas`` and ``ChemicalSpecies.create_condensed`` use. To provide data from another source, inherit from ``DataBase`` in the ``database`` module and implement its abstract methods.
 
-You can add a species to a database, or replace an existing one, with ``add_species``. For example, diamond from the heat capacity model of :cite:t:`Vassiliev2021` can be added alongside graphite (``C_s``):
+You can add a species to a database, or replace an existing one, with ``add_species``. For example, diamond from the assessment of :cite:t:`Gustafson1986` can be added alongside graphite (``C_s``). Diamond has a volume model, so graphite must be given the volume model of the same assessment, replacing the packaged graphite, which has none. Otherwise only diamond depends on pressure and the graphite-diamond transition is wrong above about 1 bar:
 
 .. code-block:: python
 
     from atmodeller import GlennDataBase
-    from atmodeller.thermodata.vassiliev import diamond_1b
+    from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 
     db = GlennDataBase()
-    db.add_species("C", "diamond", diamond_1b)  # named "C_diamond"
+    graphite = db.get_thermodynamic_properties("C_s")
+    db.add_species("C", "s", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
+    db.add_species("C", "diamond", diamond_gustafson)  # named "C_diamond"
     c_s = db.create_condensed("C")  # graphite
     c_diamond = db.create_condensed("C", state="diamond")
 
-``get_default_database()`` returns the packaged database with diamond already added, to which you can add further species.
+This is what ``get_default_database()`` returns, so you can start from it and add further species. Diamond (``diamond_gustafson`` in ``atmodeller.thermodata.gustafson``) has the Gibbs energy of graphite plus the Gibbs energy of diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, which is valid to 6000 K, and graphite and diamond take the volumes of the same assessment.
+
+Species with only a heat capacity model can be added with ``IntegratedThermodynamicProperties`` in ``atmodeller.thermodata``, which integrates the heat capacity from the enthalpy and entropy at the reference temperature.
 
 Add solubility laws
 -------------------
