@@ -198,21 +198,6 @@ diamond_sgte: SGTEThermodynamicProperties = SGTEThermodynamicProperties(
 Its enthalpy and entropy at 298.15 K are 1895.79 J/mol and 2.3598 J/K/mol. Use it with
 :data:`graphite_sgte`."""
 
-DIAMOND_ENTHALPY_CHANGE: float = float(
-    diamond_sgte.enthalpy(TEMPERATURE_REFERENCE) - graphite_sgte.enthalpy(TEMPERATURE_REFERENCE)
-)
-"""Enthalpy of diamond minus graphite in J/mol at 298.15 K, 1895.79 J/mol, from
-:data:`diamond_sgte` and :data:`graphite_sgte`
-
-:cite:t:`Gustafson1986` fitted the Gibbs energies to the enthalpy and entropy of the transition
-selected by Wagman et al. (1945), so this is the value of the assessment rather than a measured
-value."""
-DIAMOND_ENTROPY_CHANGE: float = float(
-    diamond_sgte.entropy(TEMPERATURE_REFERENCE) - graphite_sgte.entropy(TEMPERATURE_REFERENCE)
-)
-"""Entropy of diamond minus graphite in J/K/mol at 298.15 K, -3.3825 J/K/mol, from
-:data:`diamond_sgte` and :data:`graphite_sgte`"""
-
 diamond_gustafson: RelativeThermodynamicProperties = RelativeThermodynamicProperties(
     glenn_properties["C_s"], diamond_sgte, graphite_sgte,
     volume_model=DIAMOND_VOLUME_GUSTAFSON,
@@ -224,9 +209,8 @@ The Gibbs energy of diamond is that of graphite from the NASA Glenn coefficients
 :data:`~atmodeller.thermodata.janaf.glenn_properties`) plus the Gibbs energy of diamond relative to
 graphite of :cite:t:`Gustafson1986` (:data:`diamond_sgte` minus :data:`graphite_sgte`). This keeps
 graphite consistent with the other NASA Glenn species while reproducing the Gibbs energy of diamond
-relative to graphite of :cite:t:`Gustafson1986` exactly. The enthalpy and entropy of diamond
-relative to graphite at 298.15 K are :data:`DIAMOND_ENTHALPY_CHANGE` and
-:data:`DIAMOND_ENTROPY_CHANGE`.
+relative to graphite of :cite:t:`Gustafson1986` exactly. At 298.15 K, diamond minus graphite is
+1895.79 J/mol in enthalpy and -3.3825 J/K/mol in entropy.
 
 For equilibrium between diamond and graphite at high pressure, use graphite with
 :data:`GRAPHITE_VOLUME_GUSTAFSON`, as in :func:`~atmodeller.database.get_default_database`. This
