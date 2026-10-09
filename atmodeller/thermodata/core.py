@@ -11,7 +11,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Self
+from typing import ClassVar, Self
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -29,35 +29,6 @@ DATA_DIRECTORY: Traversable = importlib.resources.files(f"{__package__}.data")
 """Data directory"""
 CRITICAL_DATA_SOURCE: Path = Path("critical_data.txt")
 """Source of the critical data"""
-
-# Gauss-Legendre quadrature for integrating heat capacities from the reference temperature. Over
-# 200-6000 K, 64 nodes integrate the NASA Glenn heat capacity of graphite to within 0.021 J/mol
-# (enthalpy) and 2.5e-5 J/K/mol (entropy) of the analytical result, with the error arising from the
-# discontinuities in the derivative of the heat capacity between temperature ranges.
-_QUADRATURE_ORDER: int = 64
-_quadrature_nodes, _quadrature_weights = np.polynomial.legendre.leggauss(_QUADRATURE_ORDER)
-_QUADRATURE_NODES: Array = jnp.asarray(_quadrature_nodes)
-_QUADRATURE_WEIGHTS: Array = jnp.asarray(_quadrature_weights)
-
-
-def _integrate_from_reference(
-    integrand: Callable[[Array], Array], temperature: ArrayLike
-) -> FloatArray:
-    """Integrates from the reference temperature to the temperature with Gauss-Legendre quadrature
-
-    Args:
-        integrand: Function of temperature to integrate
-        temperature: Temperature in K, which can be less than the reference temperature
-
-    Returns:
-        Integral from :const:`~atmodeller.constants.TEMPERATURE_REFERENCE` to ``temperature``
-    """
-    temperature = as_j64(temperature)
-    # Append a node axis: (..., 1) against (N,) gives quadrature temperatures of shape (..., N)
-    half_width: Array = (temperature[..., None] - TEMPERATURE_REFERENCE) / 2
-    quadrature_temperature: Array = TEMPERATURE_REFERENCE + half_width * (_QUADRATURE_NODES + 1)
-
-    return jnp.sum(half_width * _QUADRATURE_WEIGHTS * integrand(quadrature_temperature), axis=-1)
 
 
 class ActivityCoefficient(eqx.Module):
@@ -294,6 +265,43 @@ class IntegratedThermodynamicProperties(ThermodynamicProperties):
     entropy_reference: float = eqx.field(converter=float)
     """Entropy in J/K/mol at the reference temperature"""
 
+    # Gauss-Legendre quadrature for integrating heat capacities from the reference temperature.
+    # Over 200-6000 K, 64 nodes integrate the NASA Glenn heat capacity of graphite to within
+    # 0.021 J/mol (enthalpy) and 2.5e-5 J/K/mol (entropy) of the analytical result, with the error
+    # arising from the discontinuities in the derivative of the heat capacity between temperature
+    # ranges.
+    _QUADRATURE_ORDER: ClassVar[int] = 64
+    _QUADRATURE_NODES: ClassVar[Array] = jnp.asarray(
+        np.polynomial.legendre.leggauss(_QUADRATURE_ORDER)[0]
+    )
+    _QUADRATURE_WEIGHTS: ClassVar[Array] = jnp.asarray(
+        np.polynomial.legendre.leggauss(_QUADRATURE_ORDER)[1]
+    )
+
+    @classmethod
+    def _integrate_from_reference(
+        cls, integrand: Callable[[Array], Array], temperature: ArrayLike
+    ) -> FloatArray:
+        """Integrates from the reference temperature with Gauss-Legendre quadrature
+
+        Args:
+            integrand: Function of temperature to integrate
+            temperature: Temperature in K, which can be less than the reference temperature
+
+        Returns:
+            Integral from :const:`~atmodeller.constants.TEMPERATURE_REFERENCE` to ``temperature``
+        """
+        temperature = as_j64(temperature)
+        # Append a node axis: (..., 1) against (N,) gives quadrature temperatures of shape (..., N)
+        half_width: Array = (temperature[..., None] - TEMPERATURE_REFERENCE) / 2
+        quadrature_temperature: Array = TEMPERATURE_REFERENCE + half_width * (
+            cls._QUADRATURE_NODES + 1
+        )
+
+        return jnp.sum(
+            half_width * cls._QUADRATURE_WEIGHTS * integrand(quadrature_temperature), axis=-1
+        )
+
     @override
     def cp(self, temperature: ArrayLike) -> FloatArray:
         r"""Gets heat capacity.
@@ -325,7 +333,7 @@ class IntegratedThermodynamicProperties(ThermodynamicProperties):
         Returns:
             Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
         """
-        return self.enthalpy_reference + _integrate_from_reference(
+        return self.enthalpy_reference + self._integrate_from_reference(
             self.heat_capacity_model.cp, temperature
         )
 
@@ -339,7 +347,7 @@ class IntegratedThermodynamicProperties(ThermodynamicProperties):
         Returns:
             Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
         """
-        return self.entropy_reference + _integrate_from_reference(
+        return self.entropy_reference + self._integrate_from_reference(
             lambda t: self.heat_capacity_model.cp(t) / t, temperature
         )
 
@@ -452,9 +460,7 @@ class RelativeThermodynamicProperties(ThermodynamicProperties):
             Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
         """
         return (
-            self.base.cp(temperature)
-            + self.phase.cp(temperature)
-            - self.reference.cp(temperature)
+            self.base.cp(temperature) + self.phase.cp(temperature) - self.reference.cp(temperature)
         )
 
     @override
