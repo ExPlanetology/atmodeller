@@ -420,19 +420,21 @@ class GibbsThermodynamicProperties(ThermodynamicProperties):
         )
 
 
-class RelativeThermodynamicProperties(ThermodynamicProperties):
+class RelativeThermodynamicProperties(GibbsThermodynamicProperties):
     r"""Thermodynamic properties of a phase relative to a base phase.
 
     .. math::
 
-        X(T) = X^{\mathrm{base}}(T) + \left[X^{\mathrm{phase}}(T)
-            - X^{\mathrm{reference}}(T)\right]
+        G(T) = G^{\mathrm{base}}(T) + \left[G^{\mathrm{phase}}(T)
+            - G^{\mathrm{reference}}(T)\right]
 
-    for the Gibbs energy, enthalpy, entropy and heat capacity. A well-characterised base phase is
-    combined with the difference between two phases from the same assessment, so that, for
-    example, diamond has the Gibbs energy of graphite from the NASA Glenn coefficients plus the
-    Gibbs energy of diamond relative to graphite from :cite:t:`Gustafson1986`. Only the volume
-    model of this class is used, not those of the base, phase or reference.
+    A well-characterised base phase is combined with the difference between two phases from the
+    same assessment, so that, for example, diamond has the Gibbs energy of graphite from the NASA
+    Glenn coefficients plus the Gibbs energy of diamond relative to graphite from
+    :cite:t:`Gustafson1986`. The entropy, enthalpy and heat capacity follow by differentiation
+    (:class:`GibbsThermodynamicProperties`), which is the same combination of those of the base,
+    phase and reference. Only the volume model of this class is used, not those of the base, phase
+    or reference.
 
     Args:
         base: Thermodynamic properties of the base phase
@@ -448,52 +450,6 @@ class RelativeThermodynamicProperties(ThermodynamicProperties):
     """Thermodynamic properties of the phase from the same assessment as reference"""
     reference: ThermodynamicProperties
     """Thermodynamic properties of the base phase from the same assessment as phase"""
-
-    @override
-    def cp(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets heat capacity.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        return (
-            self.base.cp(temperature) + self.phase.cp(temperature) - self.reference.cp(temperature)
-        )
-
-    @override
-    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets enthalpy.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        return (
-            self.base.enthalpy(temperature)
-            + self.phase.enthalpy(temperature)
-            - self.reference.enthalpy(temperature)
-        )
-
-    @override
-    def entropy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets entropy.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        return (
-            self.base.entropy(temperature)
-            + self.phase.entropy(temperature)
-            - self.reference.entropy(temperature)
-        )
 
     @override
     def gibbs_energy(self, temperature: ArrayLike) -> FloatArray:
