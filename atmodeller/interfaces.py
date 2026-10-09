@@ -213,3 +213,44 @@ class SolubilityProtocol(Protocol):
             Concentration in ppmw
         """
         ...
+
+
+@runtime_checkable
+class HeatCapacityProtocol(Protocol):
+    """Protocol for a heat capacity model"""
+
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity at constant pressure.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        ...
+
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range over which the heat capacity model is valid.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        ...
+
+
+@runtime_checkable
+class VolumeProtocol(Protocol):
+    """Protocol for the volume model of a condensed phase"""
+
+    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+        r"""Gets the integral of volume with respect to pressure from 1 bar.
+
+        Args:
+            temperature: Temperature in K
+            pressure: Pressure in bar
+
+        Returns:
+            Integral of volume with respect to pressure in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        ...
