@@ -201,6 +201,59 @@ class RelativeHeatCapacity(HeatCapacity):
         return self.base.temperature_range()
 
 
+class SaturatingHeatCapacity(HeatCapacity):
+    r"""Heat capacity of a base model plus a correction that saturates at high temperature.
+
+    .. math::
+
+        C_p(T) = C_p^{\mathrm{base}}(T) + c\left[1 - \exp\left(-\frac{T - T_r}{\tau}\right)\right]
+
+    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`. The correction is
+    zero at the reference temperature, so it leaves the reference enthalpy and entropy unchanged,
+    and tends to the constant :math:`c` above a few :math:`\tau`.
+
+    Args:
+        base: Heat capacity of the base model
+        amplitude: High-temperature limit of the correction :math:`c` in
+            :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        temperature_scale: Temperature scale :math:`\tau` of the correction in K
+    """
+
+    base: HeatCapacity
+    """Heat capacity of the base model"""
+    amplitude: float
+    """High-temperature limit of the correction in J/K/mol"""
+    temperature_scale: float
+    """Temperature scale of the correction in K"""
+
+    @override
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity at constant pressure.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        correction: Array = -self.amplitude * jnp.expm1(
+            -(as_j64(temperature) - TEMPERATURE_REFERENCE) / self.temperature_scale
+        )
+
+        return self.base.cp(temperature) + correction
+
+    @override
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range over which the heat capacity model is valid.
+
+        This is the range of the base model.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        return self.base.temperature_range()
+
+
 class Enthalpy(eqx.Module):
     r"""Enthalpy model."""
 
