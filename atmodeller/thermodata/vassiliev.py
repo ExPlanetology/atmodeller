@@ -86,7 +86,7 @@ class VassilievHeatCapacity(HeatCapacity):
         sigma: Standard deviation of the fit in J/(mol K) (metadata only)
     """
 
-    n: float
+    n: int
     T0: float
     A: tuple[float, float, float]
     Theta: tuple[float, float, float]
@@ -170,15 +170,15 @@ diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Diamond 1a :cite:t:`Vassiliev2021{Table 6}`."""
 diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
-    32, 1366, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 0.02
+    32, 1366.0, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 0.02
 )
 """Diamond 1b :cite:t:`Vassiliev2021{Table 6}`."""
 diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
-    32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0, 0.02
+    32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0.0, 0.02
 )
 """Diamond 1c :cite:t:`Vassiliev2021{Table 6}`."""
 diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
-    27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0, 0.05
+    27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0.0, 0.05
 )
 """Diamond 1d :cite:t:`Vassiliev2021{Table 6}`."""
 graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
@@ -198,6 +198,6 @@ silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Silicon 3a :cite:t:`Vassiliev2021{Table 6}`."""
 silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
-    24, 677, (0.381, 0.337, 0.281), (350.4, 852.2, 877.1), 23.55, 3.394, 0.06
+    24, 677.0, (0.381, 0.337, 0.281), (350.4, 852.2, 877.1), 23.55, 3.394, 0.06
 )
 """Silicon 3b :cite:t:`Vassiliev2021{Table 6}`."""

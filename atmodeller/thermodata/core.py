@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float
 
+from atmodeller import override
 from atmodeller.constants import TEMPERATURE_REFERENCE
 from atmodeller.jax_utils import FloatArray, as_j64
 from atmodeller.sci_utils import GAS_CONSTANT
@@ -97,6 +98,60 @@ class HeatCapacity(eqx.Module):
             Minimum and maximum temperature in K
         """
         raise NotImplementedError
+
+
+class RelativeHeatCapacity(HeatCapacity):
+    r"""Heat capacity of a phase relative to a base phase.
+
+    .. math::
+
+        C_p(T) = C_p^{\mathrm{base}}(T) + \left[C_p^{\mathrm{phase}}(T)
+            - C_p^{\mathrm{reference}}(T)\right]
+
+    The heat capacity of a well-characterised base phase is combined with the difference in heat
+    capacity between two models fitted in the same way, so that systematic errors common to those
+    two models largely cancel. For example, diamond can be described by the NASA Glenn heat
+    capacity of graphite plus the difference between the heat capacities of diamond and graphite
+    from :cite:t:`Vassiliev2021`. This keeps graphite, the reference state of carbon, consistent
+    with the other carbon-bearing species.
+
+    Args:
+        base: Heat capacity of the base phase
+        phase: Heat capacity of the phase from the same model as ``reference``
+        reference: Heat capacity of the base phase from the same model as ``phase``
+    """
+
+    base: HeatCapacity
+    """Heat capacity of the base phase"""
+    phase: HeatCapacity
+    """Heat capacity of the phase from the same model as reference"""
+    reference: HeatCapacity
+    """Heat capacity of the base phase from the same model as phase"""
+
+    @override
+    def cp(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
+        r"""Gets heat capacity at constant pressure.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return (
+            self.base.cp(temperature) + self.phase.cp(temperature) - self.reference.cp(temperature)
+        )
+
+    @override
+    def temperature_range(self) -> tuple[float, float]:  # pragma: no cover
+        """Gets the temperature range over which the heat capacity model is valid.
+
+        This is the range of the base phase.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        return self.base.temperature_range()
 
 
 class Enthalpy(eqx.Module):
