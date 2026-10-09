@@ -6,17 +6,16 @@
 
 from typing import cast
 
+import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike
 
-from atmodeller import override
 from atmodeller.constants import STANDARD_PRESSURE, TEMPERATURE_REFERENCE
 from atmodeller.jax_utils import as_j64
-from atmodeller.thermodata.core import Volume
 
 
-class MurnaghanEOS(Volume):
+class MurnaghanEOS(eqx.Module):
     r"""Volume of a solid with the equation of state of :cite:t:`HP98`.
 
     The volume at 1 bar follows from the temperature-dependent thermal expansion
@@ -115,7 +114,6 @@ class MurnaghanEOS(Volume):
             ),
         )
 
-    @override
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Gets the integral of volume with respect to pressure from 1 bar.
 
@@ -146,7 +144,7 @@ class MurnaghanEOS(Volume):
         return integral
 
 
-class TaitEOS(Volume):
+class TaitEOS(eqx.Module):
     r"""Volume of a solid with the modified Tait equation of state of :cite:t:`HP11`
 
     The pressure dependence follows the modified Tait equation of state and the temperature
@@ -229,7 +227,6 @@ class TaitEOS(Volume):
             1 - a * (1 - jnp.power(1 + b * (excess_pressure - thermal_pressure), -c))
         )
 
-    @override
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Gets the integral of volume with respect to pressure from 1 bar.
 
