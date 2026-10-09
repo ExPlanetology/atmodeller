@@ -288,7 +288,24 @@ class IntegratedEntropy(Entropy):
         )
 
 
-class MurnaghanEOS(eqx.Module):
+class Volume(eqx.Module):
+    r"""Volume model of a condensed phase."""
+
+    @abstractmethod
+    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+        r"""Gets the integral of volume with respect to pressure from 1 bar.
+
+        Args:
+            temperature: Temperature in K
+            pressure: Pressure in bar
+
+        Returns:
+            Integral of volume with respect to pressure in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        raise NotImplementedError
+
+
+class MurnaghanEOS(Volume):
     r"""Volume of a solid with the equation of state of :cite:t:`HP98`.
 
     The volume at 1 bar follows from the temperature-dependent thermal expansion
@@ -348,7 +365,7 @@ class MurnaghanEOS(eqx.Module):
         """
         volume: Array = self.V0 * jnp.exp(
             self.alpha0 * (temperature - 298)
-            - 2 * 10.0 * self.alpha0 * (temperature**0.5 - 298**0.5)
+            - 2 * 10.0 * self.alpha0 * (jnp.sqrt(temperature) - jnp.sqrt(298))
         )
 
         return volume
@@ -380,6 +397,7 @@ class MurnaghanEOS(eqx.Module):
             ),
         )
 
+    @override
     def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         r"""Gets the integral of volume with respect to pressure from 1 bar.
 
@@ -410,12 +428,15 @@ class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
     The standard state is 1 bar and the reference temperature is
-    :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
+    :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`. An optional volume model adds the
+    pressure dependence of a condensed phase to the Gibbs energy. Gases do not need one, since
+    their pressure dependence enters through the fugacity.
 
     Args:
         heat_capacity_model: Heat capacity model
         enthalpy_model: Enthalpy model
         entropy_model: Entropy model
+        volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
     """
 
     heat_capacity_model: HeatCapacity
@@ -424,8 +445,8 @@ class ThermodynamicProperties(eqx.Module):
     """Enthalpy model"""
     entropy_model: Entropy
     """Entropy model"""
-    pv_model: MurnaghanEOS | None = None
-    """Pressure-volume model. Defaults to ``None`` if unused."""
+    volume_model: Volume | None = None
+    """Volume model, or ``None`` to ignore the pressure dependence"""
 
     @classmethod
     def from_reference_values(
@@ -433,6 +454,7 @@ class ThermodynamicProperties(eqx.Module):
         heat_capacity_model: HeatCapacity,
         enthalpy_reference: float,
         entropy_reference: float,
+        volume_model: Volume | None = None,
     ) -> Self:
         r"""Creates thermodynamic properties by integrating a heat capacity model.
 
@@ -442,6 +464,7 @@ class ThermodynamicProperties(eqx.Module):
                 reference temperature
             entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1}
                 \mathrm{mol}^{-1}` at the reference temperature
+            volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
 
         Returns:
             Thermodynamic properties
@@ -450,24 +473,38 @@ class ThermodynamicProperties(eqx.Module):
             heat_capacity_model,
             IntegratedEnthalpy(heat_capacity_model, enthalpy_reference),
             IntegratedEntropy(heat_capacity_model, entropy_reference),
+            volume_model,
         )
 
-    def get_gibbs_over_RT(self, temperature: ArrayLike) -> FloatArray:
+    def get_gibbs_over_RT(self, temperature: ArrayLike, pressure: ArrayLike = 1.0) -> FloatArray:
         r"""Gets Gibbs energy to :const:`~atmodeller.constants.GAS_CONSTANT`
         :math:`\times T`
 
+        Without a volume model this is the standard-state Gibbs energy at 1 bar for any pressure.
+
         Args:
             temperature: Temperature in K
+            pressure: Pressure in bar. Defaults to 1 bar.
 
         Returns:
             Gibbs energy relative to :const:`~atmodeller.constants.GAS_CONSTANT`
             :math:`\times T`
         """
         temperature = as_j64(temperature)
+        pressure = as_j64(pressure)
 
-        return (
+        gibbs_over_RT: FloatArray = (
             self.enthalpy(temperature) / (GAS_CONSTANT * temperature)
             - self.entropy(temperature) / GAS_CONSTANT
+        )
+        if self.volume_model is not None:
+            gibbs_over_RT = gibbs_over_RT + self.volume_model.volume_integral(
+                temperature, pressure
+            ) / (GAS_CONSTANT * temperature)
+
+        # All species must return the same shape when evaluated together in the reaction network
+        return jnp.broadcast_to(
+            gibbs_over_RT, jnp.broadcast_shapes(temperature.shape, pressure.shape)
         )
 
     def cp(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover

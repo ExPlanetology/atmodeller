@@ -14,8 +14,10 @@ from atmodeller.thermodata.core import (  # noqa: E402, F401
     HeatCapacity,
     IntegratedEnthalpy,
     IntegratedEntropy,
+    MurnaghanEOS,
     RelativeHeatCapacity,
     ThermodynamicProperties,
+    Volume,
     critical_data_dictionary,
 )
 from atmodeller.thermodata.janaf import (  # noqa: E402, F401

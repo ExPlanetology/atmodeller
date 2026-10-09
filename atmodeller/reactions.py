@@ -294,10 +294,12 @@ class ReactionNetwork(BaseReactionBlock):
             to_hashable(species_.get_gibbs_over_RT) for species_ in self.species.reaction_species
         ]
 
-        def apply_gibbs(index: Integer[Array, ""], temperature: FloatArray) -> FloatArray:
-            return lax.switch(index, gibbs_funcs, temperature)
+        def apply_gibbs(
+            index: Integer[Array, ""], temperature: FloatArray, pressure: FloatArray
+        ) -> FloatArray:
+            return lax.switch(index, gibbs_funcs, temperature, pressure)
 
-        self.vmap_gibbs = eqx.filter_vmap(apply_gibbs, in_axes=(0, None), out_axes=-1)
+        self.vmap_gibbs = eqx.filter_vmap(apply_gibbs, in_axes=(0, None, None), out_axes=-1)
 
         self.output_to_logger()
 
@@ -321,17 +323,20 @@ class ReactionNetwork(BaseReactionBlock):
             - len(self.species.reaction_species.unique_elements),
         )
 
-    def get_log_Kp(self, temperature: FloatArray) -> Float[Array, "... n_reactions"]:
+    def get_log_Kp(
+        self, temperature: FloatArray, pressure: FloatArray
+    ) -> Float[Array, "... n_reactions"]:
         """Gets log of the equilibrium constant of each reaction.
 
         Args:
             temperature: Temperature (K)
+            pressure: Pressure (bar)
 
         Returns:
             Log of the equilibrium constant of each reaction
         """
         gibbs_values: Float[Array, "... n_species"] = self.vmap_gibbs(
-            jnp.arange(self.species.reaction_species.number_species), temperature
+            jnp.arange(self.species.reaction_species.number_species), temperature, pressure
         )
         # jax.debug.print("gibbs_values = {out}", out=gibbs_values)
         reaction_matrix: Float[Array, "n_reactions n_species"] = jnp.asarray(self.reaction_matrix)
@@ -604,7 +609,7 @@ class ReactionSystem(BaseReactionBlock):
             Log of the equilibrium constant of each reaction
         """
         log_Kp_reaction: Float[Array, "... n_core_reactions"] = self.reaction.get_log_Kp(
-            temperature
+            temperature, pressure
         )
         # jax.debug.print("log_Kp_reaction = {out}", out=log_Kp_reaction)
 

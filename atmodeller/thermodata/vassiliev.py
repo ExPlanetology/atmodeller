@@ -14,6 +14,7 @@ from atmodeller.jax_utils import FloatArray
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata.core import (
     HeatCapacity,
+    MurnaghanEOS,
     RelativeHeatCapacity,
     ThermodynamicProperties,
 )
@@ -214,10 +215,18 @@ DIAMOND_ENTROPY_REFERENCE: float = 2.38
 
 graphite: ThermodynamicProperties = glenn_properties["C_s"]
 """Graphite from the NASA Glenn coefficients, which is the reference state of carbon"""
+DIAMOND_VOLUME: MurnaghanEOS = MurnaghanEOS(0.342, 1.65e-5, 5.8e6)
+"""Volume of diamond from :cite:t:`HP98{Table 5}`, with the bulk modulus converted to bar"""
+
 diamond_1b: ThermodynamicProperties = ThermodynamicProperties.from_reference_values(
     RelativeHeatCapacity(graphite.heat_capacity_model, cp_diamond_1b, cp_graphite_2b),
     DIAMOND_ENTHALPY_REFERENCE,
     DIAMOND_ENTROPY_REFERENCE,
+    DIAMOND_VOLUME,
 )
 """Diamond from the heat capacity of :data:`graphite` and the difference between the heat
-capacities of diamond 1b and graphite 2b :cite:p:`Vassiliev2021{Table 6}`"""
+capacities of diamond 1b and graphite 2b :cite:p:`Vassiliev2021{Table 6}`, with the volume
+:data:`DIAMOND_VOLUME`.
+
+:data:`graphite` has no volume model, so equilibrium between diamond and graphite omits the
+volume integral of graphite and the stability of diamond is approximate."""
