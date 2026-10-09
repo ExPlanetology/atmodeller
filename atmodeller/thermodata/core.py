@@ -312,10 +312,13 @@ class MurnaghanEOS(Volume):
     :math:`\alpha_T = a^\circ(1 - 10/\sqrt{T})` and its pressure dependence from the Murnaghan
     equation of state, with a bulk modulus that decreases linearly with temperature.
 
+    The reference temperature is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE` (298.15 K),
+    whereas :cite:t:`HP98` write their expressions with 298 K. The difference is negligible.
+
     Args:
-        V0: Volume at 298 K and 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
+        V0: Volume at the reference temperature and 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
         alpha0: Thermal expansion parameter :math:`a^\circ` in :math:`\mathrm{K}^{-1}`
-        K0: Bulk modulus at 298 K in bar
+        K0: Bulk modulus at the reference temperature in bar
         dKdP: Pressure derivative of the bulk modulus. Defaults to 4.
     """
 
@@ -349,7 +352,7 @@ class MurnaghanEOS(Volume):
         Returns:
             Bulk modulus in bar
         """
-        return self.K0 + self.dKdT * (temperature - 298)
+        return self.K0 + self.dKdT * (temperature - TEMPERATURE_REFERENCE)
 
     def volume_1bar(self, temperature: ArrayLike) -> Array:
         r"""Gets the volume at 1 bar.
@@ -364,8 +367,8 @@ class MurnaghanEOS(Volume):
             Volume at 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
         """
         volume: Array = self.V0 * jnp.exp(
-            self.alpha0 * (temperature - 298)
-            - 2 * 10.0 * self.alpha0 * (jnp.sqrt(temperature) - jnp.sqrt(298))
+            self.alpha0 * (temperature - TEMPERATURE_REFERENCE)
+            - 2 * 10.0 * self.alpha0 * (jnp.sqrt(temperature) - jnp.sqrt(TEMPERATURE_REFERENCE))
         )
 
         return volume
@@ -375,8 +378,9 @@ class MurnaghanEOS(Volume):
 
         .. math::
 
-            V_{1,T} = V_{1,298}\left[1 + a^\circ(T - 298) - 20a^\circ(\sqrt{T} - \sqrt{298})\right]
+            V_{1,T} = V_{1,T_r}\left[1 + a^\circ(T - T_r) - 20a^\circ(\sqrt{T} - \sqrt{T_r})\right]
 
+        where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
         This is the exact expression used by :cite:t:`HP98` to derive their data set. It is the
         first-order expansion of :meth:`volume_1bar`, which integrates the thermal expansion
         exactly; the two differ by about 0.3% for diamond at 6000 K.
@@ -392,8 +396,11 @@ class MurnaghanEOS(Volume):
             self.V0
             * (
                 1
-                + self.alpha0 * (temperature - 298)
-                - 2 * 10.0 * self.alpha0 * (jnp.sqrt(temperature) - jnp.sqrt(298))
+                + self.alpha0 * (temperature - TEMPERATURE_REFERENCE)
+                - 2
+                * 10.0
+                * self.alpha0
+                * (jnp.sqrt(temperature) - jnp.sqrt(TEMPERATURE_REFERENCE))
             ),
         )
 
