@@ -29,8 +29,8 @@ from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ChemicalSpeciesData
 from atmodeller.thermodata.core import ThermodynamicProperties
 from atmodeller.thermodata.janaf import glenn_properties, read_glenn_coefficients
-from atmodeller.thermodata.holland_powell import GRAPHITE_VOLUME_MURNAGHAN
-from atmodeller.thermodata.vassiliev import diamond_1b
+from atmodeller.thermodata.holland_powell import GRAPHITE_VOLUME_TAIT
+from atmodeller.thermodata.vassiliev import diamond_1b_fitted
 
 
 class DataBase(ABC):
@@ -235,10 +235,11 @@ def get_default_database() -> GlennDataBase:
     This is the database of packaged NASA Glenn coefficients with the following changes:
 
         - Graphite (``C_s``) includes the volume
-          :data:`~atmodeller.thermodata.holland_powell.GRAPHITE_VOLUME_MURNAGHAN`, so that its Gibbs energy
-          depends on pressure.
-        - Diamond (:data:`~atmodeller.thermodata.vassiliev.diamond_1b`) is added, created with
-          ``create_condensed("C", state="diamond")``.
+          :data:`~atmodeller.thermodata.holland_powell.GRAPHITE_VOLUME_TAIT`, so that its Gibbs
+          energy depends on pressure.
+        - Diamond (:data:`~atmodeller.thermodata.vassiliev.diamond_1b_fitted`) is added, created
+          with ``create_condensed("C", state="diamond")``. Its heat capacity is fitted to the
+          graphite-diamond phase boundary with this graphite.
 
     Further species can be added with :meth:`DataBase.add_species`.
 
@@ -248,7 +249,7 @@ def get_default_database() -> GlennDataBase:
     database: GlennDataBase = GlennDataBase()
 
     graphite: ThermodynamicProperties = database.get_thermodynamic_properties("C_s")
-    database.add_species("C", "s", graphite.with_volume(GRAPHITE_VOLUME_MURNAGHAN))
-    database.add_species("C", "diamond", diamond_1b)
+    database.add_species("C", "s", graphite.with_volume(GRAPHITE_VOLUME_TAIT))
+    database.add_species("C", "diamond", diamond_1b_fitted)
 
     return database
