@@ -12,7 +12,12 @@ from scipy.special import bernoulli, factorial
 from atmodeller import override
 from atmodeller.jax_utils import FloatArray
 from atmodeller.sci_utils import GAS_CONSTANT
-from atmodeller.thermodata.core import HeatCapacity
+from atmodeller.thermodata.core import (
+    HeatCapacity,
+    RelativeHeatCapacity,
+    ThermodynamicProperties,
+)
+from atmodeller.thermodata.janaf import glenn_properties
 
 _DEBYE_Y_SWITCH: float = 2.0
 """Value of y = Theta/T at which :func:`_debye_integral` switches from the small-y to the large-y
@@ -165,39 +170,54 @@ class VassilievHeatCapacity(HeatCapacity):
         return 12 * _debye_integral(y) / y**3 - 3 * y * jnp.exp(-y) / -jnp.expm1(-y)
 
 
-diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
+cp_diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
     186, 812.3, (0.454, 0.503, 0.043), (1886.0, 1879.6, 1501.6), 24.59, 0.287, 0.06
 )
-"""Diamond 1a :cite:t:`Vassiliev2021{Table 6}`."""
-diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Diamond 1a heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
     32, 1366.0, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 0.02
 )
-"""Diamond 1b :cite:t:`Vassiliev2021{Table 6}`."""
-diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Diamond 1b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
     32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0.0, 0.02
 )
-"""Diamond 1c :cite:t:`Vassiliev2021{Table 6}`."""
-diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Diamond 1c heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
     27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0.0, 0.05
 )
-"""Diamond 1d :cite:t:`Vassiliev2021{Table 6}`."""
-graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Diamond 1d heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
     73, 288.4, (0.770, 0.110, 0.120), (1955.9, 424.1, 945.1), 24.25, 0.848, 0.07
 )
-"""Graphite 2a :cite:t:`Vassiliev2021{Table 6}`."""
-graphite_2b: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Graphite 2a heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_graphite_2b: VassilievHeatCapacity = VassilievHeatCapacity(
     38, 268.3, (0.779, 0.114, 0.107), (1937.7, 416.0, 930.3), 24.25, 0.848, 0.09
 )
-"""Graphite 2b :cite:t:`Vassiliev2021{Table 6}`."""
-graphite_2c: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Graphite 2b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_graphite_2c: VassilievHeatCapacity = VassilievHeatCapacity(
     111, 282.6, (0.773, 0.114, 0.114), (1949.9, 426.4, 947.9), 24.25, 0.848, 0.08
 )
-"""Graphite 2c :cite:t:`Vassiliev2021{Table 6}`."""
-silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Graphite 2c heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
     201, 535.6, (0.367, 0.358, 0.275), (345.3, 847.6, 866.0), 23.55, 3.394, 0.07
 )
-"""Silicon 3a :cite:t:`Vassiliev2021{Table 6}`."""
-silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
+"""Silicon 3a heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+cp_silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
     24, 677.0, (0.381, 0.337, 0.281), (350.4, 852.2, 877.1), 23.55, 3.394, 0.06
 )
-"""Silicon 3b :cite:t:`Vassiliev2021{Table 6}`."""
+"""Silicon 3b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+
+DIAMOND_ENTHALPY_REFERENCE: float = 1900.0
+"""Enthalpy of formation of diamond in J/mol at 298.15 K and 1 bar :cite:p:`Robie1995`"""
+DIAMOND_ENTROPY_REFERENCE: float = 2.38
+"""Entropy of diamond in J/K/mol at 298.15 K and 1 bar :cite:p:`Robie1995,HP11`"""
+
+graphite: ThermodynamicProperties = glenn_properties["C_s"]
+"""Graphite from the NASA Glenn coefficients, which is the reference state of carbon"""
+diamond_1b: ThermodynamicProperties = ThermodynamicProperties.from_reference_values(
+    RelativeHeatCapacity(graphite.heat_capacity_model, cp_diamond_1b, cp_graphite_2b),
+    DIAMOND_ENTHALPY_REFERENCE,
+    DIAMOND_ENTROPY_REFERENCE,
+)
+"""Diamond from the heat capacity of :data:`graphite` and the difference between the heat
+capacities of diamond 1b and graphite 2b :cite:p:`Vassiliev2021{Table 6}`"""

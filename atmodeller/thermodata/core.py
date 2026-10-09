@@ -6,13 +6,16 @@
 
 import importlib.resources
 from abc import abstractmethod
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from importlib.resources.abc import Traversable
 from pathlib import Path
+from typing import Self
 
 import equinox as eqx
 import jax.numpy as jnp
+import numpy as np
 import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float
 
@@ -25,6 +28,35 @@ DATA_DIRECTORY: Traversable = importlib.resources.files(f"{__package__}.data")
 """Data directory"""
 CRITICAL_DATA_SOURCE: Path = Path("critical_data.txt")
 """Source of the critical data"""
+
+# Gauss-Legendre quadrature for integrating heat capacities from the reference temperature. Over
+# 200-6000 K, 64 nodes integrate the NASA Glenn heat capacity of graphite to within 0.021 J/mol
+# (enthalpy) and 2.5e-5 J/K/mol (entropy) of the analytical result, with the error arising from the
+# discontinuities in the derivative of the heat capacity between temperature ranges.
+_QUADRATURE_ORDER: int = 64
+_quadrature_nodes, _quadrature_weights = np.polynomial.legendre.leggauss(_QUADRATURE_ORDER)
+_QUADRATURE_NODES: Array = jnp.asarray(_quadrature_nodes)
+_QUADRATURE_WEIGHTS: Array = jnp.asarray(_quadrature_weights)
+
+
+def _integrate_from_reference(
+    integrand: Callable[[Array], Array], temperature: ArrayLike
+) -> FloatArray:
+    """Integrates from the reference temperature to the temperature with Gauss-Legendre quadrature
+
+    Args:
+        integrand: Function of temperature to integrate
+        temperature: Temperature in K, which can be less than the reference temperature
+
+    Returns:
+        Integral from :const:`~atmodeller.constants.TEMPERATURE_REFERENCE` to ``temperature``
+    """
+    temperature = as_j64(temperature)
+    # Append a node axis: (..., 1) against (N,) gives quadrature temperatures of shape (..., N)
+    half_width: Array = (temperature[..., None] - TEMPERATURE_REFERENCE) / 2
+    quadrature_temperature: Array = TEMPERATURE_REFERENCE + half_width * (_QUADRATURE_NODES + 1)
+
+    return jnp.sum(half_width * _QUADRATURE_WEIGHTS * integrand(quadrature_temperature), axis=-1)
 
 
 class ActivityCoefficient(eqx.Module):
@@ -186,6 +218,76 @@ class Entropy(eqx.Module):
         raise NotImplementedError
 
 
+class IntegratedEnthalpy(Enthalpy):
+    r"""Enthalpy from integrating a heat capacity model.
+
+    .. math::
+
+        H(T) = H^\circ(T_r) + \int_{T_r}^T C_p\, dT
+
+    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
+
+    Args:
+        heat_capacity_model: Heat capacity model
+        enthalpy_reference: Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}` at the reference
+            temperature
+    """
+
+    heat_capacity_model: HeatCapacity
+    """Heat capacity model"""
+    enthalpy_reference: float = eqx.field(converter=float)
+    """Enthalpy in J/mol at the reference temperature"""
+
+    @override
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets enthalpy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        return self.enthalpy_reference + _integrate_from_reference(
+            self.heat_capacity_model.cp, temperature
+        )
+
+
+class IntegratedEntropy(Entropy):
+    r"""Entropy from integrating a heat capacity model.
+
+    .. math::
+
+        S(T) = S^\circ(T_r) + \int_{T_r}^T \frac{C_p}{T}\, dT
+
+    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
+
+    Args:
+        heat_capacity_model: Heat capacity model
+        entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}` at
+            the reference temperature
+    """
+
+    heat_capacity_model: HeatCapacity
+    """Heat capacity model"""
+    entropy_reference: float = eqx.field(converter=float)
+    """Entropy in J/K/mol at the reference temperature"""
+
+    @override
+    def entropy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets entropy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return self.entropy_reference + _integrate_from_reference(
+            lambda t: self.heat_capacity_model.cp(t) / t, temperature
+        )
+
+
 class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
@@ -204,6 +306,31 @@ class ThermodynamicProperties(eqx.Module):
     """Enthalpy model"""
     entropy_model: Entropy
     """Entropy model"""
+
+    @classmethod
+    def from_reference_values(
+        cls,
+        heat_capacity_model: HeatCapacity,
+        enthalpy_reference: float,
+        entropy_reference: float,
+    ) -> Self:
+        r"""Creates thermodynamic properties by integrating a heat capacity model.
+
+        Args:
+            heat_capacity_model: Heat capacity model
+            enthalpy_reference: Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}` at the
+                reference temperature
+            entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1}
+                \mathrm{mol}^{-1}` at the reference temperature
+
+        Returns:
+            Thermodynamic properties
+        """
+        return cls(
+            heat_capacity_model,
+            IntegratedEnthalpy(heat_capacity_model, enthalpy_reference),
+            IntegratedEntropy(heat_capacity_model, entropy_reference),
+        )
 
     def get_gibbs_over_RT(self, temperature: ArrayLike) -> FloatArray:
         r"""Gets Gibbs energy to :const:`~atmodeller.constants.GAS_CONSTANT`
