@@ -72,19 +72,31 @@ def _debye_integral(y: ArrayLike) -> Array:
 
 
 class VassilievHeatCapacity(eqx.Module):
+    """Heat capacity model for graphite and diamond from :cite:t:`Vassiliev2021`
+
+    Args:
+        n: Number of experimental (T, Cp) pairs used in the fit (metadata only)
+        T0: Temperature in K in the Cp/Cv factor :cite:p:`Vassiliev2021{Eq. 3}`, controlling the
+            transition from Cp = Cv at low temperature to the Maier-Kelley form at high temperature
+        A: Weights of the three Debye functions in Cv :cite:p:`Vassiliev2021{Eq. 1}`, summing to 1
+        Theta: Debye temperatures in K of the three Debye functions
+        a: Constant Maier-Kelley coefficient in J/(mol K) :cite:p:`Vassiliev2021{Eq. 4}`
+        b: Linear Maier-Kelley coefficient in J/(mol K), multiplying T/1000
+        sigma: Standard deviation of the fit in J/(mol K) (metadata only)
+    """
+
     n: float
     T0: float
     A: tuple[float, float, float]
     Theta: tuple[float, float, float]
     a: float
     b: float
-    sigma1e2: float
+    sigma: float
 
     def _cp_over_R(self, temperature: ArrayLike) -> FloatArray:
         """Heat capacity relative to :const:`~atmodeller.constants.GAS_CONSTANT`
 
         Args:
-            cp_coefficients: Heat capacity coefficients
             temperature: Temperature in K
 
         Returns:
@@ -152,18 +164,38 @@ class VassilievHeatCapacity(eqx.Module):
 
 
 diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
-    186, 812.3, (0.454, 0.503, 0.043), (1886.0, 1879.6, 1501.6), 24.59, 0.287, 6
+    186, 812.3, (0.454, 0.503, 0.043), (1886.0, 1879.6, 1501.6), 24.59, 0.287, 0.06
 )
 """Diamond 1a :cite:t:`Vassiliev2021{Table 6}`."""
 diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
-    32, 1366, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 2
+    32, 1366, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 0.02
 )
 """Diamond 1b :cite:t:`Vassiliev2021{Table 6}`."""
 diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
-    32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0, 2
+    32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0, 0.02
 )
 """Diamond 1c :cite:t:`Vassiliev2021{Table 6}`."""
 diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
-    27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0, 5
+    27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0, 0.05
 )
 """Diamond 1d :cite:t:`Vassiliev2021{Table 6}`."""
+graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
+    73, 288.4, (0.770, 0.110, 0.120), (1955.9, 424.1, 945.1), 24.25, 0.848, 0.07
+)
+"""Graphite 2a :cite:t:`Vassiliev2021{Table 6}`."""
+graphite_2b: VassilievHeatCapacity = VassilievHeatCapacity(
+    38, 268.3, (0.779, 0.114, 0.107), (1937.7, 416.0, 930.3), 24.25, 0.848, 0.09
+)
+"""Graphite 2b :cite:t:`Vassiliev2021{Table 6}`."""
+graphite_2c: VassilievHeatCapacity = VassilievHeatCapacity(
+    111, 282.6, (0.773, 0.114, 0.114), (1949.9, 426.4, 947.9), 24.25, 0.848, 0.08
+)
+"""Graphite 2c :cite:t:`Vassiliev2021{Table 6}`."""
+silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
+    201, 535.6, (0.367, 0.358, 0.275), (345.3, 847.6, 866.0), 23.55, 3.394, 0.07
+)
+"""Silicon 3a :cite:t:`Vassiliev2021{Table 6}`."""
+silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
+    24, 677, (0.381, 0.337, 0.281), (350.4, 852.2, 877.1), 23.55, 3.394, 0.06
+)
+"""Silicon 3b :cite:t:`Vassiliev2021{Table 6}`."""
