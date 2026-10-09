@@ -265,7 +265,7 @@ class TaitEOS(eqx.Module):
 
 
 def einstein_temperature(entropy: float, number_atoms: int) -> float:
-    """Gets the Einstein temperature estimated from the entropy :cite:p:`HP11`
+    """Gets the Einstein temperature estimated from the entropy :cite:p:`HP11`.
 
     Args:
         entropy: Entropy at 298.15 K and 1 bar in J/K/mol
