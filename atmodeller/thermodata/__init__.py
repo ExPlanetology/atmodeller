@@ -9,7 +9,16 @@ from atmodeller.thermodata._redox_buffers import IronWustiteBuffer  # noqa: E402
 from atmodeller.thermodata.core import (  # noqa: E402, F401
     ActivityCoefficient,
     CriticalData,
+    Enthalpy,
+    Entropy,
+    HeatCapacity,
+    ThermodynamicCoefficients,
     critical_data_dictionary,
+)
+from atmodeller.thermodata.janaf import (  # noqa: E402, F401
+    JanafEnthalpy,
+    JanafEntropy,
+    JanafHeatCapacity,
     thermodynamic_coefficients_dictionary,
     thermodynamic_data_source,
 )

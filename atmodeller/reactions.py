@@ -355,12 +355,11 @@ class ReactionNetwork(BaseReactionBlock):
         Returns:
             Minimum and maximum temperature that is valid for the species
         """
-        temperature_min: list[float] = [
-            min(species.thermo.T_min) for species in self.species.reaction_species
+        temperature_ranges: list[tuple[float, float]] = [
+            species.thermo.temperature_range() for species in self.species.reaction_species
         ]
-        temperature_max: list[float] = [
-            max(species.thermo.T_max) for species in self.species.reaction_species
-        ]
+        temperature_min: list[float] = [range_[0] for range_ in temperature_ranges]
+        temperature_max: list[float] = [range_[1] for range_ in temperature_ranges]
 
         return max(temperature_min), min(temperature_max)
 

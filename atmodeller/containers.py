@@ -35,10 +35,11 @@ from atmodeller.interfaces import (
 from atmodeller.jax_utils import NpFloat, NpInt, RootFindParameters, as_j64
 from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
-from atmodeller.thermodata import ActivityCoefficient, thermodynamic_data_source
-from atmodeller.thermodata.core import (
+from atmodeller.thermodata import (
+    ActivityCoefficient,
     ThermodynamicCoefficients,
     thermodynamic_coefficients_dictionary,
+    thermodynamic_data_source,
 )
 
 logger: logging.Logger = logging.getLogger(__name__)
