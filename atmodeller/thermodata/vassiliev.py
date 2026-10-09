@@ -4,15 +4,14 @@
 
 """Heat capacity models for graphite and diamond from :cite:t:`Vassiliev2021`"""
 
+import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike
 from scipy.special import bernoulli, factorial
 
-from atmodeller import override
 from atmodeller.jax_utils import FloatArray
 from atmodeller.sci_utils import GAS_CONSTANT
-from atmodeller.thermodata.core import HeatCapacity
 
 _DEBYE_Y_SWITCH: float = 2.0
 """Value of y = Theta/T at which :func:`_debye_integral` switches from the small-y to the large-y
@@ -72,7 +71,7 @@ def _debye_integral(y: ArrayLike) -> Array:
     return jnp.where(y < _DEBYE_Y_SWITCH, small, large)
 
 
-class VassilievHeatCapacity(HeatCapacity):
+class VassilievHeatCapacity(eqx.Module):
     """Heat capacity model for graphite and diamond from :cite:t:`Vassiliev2021`.
 
     Args:
@@ -105,7 +104,6 @@ class VassilievHeatCapacity(HeatCapacity):
         """
         return self.cp(temperature) / GAS_CONSTANT
 
-    @override
     def cp(self, temperature: ArrayLike) -> FloatArray:
         r"""Gets heat capacity at constant pressure.
 
