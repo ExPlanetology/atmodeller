@@ -198,19 +198,28 @@ diamond_sgte: SGTEThermodynamicProperties = SGTEThermodynamicProperties(
 Its enthalpy and entropy at 298.15 K are 1895.79 J/mol and 2.3598 J/K/mol. Use it with
 :data:`graphite_sgte`."""
 
+diamond_relative_to_graphite: SGTEThermodynamicProperties = SGTEThermodynamicProperties(
+    (1009.0, 4.88, -0.01, 0.0, 135400.0, 3.3e6, -9e8)
+)
+"""Gibbs energy of diamond relative to graphite, valid from 298.15 to 6000 K
+:cite:p:`Gustafson1986,Dinsdale1991{p. 338}`
+
+This is :data:`diamond_sgte` minus :data:`graphite_sgte`. At 298.15 K, diamond minus graphite is
+1895.79 J/mol in enthalpy and -3.3825 J/K/mol in entropy."""
+
 diamond_gustafson: RelativeThermodynamicProperties = RelativeThermodynamicProperties(
-    glenn_properties["C_s"], diamond_sgte, graphite_sgte,
+    glenn_properties["C_s"],
+    diamond_relative_to_graphite,
     volume_model=DIAMOND_VOLUME_GUSTAFSON,
 )
-"""Diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, valid to 6000 K,
-with the volume :data:`DIAMOND_VOLUME_GUSTAFSON`.
+"""Diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, valid from 298.15
+to 6000 K, with the volume :data:`DIAMOND_VOLUME_GUSTAFSON`.
 
 The Gibbs energy of diamond is that of graphite from the NASA Glenn coefficients (``C_s`` in
 :data:`~atmodeller.thermodata.janaf.glenn_properties`) plus the Gibbs energy of diamond relative to
-graphite of :cite:t:`Gustafson1986` (:data:`diamond_sgte` minus :data:`graphite_sgte`). This keeps
-graphite consistent with the other NASA Glenn species while reproducing the Gibbs energy of diamond
-relative to graphite of :cite:t:`Gustafson1986` exactly. At 298.15 K, diamond minus graphite is
-1895.79 J/mol in enthalpy and -3.3825 J/K/mol in entropy.
+graphite of :cite:t:`Gustafson1986` (:data:`diamond_relative_to_graphite`). This keeps graphite
+consistent with the other NASA Glenn species while reproducing the Gibbs energy of diamond relative
+to graphite of :cite:t:`Gustafson1986` exactly.
 
 For equilibrium between diamond and graphite at high pressure, use graphite with
 :data:`GRAPHITE_VOLUME_GUSTAFSON`, as in :func:`~atmodeller.database.get_default_database`. This

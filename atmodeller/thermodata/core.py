@@ -425,31 +425,26 @@ class RelativeThermodynamicProperties(GibbsThermodynamicProperties):
 
     .. math::
 
-        G(T) = G^{\mathrm{base}}(T) + \left[G^{\mathrm{phase}}(T)
-            - G^{\mathrm{reference}}(T)\right]
+        G(T) = G^{\mathrm{base}}(T) + \Delta G(T)
 
-    A well-characterised base phase is combined with the difference between two phases from the
-    same assessment, so that, for example, diamond has the Gibbs energy of graphite from the NASA
-    Glenn coefficients plus the Gibbs energy of diamond relative to graphite from
-    :cite:t:`Gustafson1986`. The entropy, enthalpy and heat capacity follow by differentiation
-    (:class:`GibbsThermodynamicProperties`), which is the same combination of those of the base,
-    phase and reference. Only the volume model of this class is used, not those of the base, phase
-    or reference.
+    where :math:`\Delta G` is the Gibbs energy of the phase relative to the base phase. A
+    well-characterised base phase is combined with the difference from an assessment, so that,
+    for example, diamond has the Gibbs energy of graphite from the NASA Glenn coefficients plus
+    the Gibbs energy of diamond relative to graphite from :cite:t:`Gustafson1986`. The entropy,
+    enthalpy and heat capacity follow by differentiation (:class:`GibbsThermodynamicProperties`).
+    Only the volume model of this class is used, not those of the base or difference.
 
     Args:
         base: Thermodynamic properties of the base phase
-        phase: Thermodynamic properties of the phase from the same assessment as ``reference``
-        reference: Thermodynamic properties of the base phase from the same assessment as
-            ``phase``
+        difference: Thermodynamic properties of the phase relative to the base phase, whose Gibbs
+            energy is :math:`\Delta G`
         volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
     """
 
     base: ThermodynamicProperties
     """Thermodynamic properties of the base phase"""
-    phase: ThermodynamicProperties
-    """Thermodynamic properties of the phase from the same assessment as reference"""
-    reference: ThermodynamicProperties
-    """Thermodynamic properties of the base phase from the same assessment as phase"""
+    difference: ThermodynamicProperties
+    """Thermodynamic properties of the phase relative to the base phase"""
 
     @override
     def gibbs_energy(self, temperature: ArrayLike) -> FloatArray:
@@ -461,22 +456,21 @@ class RelativeThermodynamicProperties(GibbsThermodynamicProperties):
         Returns:
             Gibbs energy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
         """
-        return (
-            self.base.gibbs_energy(temperature)
-            + self.phase.gibbs_energy(temperature)
-            - self.reference.gibbs_energy(temperature)
-        )
+        return self.base.gibbs_energy(temperature) + self.difference.gibbs_energy(temperature)
 
     @override
     def temperature_range(self) -> tuple[float, float]:
         """Gets the temperature range over which the thermodynamic data are valid.
 
-        This is the range of the base phase.
+        This is the range over which both the base phase and the difference are valid.
 
         Returns:
             Minimum and maximum temperature in K
         """
-        return self.base.temperature_range()
+        base_min, base_max = self.base.temperature_range()
+        difference_min, difference_max = self.difference.temperature_range()
+
+        return max(base_min, difference_min), min(base_max, difference_max)
 
 
 class CriticalData(eqx.Module):
