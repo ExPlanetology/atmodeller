@@ -10,7 +10,7 @@
 [![CI](https://github.com/ExPlanetology/atmodeller/actions/workflows/ci.yml/badge.svg)](https://github.com/ExPlanetology/atmodeller/actions/workflows/ci.yml)
 [![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
 [![bear-ified](https://raw.githubusercontent.com/beartype/beartype-assets/main/badge/bear-ified.svg)](https://beartype.readthedocs.io)
-[![Claude reviewed](https://img.shields.io/badge/Claude-reviewed-D97757)](https://anthropic.com)
+[![Claude assisted](https://img.shields.io/badge/Claude-assisted-D97757)](https://anthropic.com)
 [![Test coverage](https://img.shields.io/badge/Coverage-99%25-brightgreen)](https://github.com/ExPlanetology/atmodeller)
 
 ## About
