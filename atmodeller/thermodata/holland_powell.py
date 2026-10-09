@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Volume models of solids from :cite:t:`HP98` and :cite:t:`HP11`"""
+"""Volume models of solids from :cite:t:`HP98` and :cite:t:`HP11`."""
 
 from typing import cast
 
