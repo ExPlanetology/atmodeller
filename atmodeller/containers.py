@@ -38,7 +38,7 @@ from atmodeller.solubility.core import NoSolubility
 from atmodeller.thermodata import (
     ActivityCoefficient,
     ThermodynamicProperties,
-    glenn_properties,
+    default_properties,
 )
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class ChemicalSpecies(eqx.Module):
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations.
             thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default NASA Glenn data.
+                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
 
         Returns:
             An instance
@@ -95,11 +95,11 @@ class ChemicalSpecies(eqx.Module):
 
         if thermo is None:
             try:
-                thermo = glenn_properties[species_data.name]
+                thermo = default_properties[species_data.name]
             except KeyError:  # pragma: no cover
                 raise KeyError(
                     f"{species_data.name} not available. "
-                    f"Available species are {tuple(glenn_properties)}"
+                    f"Available species are {tuple(default_properties)}"
                 )
 
         return cls(
@@ -133,7 +133,7 @@ class ChemicalSpecies(eqx.Module):
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
             thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default NASA Glenn data.
+                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
 
         Returns:
             A condensed species
@@ -175,7 +175,7 @@ class ChemicalSpecies(eqx.Module):
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
             thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default NASA Glenn data.
+                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
 
         Returns:
             A gas species

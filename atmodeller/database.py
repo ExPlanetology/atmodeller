@@ -28,7 +28,7 @@ from atmodeller.constants import GAS_STATE, SOLID_STATE
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ChemicalSpeciesData
 from atmodeller.thermodata.core import ThermodynamicProperties
-from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
+from atmodeller.thermodata.defaults import default_properties
 from atmodeller.thermodata.janaf import glenn_properties, read_glenn_coefficients
 
 
@@ -186,12 +186,21 @@ class GlennDataBase(DataBase):
     @override
     @classmethod
     def default(cls) -> Self:
-        """Creates the database from the packaged NASA Glenn coefficients.
+        """Creates the database of the default data.
+
+        This is the packaged NASA Glenn coefficients with graphite and diamond from
+        :data:`~atmodeller.thermodata.defaults.default_properties`, the same data used by
+        :meth:`~atmodeller.containers.ChemicalSpecies.create_gas` and
+        :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`.
 
         Returns:
             The default database
         """
-        return cls()
+        database = cls()
+        for name in ("C_s", "C_diamond"):
+            database.set_thermodynamic_properties(name, default_properties[name])
+
+        return database
 
     @override
     def set_thermodynamic_properties(self, name: str, properties: ThermodynamicProperties) -> None:
@@ -231,13 +240,16 @@ class GlennDataBase(DataBase):
 def get_default_database() -> GlennDataBase:
     """Gets the default database
 
-    This is the database of packaged NASA Glenn coefficients with the following changes:
+    This is the database of packaged NASA Glenn coefficients with the following changes, which are
+    also the defaults of :meth:`~atmodeller.containers.ChemicalSpecies.create_gas` and
+    :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+    (:data:`~atmodeller.thermodata.defaults.default_properties`):
 
         - Graphite (``C_s``) includes the volume
           :data:`~atmodeller.thermodata.gustafson.GRAPHITE_VOLUME_GUSTAFSON`, so that its Gibbs
           energy depends on pressure.
         - Diamond (:data:`~atmodeller.thermodata.gustafson.diamond_gustafson`) is added, created
-          with ``create_condensed("C", state="diamond")``. Its heat capacity relative to graphite
+          with ``create_condensed("C", state="diamond")``. Its Gibbs energy relative to graphite
           is from the assessment of :cite:t:`Gustafson1986`, valid to 6000 K.
 
     Further species can be added with :meth:`DataBase.add_species`.
@@ -245,10 +257,4 @@ def get_default_database() -> GlennDataBase:
     Returns:
         The default database
     """
-    database: GlennDataBase = GlennDataBase()
-
-    graphite: ThermodynamicProperties = database.get_thermodynamic_properties("C_s")
-    database.add_species("C", "s", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
-    database.add_species("C", "diamond", diamond_gustafson)
-
-    return database
+    return GlennDataBase.default()
