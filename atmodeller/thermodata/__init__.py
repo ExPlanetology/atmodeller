@@ -15,6 +15,7 @@ from atmodeller.thermodata.core import (  # noqa: E402, F401
     IntegratedEnthalpy,
     IntegratedEntropy,
     RelativeHeatCapacity,
+    SaturatingHeatCapacity,
     ThermodynamicProperties,
     Volume,
     critical_data_dictionary,
