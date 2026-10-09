@@ -12,12 +12,12 @@ from atmodeller.thermodata.core import (  # noqa: E402, F401
     Enthalpy,
     Entropy,
     HeatCapacity,
-    ThermodynamicCoefficients,
+    ThermodynamicProperties,
     critical_data_dictionary,
 )
 from atmodeller.thermodata.janaf import (  # noqa: E402, F401
     JanafEnthalpy,
     JanafEntropy,
     JanafHeatCapacity,
-    glenn_coefficients,
+    glenn_properties,
 )

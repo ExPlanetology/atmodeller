@@ -24,8 +24,8 @@ from atmodeller import override
 from atmodeller.constants import GAS_STATE, SOLID_STATE
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ChemicalSpeciesData
-from atmodeller.thermodata.core import ThermodynamicCoefficients
-from atmodeller.thermodata.janaf import glenn_coefficients, read_glenn_coefficients
+from atmodeller.thermodata.core import ThermodynamicProperties
+from atmodeller.thermodata.janaf import glenn_properties, read_glenn_coefficients
 
 
 class DataBase(ABC):
@@ -55,36 +55,34 @@ class DataBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_thermodynamic_coefficients(self, name: str) -> ThermodynamicCoefficients:
-        """Gets the thermodynamic coefficients of a species
+    def get_thermodynamic_properties(self, name: str) -> ThermodynamicProperties:
+        """Gets the thermodynamic properties of a species
 
         Args:
             name: Name of the species, as Hill formula and state, e.g. ``H2O_g``
 
         Returns:
-            Thermodynamic coefficients
+            Thermodynamic properties
 
         Raises:
             KeyError: If the species is not available
         """
         raise NotImplementedError
 
-    def _get_thermodynamic_coefficients(
-        self, formula: str, state: str
-    ) -> ThermodynamicCoefficients:
-        """Gets the thermodynamic coefficients of a species with an informative error
+    def _get_thermodynamic_properties(self, formula: str, state: str) -> ThermodynamicProperties:
+        """Gets the thermodynamic properties of a species with an informative error
 
         Args:
             formula: Formula
             state: State of aggregation
 
         Returns:
-            Thermodynamic coefficients
+            Thermodynamic properties
         """
         name: str = ChemicalSpeciesData(formula, state).name
 
         try:
-            return self.get_thermodynamic_coefficients(name)
+            return self.get_thermodynamic_properties(name)
         except KeyError:
             raise KeyError(
                 f"{name} not available. Available species are {self.available_species()}"
@@ -105,7 +103,7 @@ class DataBase(ABC):
         Returns:
             A condensed species
         """
-        thermo: ThermodynamicCoefficients = self._get_thermodynamic_coefficients(formula, state)
+        thermo: ThermodynamicProperties = self._get_thermodynamic_properties(formula, state)
 
         return ChemicalSpecies.create_condensed(formula, state=state, thermo=thermo, **kwargs)
 
@@ -124,7 +122,7 @@ class DataBase(ABC):
         Returns:
             A gas species
         """
-        thermo: ThermodynamicCoefficients = self._get_thermodynamic_coefficients(formula, state)
+        thermo: ThermodynamicProperties = self._get_thermodynamic_properties(formula, state)
 
         return ChemicalSpecies.create_gas(formula, state=state, thermo=thermo, **kwargs)
 
@@ -139,8 +137,8 @@ class GlennDataBase(DataBase):
 
     def __init__(self, path: str | Path | None = None):
         # The packaged data are already loaded, so reuse them
-        self._coefficients: dict[str, ThermodynamicCoefficients] = (
-            glenn_coefficients if path is None else read_glenn_coefficients(path)
+        self._coefficients: dict[str, ThermodynamicProperties] = (
+            glenn_properties if path is None else read_glenn_coefficients(path)
         )
 
     @classmethod
@@ -175,14 +173,14 @@ class GlennDataBase(DataBase):
         return tuple(self._coefficients)
 
     @override
-    def get_thermodynamic_coefficients(self, name: str) -> ThermodynamicCoefficients:
-        """Gets the thermodynamic coefficients of a species
+    def get_thermodynamic_properties(self, name: str) -> ThermodynamicProperties:
+        """Gets the thermodynamic properties of a species
 
         Args:
             name: Name of the species, as Hill formula and state, e.g. ``H2O_g``
 
         Returns:
-            Thermodynamic coefficients
+            Thermodynamic properties
 
         Raises:
             KeyError: If the species is not available

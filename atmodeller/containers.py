@@ -37,8 +37,8 @@ from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
 from atmodeller.thermodata import (
     ActivityCoefficient,
-    ThermodynamicCoefficients,
-    glenn_coefficients,
+    ThermodynamicProperties,
+    glenn_properties,
 )
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class ChemicalSpecies(eqx.Module):
         activity: Activity
         solve_for_stability: Solve for stability
         number_solution: Number of solution quantities
-        thermo: Thermodynamic coefficients
+        thermo: Thermodynamic properties
         include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
             fraction aggregations.
     """
@@ -61,7 +61,7 @@ class ChemicalSpecies(eqx.Module):
     activity: ActivityProtocol
     solve_for_stability: bool
     number_solution: int
-    thermo: ThermodynamicCoefficients
+    thermo: ThermodynamicProperties
     include_in_phase_mass: bool
 
     @classmethod
@@ -73,7 +73,7 @@ class ChemicalSpecies(eqx.Module):
         solve_for_stability: bool,
         number_solution: int,
         include_in_phase_mass: bool,
-        thermo: ThermodynamicCoefficients | None = None,
+        thermo: ThermodynamicProperties | None = None,
     ) -> Self:
         """Creates an instance.
 
@@ -85,7 +85,7 @@ class ChemicalSpecies(eqx.Module):
             number_solution: Number of solution quantities
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations.
-            thermo: Thermodynamic coefficients. Defaults to ``None``, which looks up the species
+            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
                 in the default NASA Glenn data.
 
         Returns:
@@ -95,11 +95,11 @@ class ChemicalSpecies(eqx.Module):
 
         if thermo is None:
             try:
-                thermo = glenn_coefficients[species_data.name]
+                thermo = glenn_properties[species_data.name]
             except KeyError:  # pragma: no cover
                 raise KeyError(
                     f"{species_data.name} not available. "
-                    f"Available species are {tuple(glenn_coefficients)}"
+                    f"Available species are {tuple(glenn_properties)}"
                 )
 
         return cls(
@@ -120,7 +120,7 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
-        thermo: ThermodynamicCoefficients | None = None,
+        thermo: ThermodynamicProperties | None = None,
     ) -> Self:
         """Creates a condensed species with some default values.
 
@@ -132,7 +132,7 @@ class ChemicalSpecies(eqx.Module):
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            thermo: Thermodynamic coefficients. Defaults to ``None``, which looks up the species
+            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
                 in the default NASA Glenn data.
 
         Returns:
@@ -162,7 +162,7 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol = IdealGas(),
         solve_for_stability: bool = False,
         include_in_phase_mass: bool = True,
-        thermo: ThermodynamicCoefficients | None = None,
+        thermo: ThermodynamicProperties | None = None,
     ) -> Self:
         """Creates a gas species with some default values.
 
@@ -174,7 +174,7 @@ class ChemicalSpecies(eqx.Module):
             solve_for_stability: Solve for stability. Defaults to ``False``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            thermo: Thermodynamic coefficients. Defaults to ``None``, which looks up the species
+            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
                 in the default NASA Glenn data.
 
         Returns:

@@ -131,7 +131,7 @@ class Entropy(eqx.Module):
         raise NotImplementedError
 
 
-class ThermodynamicCoefficients(eqx.Module):
+class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
     The standard state is 1 bar and the reference temperature is

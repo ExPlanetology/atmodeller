@@ -35,7 +35,7 @@ from atmodeller.thermodata.core import (
     Enthalpy,
     Entropy,
     HeatCapacity,
-    ThermodynamicCoefficients,
+    ThermodynamicProperties,
 )
 
 THERMODYNAMIC_DATA_SOURCE: Path = Path("nasa_glenn_coefficients.txt")
@@ -281,14 +281,14 @@ class JanafEntropy(Entropy):
         )
 
 
-def nasa_glenn_thermodynamic_coefficients(
+def nasa_glenn_thermodynamic_properties(
     b1: npt.ArrayLike,
     b2: npt.ArrayLike,
     cp_coeffs: npt.ArrayLike,
     T_min: npt.ArrayLike,
     T_max: npt.ArrayLike,
-) -> ThermodynamicCoefficients:
-    """Creates thermodynamic coefficients from the NASA Glenn coefficients
+) -> ThermodynamicProperties:
+    """Creates thermodynamic properties from the NASA Glenn coefficients
 
     Args:
         b1: Enthalpy constant(s) of integration
@@ -298,11 +298,11 @@ def nasa_glenn_thermodynamic_coefficients(
         T_max: Maximum temperature(s) in K in the range
 
     Returns:
-        Thermodynamic coefficients
+        Thermodynamic properties
     """
     heat_capacity_model: JanafHeatCapacity = JanafHeatCapacity(cp_coeffs, T_min, T_max)
 
-    return ThermodynamicCoefficients(
+    return ThermodynamicProperties(
         heat_capacity_model,
         JanafEnthalpy(heat_capacity_model, b1),
         JanafEntropy(heat_capacity_model, b2),
@@ -311,8 +311,8 @@ def nasa_glenn_thermodynamic_coefficients(
 
 def read_glenn_coefficients(
     path: str | Path | None = None,
-) -> dict[str, ThermodynamicCoefficients]:
-    """Reads NASA Glenn coefficients and creates thermodynamic coefficients for all species
+) -> dict[str, ThermodynamicProperties]:
+    """Reads NASA Glenn coefficients and creates thermodynamic properties for all species
 
     Args:
         path: Path to a file of NASA Glenn coefficients in the same format as the packaged
@@ -320,7 +320,7 @@ def read_glenn_coefficients(
             file.
 
     Returns:
-        Thermodynamic coefficients for all species, keyed by Hill formula and state, e.g.
+        Thermodynamic properties for all species, keyed by Hill formula and state, e.g.
         ``H2O_g``
     """
     if path is not None:
@@ -335,7 +335,7 @@ def read_glenn_coefficients(
     unique_combinations: pd.DataFrame = cast(
         pd.DataFrame, data[["hill_formula", "state"]].drop_duplicates()
     )
-    coefficient_dict: dict[str, ThermodynamicCoefficients] = {}
+    coefficient_dict: dict[str, ThermodynamicProperties] = {}
 
     for row in unique_combinations.itertuples(index=False):
         hill_formula: str = str(row.hill_formula)
@@ -347,7 +347,7 @@ def read_glenn_coefficients(
             pd.DataFrame, data[(data["hill_formula"] == hill_formula) & (data["state"] == state)]
         )
         cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
-        coefficient_dict[name] = nasa_glenn_thermodynamic_coefficients(
+        coefficient_dict[name] = nasa_glenn_thermodynamic_properties(
             df["b1"], df["b2"], cp_coeffs, df["T_min"], df["T_max"]
         )
 
@@ -356,8 +356,8 @@ def read_glenn_coefficients(
 
 # Create the default data once, since they are accessed (potentially many times) when creating
 # species. This is set to private to avoid sphinx (autodoc) from printing long strings.
-glenn_coefficients: dict[str, ThermodynamicCoefficients] = read_glenn_coefficients()
-"""Thermodynamic coefficients for all species from the packaged NASA Glenn coefficients
+glenn_properties: dict[str, ThermodynamicProperties] = read_glenn_coefficients()
+"""Thermodynamic properties for all species from the packaged NASA Glenn coefficients
 
 :meta private:
 """

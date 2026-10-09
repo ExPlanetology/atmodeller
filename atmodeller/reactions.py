@@ -49,7 +49,7 @@ from atmodeller.jax_utils import (
     to_hashable,
 )
 from atmodeller.phases import BasePhase, GasPhase
-from atmodeller.thermodata import glenn_coefficients
+from atmodeller.thermodata import glenn_properties
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ class ReactionNetwork(BaseReactionBlock):
 
     @classmethod
     def available_species(cls) -> tuple[str, ...]:  # pragma: no cover
-        return tuple(glenn_coefficients)
+        return tuple(glenn_properties)
 
     @property
     def number_reactions(self) -> int:
