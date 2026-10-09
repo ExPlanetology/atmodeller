@@ -17,6 +17,18 @@ Thermodynamic data are stored in the file `nasa_glenn_coefficients.txt`, located
 
 In some cases, :cite:t:`MZG02` may not include the species of interest, or it may lack coefficients for the required temperature range. In such situations, you must fit the thermodynamic data yourself for the species and temperature range in question, ensuring consistency with the standard state (1 bar), the reference temperature (273.15 K) and the definition of reference enthalpy, as discussed in the introduction of :cite:t:`MZG02`. Additional guidance is provided through the methods and docstrings in the ``thermodata.core`` and ``thermodata.janaf`` modules, including how to relate these data to JANAF tables :cite:p:`Cha98`.
 
+Rather than editing the packaged file, you can also load your own file of coefficients in the same format and create species from it:
+
+.. code-block:: python
+
+    from atmodeller import GlennDataBase
+
+    db = GlennDataBase.from_file("my_glenn_coefficients.txt")
+    h2o_g = db.create_gas("H2O")
+    h2o_l = db.create_condensed("H2O", state="l")
+
+``GlennDataBase()`` uses the packaged data, which is also what ``ChemicalSpecies.create_gas`` and ``ChemicalSpecies.create_condensed`` use. To provide data from another source, inherit from ``DataBase`` in the ``database`` module and implement its abstract methods.
+
 Add solubility laws
 -------------------
 

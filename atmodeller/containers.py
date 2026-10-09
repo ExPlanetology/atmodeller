@@ -38,8 +38,7 @@ from atmodeller.solubility.core import NoSolubility
 from atmodeller.thermodata import (
     ActivityCoefficient,
     ThermodynamicCoefficients,
-    thermodynamic_coefficients_dictionary,
-    thermodynamic_data_source,
+    glenn_coefficients,
 )
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -74,6 +73,7 @@ class ChemicalSpecies(eqx.Module):
         solve_for_stability: bool,
         number_solution: int,
         include_in_phase_mass: bool,
+        thermo: ThermodynamicCoefficients | None = None,
     ) -> Self:
         """Creates an instance.
 
@@ -85,21 +85,22 @@ class ChemicalSpecies(eqx.Module):
             number_solution: Number of solution quantities
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations.
+            thermo: Thermodynamic coefficients. Defaults to ``None``, which looks up the species
+                in the default NASA Glenn data.
 
         Returns:
             An instance
         """
         species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state)
 
-        try:
-            thermo: ThermodynamicCoefficients = thermodynamic_coefficients_dictionary[
-                species_data.name
-            ]
-        except KeyError:  # pragma: no cover
-            raise KeyError(
-                f"{species_data.name} not available. "
-                f"Available species are {thermodynamic_data_source.available_species()}"
-            )
+        if thermo is None:
+            try:
+                thermo = glenn_coefficients[species_data.name]
+            except KeyError:  # pragma: no cover
+                raise KeyError(
+                    f"{species_data.name} not available. "
+                    f"Available species are {tuple(glenn_coefficients)}"
+                )
 
         return cls(
             species_data,
@@ -119,6 +120,7 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
+        thermo: ThermodynamicCoefficients | None = None,
     ) -> Self:
         """Creates a condensed species with some default values.
 
@@ -130,6 +132,8 @@ class ChemicalSpecies(eqx.Module):
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
+            thermo: Thermodynamic coefficients. Defaults to ``None``, which looks up the species
+                in the default NASA Glenn data.
 
         Returns:
             A condensed species
@@ -140,7 +144,13 @@ class ChemicalSpecies(eqx.Module):
         number_solution: int = 2 if solve_for_stability else 0
 
         return cls.create(
-            formula, state, activity, solve_for_stability, number_solution, include_in_phase_mass
+            formula,
+            state,
+            activity,
+            solve_for_stability,
+            number_solution,
+            include_in_phase_mass,
+            thermo,
         )
 
     @classmethod
@@ -152,6 +162,7 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol = IdealGas(),
         solve_for_stability: bool = False,
         include_in_phase_mass: bool = True,
+        thermo: ThermodynamicCoefficients | None = None,
     ) -> Self:
         """Creates a gas species with some default values.
 
@@ -163,6 +174,8 @@ class ChemicalSpecies(eqx.Module):
             solve_for_stability: Solve for stability. Defaults to ``False``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
+            thermo: Thermodynamic coefficients. Defaults to ``None``, which looks up the species
+                in the default NASA Glenn data.
 
         Returns:
             A gas species
@@ -174,7 +187,13 @@ class ChemicalSpecies(eqx.Module):
         number_solution: int = 2 if solve_for_stability else 1
 
         return cls.create(
-            formula, state, activity, solve_for_stability, number_solution, include_in_phase_mass
+            formula,
+            state,
+            activity,
+            solve_for_stability,
+            number_solution,
+            include_in_phase_mass,
+            thermo,
         )
 
     @property

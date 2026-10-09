@@ -18,7 +18,6 @@ Coefficients are available at https://ntrs.nasa.gov/citations/20020085330
 
 import importlib.resources
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -310,90 +309,55 @@ def nasa_glenn_thermodynamic_coefficients(
     )
 
 
-@dataclass
-class ThermodynamicDataSource:
-    """Thermodynamic data source for all species"""
+def read_glenn_coefficients(
+    path: str | Path | None = None,
+) -> dict[str, ThermodynamicCoefficients]:
+    """Reads NASA Glenn coefficients and creates thermodynamic coefficients for all species
 
-    data: pd.DataFrame
-    """Thermodynamic data for all species"""
+    Args:
+        path: Path to a file of NASA Glenn coefficients in the same format as the packaged
+            :const:`THERMODYNAMIC_DATA_SOURCE`. Defaults to ``None``, which uses the packaged
+            file.
 
-    def __init__(self):
-        data: AbstractContextManager[Path] = importlib.resources.as_file(
+    Returns:
+        Thermodynamic coefficients for all species, keyed by Hill formula and state, e.g.
+        ``H2O_g``
+    """
+    if path is not None:
+        data: pd.DataFrame = pd.read_csv(path, comment="#")
+    else:
+        packaged: AbstractContextManager[Path] = importlib.resources.as_file(
             DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE)  # type: ignore
         )
-        with data as datapath:
-            self.data = pd.read_csv(datapath, comment="#")
+        with packaged as datapath:
+            data = pd.read_csv(datapath, comment="#")
 
-    @property
-    def formula_column(self) -> str:
-        """Name of the column that refers to the hill formula"""
-        return "hill_formula"
+    unique_combinations: pd.DataFrame = cast(
+        pd.DataFrame, data[["hill_formula", "state"]].drop_duplicates()
+    )
+    coefficient_dict: dict[str, ThermodynamicCoefficients] = {}
 
-    @property
-    def state_column(self) -> str:
-        """Name of the column that refers to the state of aggregation"""
-        return "state"
+    for row in unique_combinations.itertuples(index=False):
+        hill_formula: str = str(row.hill_formula)
+        state: str = str(row.state)
+        name: str = f"{hill_formula}_{state}"
 
-    def available_species(self) -> tuple[str, ...]:  # pragma: no cover
-        """Available species
-
-        Returns:
-            Available species
-        """
+        # Find all data across all temperature ranges
         df: pd.DataFrame = cast(
-            pd.DataFrame, self.data[[self.formula_column, self.state_column]].drop_duplicates()
+            pd.DataFrame, data[(data["hill_formula"] == hill_formula) & (data["state"] == state)]
         )
-        available_species: tuple[str, ...] = tuple(
-            f"{getattr(row, self.formula_column)}_{getattr(row, self.state_column)}"
-            for row in df.itertuples(index=False)
+        cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
+        coefficient_dict[name] = nasa_glenn_thermodynamic_coefficients(
+            df["b1"], df["b2"], cp_coeffs, df["T_min"], df["T_max"]
         )
 
-        return available_species
-
-    def create_dictionary(self) -> dict[str, ThermodynamicCoefficients]:
-        """Dictionary of thermodynamic coefficients for all species
-
-        Returns:
-            Dictionary of thermodynamic coefficients for all species
-        """
-        unique_combinations: pd.DataFrame = cast(
-            pd.DataFrame, self.data[[self.formula_column, self.state_column]].drop_duplicates()
-        )
-        coefficient_dict: dict[str, ThermodynamicCoefficients] = {}
-
-        for row in unique_combinations.itertuples(index=False):
-            hill_formula: str = str(getattr(row, self.formula_column))
-            state: str = str(getattr(row, self.state_column))
-            name: str = f"{hill_formula}_{state}"
-
-            # Find all data across all temperature ranges
-            df: pd.DataFrame = cast(
-                pd.DataFrame,
-                self.data[
-                    (self.data[self.formula_column] == hill_formula)
-                    & (self.data[self.state_column] == state)
-                ],
-            )
-            cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
-            coefficient_dict[name] = nasa_glenn_thermodynamic_coefficients(
-                df["b1"], df["b2"], cp_coeffs, df["T_min"], df["T_max"]
-            )
-
-        return coefficient_dict
+    return coefficient_dict
 
 
-# Create a dictionary of instantiated data (JAX-compliant Pytrees) that we can use for lookup.
-# It should also be net faster to create these data once and then access (potentially many times).
-# These are also set to private to avoid sphinx (autodoc) from printing long strings.
-thermodynamic_data_source: ThermodynamicDataSource = ThermodynamicDataSource()
-"""Thermodynamic data source
-
-:meta private:
-"""
-thermodynamic_coefficients_dictionary: dict[str, ThermodynamicCoefficients] = (
-    thermodynamic_data_source.create_dictionary()
-)
-"""Thermodynamic coefficients dictionary
+# Create the default data once, since they are accessed (potentially many times) when creating
+# species. This is set to private to avoid sphinx (autodoc) from printing long strings.
+glenn_coefficients: dict[str, ThermodynamicCoefficients] = read_glenn_coefficients()
+"""Thermodynamic coefficients for all species from the packaged NASA Glenn coefficients
 
 :meta private:
 """

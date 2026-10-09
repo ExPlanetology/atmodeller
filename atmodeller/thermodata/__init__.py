@@ -19,6 +19,5 @@ from atmodeller.thermodata.janaf import (  # noqa: E402, F401
     JanafEnthalpy,
     JanafEntropy,
     JanafHeatCapacity,
-    thermodynamic_coefficients_dictionary,
-    thermodynamic_data_source,
+    glenn_coefficients,
 )
