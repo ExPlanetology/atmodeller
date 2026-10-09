@@ -6,12 +6,8 @@
 
 The NASA Glenn formulation expresses the heat capacity of each species as a 7-term polynomial
 over one or more temperature ranges, together with enthalpy and entropy constants of integration
-(``b1`` and ``b2``) for each range. These are split into three models:
-
-    1. :class:`JanafHeatCapacity`, the heat capacity polynomial,
-    2. :class:`JanafEnthalpy`, the analytical integral of the heat capacity with ``b1``, and
-    3. :class:`JanafEntropy`, the analytical integral of the heat capacity over temperature with
-       ``b2``.
+(``b1`` and ``b2``) for each range. :class:`NasaGlennThermodynamicProperties` evaluates the heat
+capacity polynomial and its analytical integrals for the enthalpy and entropy.
 
 Coefficients are available at https://ntrs.nasa.gov/citations/20020085330
 """
@@ -30,29 +26,30 @@ from jaxtyping import Array, ArrayLike, Bool, Float, Integer
 from atmodeller import override
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT
-from atmodeller.thermodata.core import (
-    DATA_DIRECTORY,
-    Enthalpy,
-    Entropy,
-    HeatCapacity,
-    ThermodynamicProperties,
-)
+from atmodeller.thermodata.core import DATA_DIRECTORY, ThermodynamicProperties
 
 THERMODYNAMIC_DATA_SOURCE: Path = Path("nasa_glenn_coefficients.txt")
 """Source of the thermodynamic data"""
 
 
-class JanafHeatCapacity(HeatCapacity):
-    """Heat capacity from the NASA Glenn polynomials of :cite:t:`MZG02`
+class NasaGlennThermodynamicProperties(ThermodynamicProperties):
+    """Thermodynamic properties from the NASA Glenn polynomials of :cite:t:`MZG02`
 
     Args:
-        cp_coeffs: Heat capacity coefficients
-        T_min: Minimum temperature(s) in K in the range
-        T_max: Maximum temperature(s) in K in the range
+        cp_coeffs: Heat capacity coefficients for each temperature range
+        b1: Enthalpy constant of integration for each temperature range
+        b2: Entropy constant of integration for each temperature range
+        T_min: Minimum temperature in K of each range
+        T_max: Maximum temperature in K of each range
+        volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
     """
 
     cp_coeffs: tuple[tuple[float, ...], ...] = eqx.field(converter=to_native_floats)
     """Heat capacity coefficients"""
+    b1: tuple[float, ...] = eqx.field(converter=to_native_floats)
+    """Enthalpy constant(s) of integration"""
+    b2: tuple[float, ...] = eqx.field(converter=to_native_floats)
+    """Entropy constant(s) of integration"""
     T_min: tuple[float, ...] = eqx.field(converter=to_native_floats)
     """Minimum temperature(s) in K in the range"""
     T_max: tuple[float, ...] = eqx.field(converter=to_native_floats)
@@ -121,45 +118,6 @@ class JanafHeatCapacity(HeatCapacity):
 
         return jnp.sum(cp_coefficients * temperature_terms, axis=-1)
 
-    @override
-    def cp(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets heat capacity.
-
-        This is :math:`C_p^\circ` in the JANAF tables.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        index: Integer[Array, "..."] = self.get_index(temperature)
-
-        return self._cp_over_R(self.get_cp_coeffs(index), temperature) * GAS_CONSTANT
-
-    @override
-    def temperature_range(self) -> tuple[float, float]:
-        """Gets the temperature range over which the heat capacity model is valid.
-
-        Returns:
-            Minimum and maximum temperature in K
-        """
-        return min(self.T_min), max(self.T_max)
-
-
-class JanafEnthalpy(Enthalpy):
-    """Enthalpy from the NASA Glenn polynomials of :cite:t:`MZG02`
-
-    Args:
-        heat_capacity_model: JANAF heat capacity model
-        b1: Enthalpy constant(s) of integration
-    """
-
-    heat_capacity_model: JanafHeatCapacity
-    """JANAF heat capacity model"""
-    b1: tuple[float, ...] = eqx.field(converter=to_native_floats)
-    """Enthalpy constant(s) of integration"""
-
     def _H_over_RT(
         self, cp_coefficients: Float[Array, "... 7"], b1: ArrayLike, temperature: ArrayLike
     ) -> FloatArray:
@@ -191,44 +149,6 @@ class JanafEnthalpy(Enthalpy):
 
         return jnp.sum(cp_coefficients * temperature_terms, axis=-1) + b1 / temperature
 
-    @override
-    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets enthalpy.
-
-        This is :math:`H` in the JANAF tables.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        temperature = as_j64(temperature)
-        index: Integer[Array, "..."] = self.heat_capacity_model.get_index(temperature)
-        b1_for_index: FloatArray = jnp.take(jnp.array(self.b1), index)
-
-        return (
-            self._H_over_RT(
-                self.heat_capacity_model.get_cp_coeffs(index), b1_for_index, temperature
-            )
-            * GAS_CONSTANT
-            * temperature
-        )
-
-
-class JanafEntropy(Entropy):
-    """Entropy from the NASA Glenn polynomials of :cite:t:`MZG02`
-
-    Args:
-        heat_capacity_model: JANAF heat capacity model
-        b2: Entropy constant(s) of integration
-    """
-
-    heat_capacity_model: JanafHeatCapacity
-    """JANAF heat capacity model"""
-    b2: tuple[float, ...] = eqx.field(converter=to_native_floats)
-    """Entropy constant(s) of integration"""
-
     def _S_over_R(
         self, cp_coefficients: Float[Array, "... 7"], b2: ArrayLike, temperature: ArrayLike
     ) -> FloatArray:
@@ -259,6 +179,44 @@ class JanafEntropy(Entropy):
         return jnp.sum(cp_coefficients * temperature_terms, axis=-1) + b2
 
     @override
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity.
+
+        This is :math:`C_p^\circ` in the JANAF tables.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        index: Integer[Array, "..."] = self.get_index(temperature)
+
+        return self._cp_over_R(self.get_cp_coeffs(index), temperature) * GAS_CONSTANT
+
+    @override
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets enthalpy.
+
+        This is :math:`H` in the JANAF tables.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        temperature = as_j64(temperature)
+        index: Integer[Array, "..."] = self.get_index(temperature)
+        b1_for_index: FloatArray = jnp.take(jnp.array(self.b1), index)
+
+        return (
+            self._H_over_RT(self.get_cp_coeffs(index), b1_for_index, temperature)
+            * GAS_CONSTANT
+            * temperature
+        )
+
+    @override
     def entropy(self, temperature: ArrayLike) -> FloatArray:
         r"""Gets entropy.
 
@@ -270,15 +228,19 @@ class JanafEntropy(Entropy):
         Returns:
             Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
         """
-        index: Integer[Array, "..."] = self.heat_capacity_model.get_index(temperature)
+        index: Integer[Array, "..."] = self.get_index(temperature)
         b2_for_index: FloatArray = jnp.take(jnp.array(self.b2), index)
 
-        return (
-            self._S_over_R(
-                self.heat_capacity_model.get_cp_coeffs(index), b2_for_index, temperature
-            )
-            * GAS_CONSTANT
-        )
+        return self._S_over_R(self.get_cp_coeffs(index), b2_for_index, temperature) * GAS_CONSTANT
+
+    @override
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range over which the thermodynamic data are valid.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        return min(self.T_min), max(self.T_max)
 
 
 def nasa_glenn_thermodynamic_properties(
@@ -300,13 +262,7 @@ def nasa_glenn_thermodynamic_properties(
     Returns:
         Thermodynamic properties
     """
-    heat_capacity_model: JanafHeatCapacity = JanafHeatCapacity(cp_coeffs, T_min, T_max)
-
-    return ThermodynamicProperties(
-        heat_capacity_model,
-        JanafEnthalpy(heat_capacity_model, b1),
-        JanafEntropy(heat_capacity_model, b2),
-    )
+    return NasaGlennThermodynamicProperties(cp_coeffs, b1, b2, T_min, T_max)
 
 
 def read_glenn_coefficients(

@@ -21,7 +21,8 @@ from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller import override
 from atmodeller.constants import STANDARD_PRESSURE, TEMPERATURE_REFERENCE
-from atmodeller.jax_utils import FloatArray, as_j64
+from atmodeller.interfaces import HeatCapacityProtocol, VolumeProtocol
+from atmodeller.jax_utils import FloatArray, as_j64, elementwise_derivative
 from atmodeller.sci_utils import GAS_CONSTANT
 
 DATA_DIRECTORY: Traversable = importlib.resources.files(f"{__package__}.data")
@@ -108,296 +109,84 @@ class ActivityCoefficient(eqx.Module):
         return jnp.broadcast_to(jnp.log(self.gamma), shape)
 
 
-class HeatCapacity(eqx.Module):
-    r"""Heat capacity model."""
-
-    @abstractmethod
-    def cp(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets heat capacity at constant pressure.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        raise NotImplementedError
-
-    def temperature_range(self) -> tuple[float, float]:
-        """Gets the temperature range over which the heat capacity model is valid.
-
-        Returns:
-            Minimum and maximum temperature in K
-        """
-        raise NotImplementedError
-
-
-class RelativeHeatCapacity(HeatCapacity):
-    r"""Heat capacity of a phase relative to a base phase.
-
-    .. math::
-
-        C_p(T) = C_p^{\mathrm{base}}(T) + \left[C_p^{\mathrm{phase}}(T)
-            - C_p^{\mathrm{reference}}(T)\right]
-
-    The heat capacity of a well-characterised base phase is combined with the difference in heat
-    capacity between two models fitted in the same way, so that systematic errors common to those
-    two models largely cancel. For example, diamond can be described by the NASA Glenn heat
-    capacity of graphite plus the difference between the heat capacities of diamond and graphite
-    from :cite:t:`Vassiliev2021`. This keeps graphite, the reference state of carbon, consistent
-    with the other carbon-bearing species.
-
-    Above ``temperature_max`` the difference is held at its value at ``temperature_max``, so that
-    the phase and base phase cannot diverge where the models are extrapolated beyond their data.
-
-    Args:
-        base: Heat capacity of the base phase
-        phase: Heat capacity of the phase from the same model as ``reference``
-        reference: Heat capacity of the base phase from the same model as ``phase``
-        temperature_max: Temperature in K above which the difference is constant. Defaults to
-            ``None``, which evaluates the difference at all temperatures.
-    """
-
-    base: HeatCapacity
-    """Heat capacity of the base phase"""
-    phase: HeatCapacity
-    """Heat capacity of the phase from the same model as reference"""
-    reference: HeatCapacity
-    """Heat capacity of the base phase from the same model as phase"""
-    temperature_max: float | None = None
-    """Temperature in K above which the difference is constant, or ``None`` for no limit"""
-
-    @override
-    def cp(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
-        r"""Gets heat capacity at constant pressure.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        difference_temperature: ArrayLike = (
-            temperature
-            if self.temperature_max is None
-            else jnp.minimum(temperature, self.temperature_max)
-        )
-
-        return (
-            self.base.cp(temperature)
-            + self.phase.cp(difference_temperature)
-            - self.reference.cp(difference_temperature)
-        )
-
-    @override
-    def temperature_range(self) -> tuple[float, float]:  # pragma: no cover
-        """Gets the temperature range over which the heat capacity model is valid.
-
-        This is the range of the base phase.
-
-        Returns:
-            Minimum and maximum temperature in K
-        """
-        return self.base.temperature_range()
-
-
-class SaturatingHeatCapacity(HeatCapacity):
-    r"""Heat capacity of a base model plus a correction that saturates at high temperature.
-
-    .. math::
-
-        C_p(T) = C_p^{\mathrm{base}}(T) + c\left[1 - \exp\left(-\frac{T - T_r}{\tau}\right)\right]
-
-    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`. The correction is
-    zero at the reference temperature, so it leaves the reference enthalpy and entropy unchanged,
-    and tends to the constant :math:`c` above a few :math:`\tau`.
-
-    Args:
-        base: Heat capacity of the base model
-        amplitude: High-temperature limit of the correction :math:`c` in
-            :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        temperature_scale: Temperature scale :math:`\tau` of the correction in K
-    """
-
-    base: HeatCapacity
-    """Heat capacity of the base model"""
-    amplitude: float
-    """High-temperature limit of the correction in J/K/mol"""
-    temperature_scale: float
-    """Temperature scale of the correction in K"""
-
-    @override
-    def cp(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets heat capacity at constant pressure.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        correction: Array = -self.amplitude * jnp.expm1(
-            -(as_j64(temperature) - TEMPERATURE_REFERENCE) / self.temperature_scale
-        )
-
-        return self.base.cp(temperature) + correction
-
-    @override
-    def temperature_range(self) -> tuple[float, float]:
-        """Gets the temperature range over which the heat capacity model is valid.
-
-        This is the range of the base model.
-
-        Returns:
-            Minimum and maximum temperature in K
-        """
-        return self.base.temperature_range()
-
-
-class Enthalpy(eqx.Module):
-    r"""Enthalpy model."""
-
-    @abstractmethod
-    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets enthalpy.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        raise NotImplementedError
-
-
-class Entropy(eqx.Module):
-    r"""Entropy model."""
-
-    @abstractmethod
-    def entropy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets entropy.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        raise NotImplementedError
-
-
-class IntegratedEnthalpy(Enthalpy):
-    r"""Enthalpy from integrating a heat capacity model.
-
-    .. math::
-
-        H(T) = H^\circ(T_r) + \int_{T_r}^T C_p\, dT
-
-    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
-
-    Args:
-        heat_capacity_model: Heat capacity model
-        enthalpy_reference: Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}` at the reference
-            temperature
-    """
-
-    heat_capacity_model: HeatCapacity
-    """Heat capacity model"""
-    enthalpy_reference: float = eqx.field(converter=float)
-    """Enthalpy in J/mol at the reference temperature"""
-
-    @override
-    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets enthalpy.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        return self.enthalpy_reference + _integrate_from_reference(
-            self.heat_capacity_model.cp, temperature
-        )
-
-
-class IntegratedEntropy(Entropy):
-    r"""Entropy from integrating a heat capacity model.
-
-    .. math::
-
-        S(T) = S^\circ(T_r) + \int_{T_r}^T \frac{C_p}{T}\, dT
-
-    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
-
-    Args:
-        heat_capacity_model: Heat capacity model
-        entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}` at
-            the reference temperature
-    """
-
-    heat_capacity_model: HeatCapacity
-    """Heat capacity model"""
-    entropy_reference: float = eqx.field(converter=float)
-    """Entropy in J/K/mol at the reference temperature"""
-
-    @override
-    def entropy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets entropy.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        return self.entropy_reference + _integrate_from_reference(
-            lambda t: self.heat_capacity_model.cp(t) / t, temperature
-        )
-
-
-class Volume(eqx.Module):
-    r"""Volume model of a condensed phase."""
-
-    @abstractmethod
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        r"""Gets the integral of volume with respect to pressure from 1 bar.
-
-        Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
-
-        Returns:
-            Integral of volume with respect to pressure in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        raise NotImplementedError
-
-
 class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
-    The standard state is 1 bar and the reference temperature is
+    Subclasses provide the heat capacity, enthalpy and entropy of a data source, from which this
+    class gets the Gibbs energy. The standard state is 1 bar and the reference temperature is
     :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`. An optional volume model adds the
     pressure dependence of a condensed phase to the Gibbs energy. Gases do not need one, since
     their pressure dependence enters through the fugacity.
-
-    Args:
-        heat_capacity_model: Heat capacity model
-        enthalpy_model: Enthalpy model
-        entropy_model: Entropy model
-        volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
     """
 
-    heat_capacity_model: HeatCapacity
-    """Heat capacity model"""
-    enthalpy_model: Enthalpy
-    """Enthalpy model"""
-    entropy_model: Entropy
-    """Entropy model"""
-    volume_model: Volume | None = None
-    """Volume model, or ``None`` to ignore the pressure dependence"""
+    volume_model: VolumeProtocol | None = eqx.field(default=None, kw_only=True)
+    """Volume model, or ``None`` to ignore the pressure dependence. Keyword only."""
 
-    def with_volume(self, volume_model: Volume) -> Self:
+    @abstractmethod
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity.
+
+        This is :math:`C_p^\circ` in the JANAF tables.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range over which the thermodynamic data are valid.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets enthalpy.
+
+        This is :math:`H` in the JANAF tables.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def entropy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets entropy
+
+        This is :math:`S^\circ` in the JANAF tables.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        raise NotImplementedError
+
+    def gibbs_energy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets the Gibbs energy at 1 bar.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Gibbs energy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        temperature = as_j64(temperature)
+
+        return self.enthalpy(temperature) - temperature * self.entropy(temperature)
+
+    def with_volume(self, volume_model: VolumeProtocol) -> Self:
         """Gets a copy of the thermodynamic properties with a volume model.
 
         Args:
@@ -407,34 +196,6 @@ class ThermodynamicProperties(eqx.Module):
             Thermodynamic properties with the volume model
         """
         return replace(self, volume_model=volume_model)
-
-    @classmethod
-    def from_reference_values(
-        cls,
-        heat_capacity_model: HeatCapacity,
-        enthalpy_reference: float,
-        entropy_reference: float,
-        volume_model: Volume | None = None,
-    ) -> Self:
-        r"""Creates thermodynamic properties by integrating a heat capacity model.
-
-        Args:
-            heat_capacity_model: Heat capacity model
-            enthalpy_reference: Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}` at the
-                reference temperature
-            entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1}
-                \mathrm{mol}^{-1}` at the reference temperature
-            volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
-
-        Returns:
-            Thermodynamic properties
-        """
-        return cls(
-            heat_capacity_model,
-            IntegratedEnthalpy(heat_capacity_model, enthalpy_reference),
-            IntegratedEntropy(heat_capacity_model, entropy_reference),
-            volume_model,
-        )
 
     def get_gibbs_over_RT(
         self, temperature: ArrayLike, pressure: ArrayLike = STANDARD_PRESSURE
@@ -455,10 +216,7 @@ class ThermodynamicProperties(eqx.Module):
         temperature = as_j64(temperature)
         pressure = as_j64(pressure)
 
-        gibbs_over_RT: FloatArray = (
-            self.enthalpy(temperature) / (GAS_CONSTANT * temperature)
-            - self.entropy(temperature) / GAS_CONSTANT
-        )
+        gibbs_over_RT: FloatArray = self.gibbs_energy(temperature) / (GAS_CONSTANT * temperature)
         if self.volume_model is not None:
             gibbs_over_RT = gibbs_over_RT + self.volume_model.volume_integral(
                 temperature, pressure
@@ -468,40 +226,6 @@ class ThermodynamicProperties(eqx.Module):
         return jnp.broadcast_to(
             gibbs_over_RT, jnp.broadcast_shapes(temperature.shape, pressure.shape)
         )
-
-    def cp(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
-        r"""Gets heat capacity.
-
-        This is :math:`C_p^\circ` in the JANAF tables.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        return self.heat_capacity_model.cp(temperature)
-
-    def temperature_range(self) -> tuple[float, float]:
-        """Gets the temperature range over which the thermodynamic data are valid.
-
-        Returns:
-            Minimum and maximum temperature in K
-        """
-        return self.heat_capacity_model.temperature_range()
-
-    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets enthalpy.
-
-        This is :math:`H` in the JANAF tables.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        return self.enthalpy_model.enthalpy(temperature)
 
     def reference_enthalpy(self) -> Float[Array, ""]:  # pragma: no cover
         r"""Gets reference enthalpy.
@@ -526,19 +250,6 @@ class ThermodynamicProperties(eqx.Module):
         """
         return self.enthalpy(temperature) - self.reference_enthalpy()
 
-    def entropy(self, temperature: ArrayLike) -> FloatArray:
-        r"""Gets entropy
-
-        This is :math:`S^\circ` in the JANAF tables.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
-        """
-        return self.entropy_model.entropy(temperature)
-
     def gibbs_function(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
         r"""Gets Gibbs energy function.
 
@@ -554,6 +265,256 @@ class ThermodynamicProperties(eqx.Module):
         gibbs_function: FloatArray = -(gibbs - self.reference_enthalpy()) / temperature
 
         return gibbs_function
+
+
+class IntegratedThermodynamicProperties(ThermodynamicProperties):
+    r"""Thermodynamic properties from integrating a heat capacity model
+
+    .. math::
+
+        H(T) = H^\circ(T_r) + \int_{T_r}^T C_p\, dT, \qquad
+        S(T) = S^\circ(T_r) + \int_{T_r}^T \frac{C_p}{T}\, dT
+
+    where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`. The integrals use
+    Gauss-Legendre quadrature.
+
+    Args:
+        heat_capacity_model: Heat capacity model
+        enthalpy_reference: Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}` at the reference
+            temperature
+        entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}` at
+            the reference temperature
+        volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
+    """
+
+    heat_capacity_model: HeatCapacityProtocol
+    """Heat capacity model"""
+    enthalpy_reference: float = eqx.field(converter=float)
+    """Enthalpy in J/mol at the reference temperature"""
+    entropy_reference: float = eqx.field(converter=float)
+    """Entropy in J/K/mol at the reference temperature"""
+
+    @override
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return self.heat_capacity_model.cp(temperature)
+
+    @override
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range over which the thermodynamic data are valid.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        return self.heat_capacity_model.temperature_range()
+
+    @override
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets enthalpy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        return self.enthalpy_reference + _integrate_from_reference(
+            self.heat_capacity_model.cp, temperature
+        )
+
+    @override
+    def entropy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets entropy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return self.entropy_reference + _integrate_from_reference(
+            lambda t: self.heat_capacity_model.cp(t) / t, temperature
+        )
+
+
+class GibbsThermodynamicProperties(ThermodynamicProperties):
+    r"""Thermodynamic properties from a Gibbs energy function at 1 bar
+
+    Subclasses provide the Gibbs energy :math:`G(T)`, from which the entropy, enthalpy and heat
+    capacity follow by automatic differentiation
+
+    .. math::
+
+        S = -\frac{\partial G}{\partial T}, \qquad H = G + TS, \qquad
+        C_p = -T\frac{\partial^2 G}{\partial T^2}
+    """
+
+    @override
+    @abstractmethod
+    def gibbs_energy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets the Gibbs energy at 1 bar.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Gibbs energy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        raise NotImplementedError
+
+    @override
+    def entropy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets entropy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return -elementwise_derivative(self.gibbs_energy, as_j64(temperature))
+
+    @override
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets enthalpy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        temperature = as_j64(temperature)
+
+        return self.gibbs_energy(temperature) + temperature * self.entropy(temperature)
+
+    @override
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        temperature = as_j64(temperature)
+
+        return -temperature * elementwise_derivative(
+            lambda t: elementwise_derivative(self.gibbs_energy, t), temperature
+        )
+
+
+class RelativeThermodynamicProperties(ThermodynamicProperties):
+    r"""Thermodynamic properties of a phase relative to a base phase.
+
+    .. math::
+
+        X(T) = X^{\mathrm{base}}(T) + \left[X^{\mathrm{phase}}(T)
+            - X^{\mathrm{reference}}(T)\right]
+
+    for the Gibbs energy, enthalpy, entropy and heat capacity. A well-characterised base phase is
+    combined with the difference between two phases from the same assessment, so that, for
+    example, diamond has the Gibbs energy of graphite from the NASA Glenn coefficients plus the
+    Gibbs energy of diamond relative to graphite from :cite:t:`Gustafson1986`. Only the volume
+    model of this class is used, not those of the base, phase or reference.
+
+    Args:
+        base: Thermodynamic properties of the base phase
+        phase: Thermodynamic properties of the phase from the same assessment as ``reference``
+        reference: Thermodynamic properties of the base phase from the same assessment as
+            ``phase``
+        volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
+    """
+
+    base: ThermodynamicProperties
+    """Thermodynamic properties of the base phase"""
+    phase: ThermodynamicProperties
+    """Thermodynamic properties of the phase from the same assessment as reference"""
+    reference: ThermodynamicProperties
+    """Thermodynamic properties of the base phase from the same assessment as phase"""
+
+    @override
+    def cp(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets heat capacity.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return (
+            self.base.cp(temperature)
+            + self.phase.cp(temperature)
+            - self.reference.cp(temperature)
+        )
+
+    @override
+    def enthalpy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets enthalpy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Enthalpy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        return (
+            self.base.enthalpy(temperature)
+            + self.phase.enthalpy(temperature)
+            - self.reference.enthalpy(temperature)
+        )
+
+    @override
+    def entropy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets entropy.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
+        """
+        return (
+            self.base.entropy(temperature)
+            + self.phase.entropy(temperature)
+            - self.reference.entropy(temperature)
+        )
+
+    @override
+    def gibbs_energy(self, temperature: ArrayLike) -> FloatArray:
+        r"""Gets the Gibbs energy at 1 bar.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Gibbs energy in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        return (
+            self.base.gibbs_energy(temperature)
+            + self.phase.gibbs_energy(temperature)
+            - self.reference.gibbs_energy(temperature)
+        )
+
+    @override
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range over which the thermodynamic data are valid.
+
+        This is the range of the base phase.
+
+        Returns:
+            Minimum and maximum temperature in K
+        """
+        return self.base.temperature_range()
 
 
 class CriticalData(eqx.Module):
