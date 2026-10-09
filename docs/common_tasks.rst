@@ -41,7 +41,7 @@ You can add a species to a database, or replace an existing one, with ``add_spec
     c_s = db.create_condensed("C")  # graphite
     c_diamond = db.create_condensed("C", state="diamond")
 
-``GlennDataBase.with_diamond()`` creates the packaged database with diamond already added.
+``get_default_database()`` returns the packaged database with diamond already added, to which you can add further species.
 
 Add solubility laws
 -------------------

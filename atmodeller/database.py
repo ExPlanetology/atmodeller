@@ -15,8 +15,8 @@ A database provides thermodynamic data for species and creates
 
     db_custom: DataBase = GlennDataBase.from_file("my_glenn_coefficients.txt")
 
-    db_diamond: DataBase = GlennDataBase.with_diamond()
-    c_diamond: ChemicalSpecies = db_diamond.create_condensed("C", state="diamond")
+    db_default: DataBase = get_default_database()
+    c_diamond: ChemicalSpecies = db_default.create_condensed("C", state="diamond")
 """
 
 from abc import ABC, abstractmethod
@@ -29,6 +29,7 @@ from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ChemicalSpeciesData
 from atmodeller.thermodata.core import ThermodynamicProperties
 from atmodeller.thermodata.janaf import glenn_properties, read_glenn_coefficients
+from atmodeller.thermodata.holland_powell import GRAPHITE_VOLUME_MURNAGHAN
 from atmodeller.thermodata.vassiliev import diamond_1b
 
 
@@ -193,21 +194,6 @@ class GlennDataBase(DataBase):
         """
         return cls()
 
-    @classmethod
-    def with_diamond(cls) -> Self:
-        """Creates the database from the packaged NASA Glenn coefficients with diamond added.
-
-        Diamond is :data:`~atmodeller.thermodata.vassiliev.diamond_1b`, created with
-        ``create_condensed("C", state="diamond")``, and graphite remains ``C_s``.
-
-        Returns:
-            The database with diamond
-        """
-        database = cls()
-        database.add_species("C", "diamond", diamond_1b)
-
-        return database
-
     @override
     def set_thermodynamic_properties(self, name: str, properties: ThermodynamicProperties) -> None:
         """Sets the thermodynamic properties of a species, replacing any existing ones
@@ -241,3 +227,28 @@ class GlennDataBase(DataBase):
             KeyError: If the species is not available
         """
         return self._coefficients[name]
+
+
+def get_default_database() -> GlennDataBase:
+    """Gets the default database
+
+    This is the database of packaged NASA Glenn coefficients with the following changes:
+
+        - Graphite (``C_s``) includes the volume
+          :data:`~atmodeller.thermodata.holland_powell.GRAPHITE_VOLUME_MURNAGHAN`, so that its Gibbs energy
+          depends on pressure.
+        - Diamond (:data:`~atmodeller.thermodata.vassiliev.diamond_1b`) is added, created with
+          ``create_condensed("C", state="diamond")``.
+
+    Further species can be added with :meth:`DataBase.add_species`.
+
+    Returns:
+        The default database
+    """
+    database: GlennDataBase = GlennDataBase()
+
+    graphite: ThermodynamicProperties = database.get_thermodynamic_properties("C_s")
+    database.add_species("C", "s", graphite.with_volume(GRAPHITE_VOLUME_MURNAGHAN))
+    database.add_species("C", "diamond", diamond_1b)
+
+    return database

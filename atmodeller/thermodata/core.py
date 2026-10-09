@@ -8,10 +8,10 @@ import importlib.resources
 from abc import abstractmethod
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Self, cast
+from typing import Self
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -20,7 +20,7 @@ import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller import override
-from atmodeller.constants import TEMPERATURE_REFERENCE
+from atmodeller.constants import STANDARD_PRESSURE, TEMPERATURE_REFERENCE
 from atmodeller.jax_utils import FloatArray, as_j64
 from atmodeller.sci_utils import GAS_CONSTANT
 
@@ -147,10 +147,15 @@ class RelativeHeatCapacity(HeatCapacity):
     from :cite:t:`Vassiliev2021`. This keeps graphite, the reference state of carbon, consistent
     with the other carbon-bearing species.
 
+    Above ``temperature_max`` the difference is held at its value at ``temperature_max``, so that
+    the phase and base phase cannot diverge where the models are extrapolated beyond their data.
+
     Args:
         base: Heat capacity of the base phase
         phase: Heat capacity of the phase from the same model as ``reference``
         reference: Heat capacity of the base phase from the same model as ``phase``
+        temperature_max: Temperature in K above which the difference is constant. Defaults to
+            ``None``, which evaluates the difference at all temperatures.
     """
 
     base: HeatCapacity
@@ -159,6 +164,8 @@ class RelativeHeatCapacity(HeatCapacity):
     """Heat capacity of the phase from the same model as reference"""
     reference: HeatCapacity
     """Heat capacity of the base phase from the same model as phase"""
+    temperature_max: float | None = None
+    """Temperature in K above which the difference is constant, or ``None`` for no limit"""
 
     @override
     def cp(self, temperature: ArrayLike) -> FloatArray:  # pragma: no cover
@@ -170,8 +177,16 @@ class RelativeHeatCapacity(HeatCapacity):
         Returns:
             Heat capacity in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
         """
+        difference_temperature: ArrayLike = (
+            temperature
+            if self.temperature_max is None
+            else jnp.minimum(temperature, self.temperature_max)
+        )
+
         return (
-            self.base.cp(temperature) + self.phase.cp(temperature) - self.reference.cp(temperature)
+            self.base.cp(temperature)
+            + self.phase.cp(difference_temperature)
+            - self.reference.cp(difference_temperature)
         )
 
     @override
@@ -305,132 +320,6 @@ class Volume(eqx.Module):
         raise NotImplementedError
 
 
-class MurnaghanEOS(Volume):
-    r"""Volume of a solid with the equation of state of :cite:t:`HP98`.
-
-    The volume at 1 bar follows from the temperature-dependent thermal expansion
-    :math:`\alpha_T = a^\circ(1 - 10/\sqrt{T})` and its pressure dependence from the Murnaghan
-    equation of state, with a bulk modulus that decreases linearly with temperature.
-
-    The reference temperature is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE` (298.15 K),
-    whereas :cite:t:`HP98` write their expressions with 298 K. The difference is negligible.
-
-    Args:
-        V0: Volume at the reference temperature and 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
-        alpha0: Thermal expansion parameter :math:`a^\circ` in :math:`\mathrm{K}^{-1}`
-        K0: Bulk modulus at the reference temperature in bar
-        dKdP: Pressure derivative of the bulk modulus. Defaults to 4.
-    """
-
-    V0: float
-    alpha0: float
-    K0: float
-    dKdP: float = 4.0
-
-    @property
-    def dKdT(self) -> float:
-        """Temperature derivative of the bulk modulus in bar/K"""
-        return -1.0 * self.K0 * 1.5e-4
-
-    def thermal_expansion(self, temperature: ArrayLike) -> Array:
-        r"""Gets the thermal expansion.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Thermal expansion in :math:`\mathrm{K}^{-1}`
-        """
-        return self.alpha0 * (1 - 10 / jnp.sqrt(temperature))
-
-    def bulk_modulus(self, temperature: ArrayLike) -> ArrayLike:
-        """Gets the bulk modulus.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Bulk modulus in bar
-        """
-        return self.K0 + self.dKdT * (temperature - TEMPERATURE_REFERENCE)
-
-    def volume_1bar(self, temperature: ArrayLike) -> Array:
-        r"""Gets the volume at 1 bar.
-
-        This integrates the thermal expansion exactly. See :meth:`volume_1bar_linear` for the
-        linearised form used by :cite:t:`HP98`.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Volume at 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
-        """
-        volume: Array = self.V0 * jnp.exp(
-            self.alpha0 * (temperature - TEMPERATURE_REFERENCE)
-            - 2 * 10.0 * self.alpha0 * (jnp.sqrt(temperature) - jnp.sqrt(TEMPERATURE_REFERENCE))
-        )
-
-        return volume
-
-    def volume_1bar_linear(self, temperature: ArrayLike) -> Array:
-        r"""Gets the volume at 1 bar using the linearised form of :cite:t:`HP98`.
-
-        .. math::
-
-            V_{1,T} = V_{1,T_r}\left[1 + a^\circ(T - T_r) - 20a^\circ(\sqrt{T} - \sqrt{T_r})\right]
-
-        where :math:`T_r` is :const:`~atmodeller.constants.TEMPERATURE_REFERENCE`.
-        This is the exact expression used by :cite:t:`HP98` to derive their data set. It is the
-        first-order expansion of :meth:`volume_1bar`, which integrates the thermal expansion
-        exactly; the two differ by about 0.3% for diamond at 6000 K.
-
-        Args:
-            temperature: Temperature in K
-
-        Returns:
-            Volume at 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
-        """
-        return cast(
-            Array,
-            self.V0
-            * (
-                1
-                + self.alpha0 * (temperature - TEMPERATURE_REFERENCE)
-                - 2
-                * 10.0
-                * self.alpha0
-                * (jnp.sqrt(temperature) - jnp.sqrt(TEMPERATURE_REFERENCE))
-            ),
-        )
-
-    @override
-    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        r"""Gets the integral of volume with respect to pressure from 1 bar.
-
-        .. math::
-
-            \int_1^P V\, dP = \frac{V_{1,T}\, K_T}{K' - 1}
-                \left[\left(1 + \frac{K'(P - 1)}{K_T}\right)^{1 - 1/K'} - 1\right]
-
-        Args:
-            temperature: Temperature in K
-            pressure: Pressure in bar
-
-        Returns:
-            Integral of volume with respect to pressure in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
-        """
-        bulk_modulus: ArrayLike = self.bulk_modulus(temperature)
-        integral: Array = (
-            self.volume_1bar(temperature)
-            * bulk_modulus
-            / (self.dKdP - 1)
-            * ((1 + self.dKdP * (pressure - 1.0) / bulk_modulus) ** (1.0 - 1.0 / self.dKdP) - 1)
-        )
-
-        return integral
-
-
 class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
@@ -454,6 +343,17 @@ class ThermodynamicProperties(eqx.Module):
     """Entropy model"""
     volume_model: Volume | None = None
     """Volume model, or ``None`` to ignore the pressure dependence"""
+
+    def with_volume(self, volume_model: Volume) -> Self:
+        """Gets a copy of the thermodynamic properties with a volume model.
+
+        Args:
+            volume_model: Volume model, which replaces any existing one
+
+        Returns:
+            Thermodynamic properties with the volume model
+        """
+        return replace(self, volume_model=volume_model)
 
     @classmethod
     def from_reference_values(
@@ -483,7 +383,9 @@ class ThermodynamicProperties(eqx.Module):
             volume_model,
         )
 
-    def get_gibbs_over_RT(self, temperature: ArrayLike, pressure: ArrayLike = 1.0) -> FloatArray:
+    def get_gibbs_over_RT(
+        self, temperature: ArrayLike, pressure: ArrayLike = STANDARD_PRESSURE
+    ) -> FloatArray:
         r"""Gets Gibbs energy to :const:`~atmodeller.constants.GAS_CONSTANT`
         :math:`\times T`
 
