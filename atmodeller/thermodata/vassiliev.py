@@ -12,13 +12,7 @@ from scipy.special import bernoulli, factorial
 from atmodeller import override
 from atmodeller.jax_utils import FloatArray
 from atmodeller.sci_utils import GAS_CONSTANT
-from atmodeller.thermodata.core import (
-    HeatCapacity,
-    RelativeHeatCapacity,
-    ThermodynamicProperties,
-)
-from atmodeller.thermodata.holland_powell import DIAMOND_VOLUME_MURNAGHAN
-from atmodeller.thermodata.janaf import glenn_properties
+from atmodeller.thermodata.core import HeatCapacity
 
 _DEBYE_Y_SWITCH: float = 2.0
 """Value of y = Theta/T at which :func:`_debye_integral` switches from the small-y to the large-y
@@ -207,25 +201,3 @@ cp_silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
     24, 677.0, (0.381, 0.337, 0.281), (350.4, 852.2, 877.1), 23.55, 3.394, 0.06
 )
 """Silicon 3b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
-
-DIAMOND_ENTHALPY_REFERENCE: float = 1900.0
-"""Enthalpy of formation of diamond in J/mol at 298.15 K and 1 bar :cite:p:`Robie1995`"""
-DIAMOND_ENTROPY_REFERENCE: float = 2.38
-"""Entropy of diamond in J/K/mol at 298.15 K and 1 bar :cite:p:`Robie1995,HP11`"""
-
-graphite: ThermodynamicProperties = glenn_properties["C_s"]
-"""Graphite from the NASA Glenn coefficients, which is the reference state of carbon"""
-
-diamond_1b: ThermodynamicProperties = ThermodynamicProperties.from_reference_values(
-    RelativeHeatCapacity(graphite.heat_capacity_model, cp_diamond_1b, cp_graphite_2b),
-    DIAMOND_ENTHALPY_REFERENCE,
-    DIAMOND_ENTROPY_REFERENCE,
-    DIAMOND_VOLUME_MURNAGHAN,
-)
-"""Diamond from the heat capacity of :data:`graphite` and the difference between the heat
-capacities of diamond 1b and graphite 2b :cite:p:`Vassiliev2021{Table 6}`, with the volume
-:data:`~atmodeller.thermodata.holland_powell.DIAMOND_VOLUME_MURNAGHAN`.
-
-:data:`graphite` has no volume model. For equilibrium between diamond and graphite at high
-pressure, use graphite with :data:`~atmodeller.thermodata.holland_powell.GRAPHITE_VOLUME_MURNAGHAN`, as in
-:func:`~atmodeller.database.get_default_database`."""
