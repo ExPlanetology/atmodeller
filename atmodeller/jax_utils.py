@@ -182,6 +182,23 @@ def safe_divide(numerator: ArrayLike, denominator: ArrayLike, fallback: ArrayLik
     return jnp.where(denominator == 0, fallback, numerator / safe_denominator)
 
 
+def elementwise_derivative(function: Callable[[Array], Array], x: Array) -> Array:
+    """Derivative of an elementwise function, with the shape of ``x``
+
+    The derivative is a Jacobian-vector product with a unit tangent, which for an elementwise
+    function gives the derivative at each element without forming the Jacobian. It can be nested
+    for higher derivatives.
+
+    Args:
+        function: Elementwise function of ``x``
+        x: Points at which to evaluate the derivative
+
+    Returns:
+        Derivative of ``function`` at ``x``
+    """
+    return jax.jvp(function, (x,), (jnp.ones_like(x),))[1]
+
+
 def masked_logsumexp(
     log_x: Float[Array, "... n"], axis: int = -1, keepdims: bool = True
 ) -> FloatArray:  # pragma: no cover
