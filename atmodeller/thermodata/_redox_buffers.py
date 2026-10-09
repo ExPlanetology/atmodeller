@@ -12,6 +12,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller import override
+from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.jax_utils import Scalar, as_j64, to_native_floats
 from atmodeller.sci_utils import ExperimentalCalibration, unit_conversion
 
@@ -32,7 +33,9 @@ class RedoxBuffer(eqx.Module):
     evaluation_pressure: Optional[Scalar]
     """Evaluation pressure"""
 
-    def __init__(self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = 1):
+    def __init__(
+        self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = STANDARD_PRESSURE
+    ):
         self.log10_shift = as_j64(log10_shift)
         self.evaluation_pressure = evaluation_pressure
 
@@ -143,7 +146,9 @@ class IronWustiteBufferHirschmann08(RedoxBuffer):
     calibration: ExperimentalCalibration
     """Experimental calibration"""
 
-    def __init__(self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = 1):
+    def __init__(
+        self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = STANDARD_PRESSURE
+    ):
         super().__init__(log10_shift, evaluation_pressure)
         self.calibration = ExperimentalCalibration(pressure_max=27.5 * unit_conversion.GPa_to_bar)
 
@@ -168,7 +173,7 @@ class IronWustiteBufferHirschmann08(RedoxBuffer):
             -0.8853 * jnp.log(temperature)
             - 28776.8 / temperature
             + 14.057
-            + 0.055 * (scaled_pressure - 1) / temperature
+            + 0.055 * (scaled_pressure - STANDARD_PRESSURE) / temperature
         )
 
         return log10_fugacity_buffer
@@ -208,7 +213,9 @@ class IronWustiteBufferHirschmann21(RedoxBuffer):
     x: tuple[float, ...] = eqx.field(converter=to_native_floats)
     """Coefficients to define the threshold to use the hcp iron formulation"""
 
-    def __init__(self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = 1):
+    def __init__(
+        self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = STANDARD_PRESSURE
+    ):
         super().__init__(log10_shift, evaluation_pressure)
         self.calibration = ExperimentalCalibration(
             temperature_min=1000, pressure_max=100 * unit_conversion.GPa_to_bar
@@ -363,7 +370,9 @@ class IronWustiteBufferHirschmann(RedoxBuffer):
     high_temperature_buffer: IronWustiteBufferHirschmann21
     """High temperature buffer"""
 
-    def __init__(self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = 1):
+    def __init__(
+        self, log10_shift: ArrayLike = 0, evaluation_pressure: Optional[Scalar] = STANDARD_PRESSURE
+    ):
         super().__init__(log10_shift, evaluation_pressure)
         self.calibration = ExperimentalCalibration(pressure_max=100 * unit_conversion.GPa_to_bar)
         self.low_temperature_buffer = IronWustiteBufferHirschmann08(
