@@ -32,10 +32,10 @@ class MurnaghanEOS(eqx.Module):
         dKdP: Pressure derivative of the bulk modulus. Defaults to 4.
     """
 
-    V0: float
-    alpha0: float
-    K0: float
-    dKdP: float = 4.0
+    V0: float = eqx.field(converter=float)
+    alpha0: float = eqx.field(converter=float)
+    K0: float = eqx.field(converter=float)
+    dKdP: float = eqx.field(converter=float, default=4.0)
 
     @property
     def dKdT(self) -> float:
@@ -162,11 +162,11 @@ class TaitEOS(eqx.Module):
             Defaults to ``None``, which uses :math:`-K'/K_0` :cite:p:`HP11`.
     """
 
-    V0: float
-    alpha0: float
-    K0: float
-    dKdP: float
-    einstein_temperature: float
+    V0: float = eqx.field(converter=float)
+    alpha0: float = eqx.field(converter=float)
+    K0: float = eqx.field(converter=float)
+    dKdP: float = eqx.field(converter=float)
+    einstein_temperature: float = eqx.field(converter=float)
     d2KdP2: float | None = None
 
     def _tait_parameters(self) -> tuple[float, float, float]:
