@@ -9,21 +9,14 @@ from atmodeller.thermodata._redox_buffers import IronWustiteBuffer  # noqa: E402
 from atmodeller.thermodata.core import (  # noqa: E402, F401
     ActivityCoefficient,
     CriticalData,
-    Enthalpy,
-    Entropy,
-    HeatCapacity,
-    IntegratedEnthalpy,
-    IntegratedEntropy,
-    RelativeHeatCapacity,
-    SaturatingHeatCapacity,
+    GibbsThermodynamicProperties,
+    IntegratedThermodynamicProperties,
+    RelativeThermodynamicProperties,
     ThermodynamicProperties,
-    Volume,
     critical_data_dictionary,
 )
 from atmodeller.thermodata.holland_powell import MurnaghanEOS, TaitEOS  # noqa: E402, F401
 from atmodeller.thermodata.janaf import (  # noqa: E402, F401
-    JanafEnthalpy,
-    JanafEntropy,
-    JanafHeatCapacity,
+    NasaGlennThermodynamicProperties,
     glenn_properties,
 )
