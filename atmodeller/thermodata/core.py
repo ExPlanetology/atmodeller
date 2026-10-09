@@ -11,7 +11,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Self
+from typing import Self, cast
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -288,6 +288,124 @@ class IntegratedEntropy(Entropy):
         )
 
 
+class MurnaghanEOS(eqx.Module):
+    r"""Volume of a solid with the equation of state of :cite:t:`HP98`.
+
+    The volume at 1 bar follows from the temperature-dependent thermal expansion
+    :math:`\alpha_T = a^\circ(1 - 10/\sqrt{T})` and its pressure dependence from the Murnaghan
+    equation of state, with a bulk modulus that decreases linearly with temperature.
+
+    Args:
+        V0: Volume at 298 K and 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
+        alpha0: Thermal expansion parameter :math:`a^\circ` in :math:`\mathrm{K}^{-1}`
+        K0: Bulk modulus at 298 K in bar
+        dKdP: Pressure derivative of the bulk modulus. Defaults to 4.
+    """
+
+    V0: float
+    alpha0: float
+    K0: float
+    dKdP: float = 4.0
+
+    @property
+    def dKdT(self) -> float:
+        """Temperature derivative of the bulk modulus in bar/K"""
+        return -1.0 * self.K0 * 1.5e-4
+
+    def thermal_expansion(self, temperature: ArrayLike) -> Array:
+        r"""Gets the thermal expansion.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Thermal expansion in :math:`\mathrm{K}^{-1}`
+        """
+        return self.alpha0 * (1 - 10 / jnp.sqrt(temperature))
+
+    def bulk_modulus(self, temperature: ArrayLike) -> ArrayLike:
+        """Gets the bulk modulus.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Bulk modulus in bar
+        """
+        return self.K0 + self.dKdT * (temperature - 298)
+
+    def volume_1bar(self, temperature: ArrayLike) -> Array:
+        r"""Gets the volume at 1 bar.
+
+        This integrates the thermal expansion exactly. See :meth:`volume_1bar_linear` for the
+        linearised form used by :cite:t:`HP98`.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Volume at 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
+        """
+        volume: Array = self.V0 * jnp.exp(
+            self.alpha0 * (temperature - 298)
+            - 2 * 10.0 * self.alpha0 * (temperature**0.5 - 298**0.5)
+        )
+
+        return volume
+
+    def volume_1bar_linear(self, temperature: ArrayLike) -> Array:
+        r"""Gets the volume at 1 bar using the linearised form of :cite:t:`HP98`.
+
+        .. math::
+
+            V_{1,T} = V_{1,298}\left[1 + a^\circ(T - 298) - 20a^\circ(\sqrt{T} - \sqrt{298})\right]
+
+        This is the exact expression used by :cite:t:`HP98` to derive their data set. It is the
+        first-order expansion of :meth:`volume_1bar`, which integrates the thermal expansion
+        exactly; the two differ by about 0.3% for diamond at 6000 K.
+
+        Args:
+            temperature: Temperature in K
+
+        Returns:
+            Volume at 1 bar in :math:`\mathrm{J}\ \mathrm{bar}^{-1}`
+        """
+        return cast(
+            Array,
+            self.V0
+            * (
+                1
+                + self.alpha0 * (temperature - 298)
+                - 2 * 10.0 * self.alpha0 * (jnp.sqrt(temperature) - jnp.sqrt(298))
+            ),
+        )
+
+    def volume_integral(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+        r"""Gets the integral of volume with respect to pressure from 1 bar.
+
+        .. math::
+
+            \int_1^P V\, dP = \frac{V_{1,T}\, K_T}{K' - 1}
+                \left[\left(1 + \frac{K'(P - 1)}{K_T}\right)^{1 - 1/K'} - 1\right]
+
+        Args:
+            temperature: Temperature in K
+            pressure: Pressure in bar
+
+        Returns:
+            Integral of volume with respect to pressure in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
+        """
+        bulk_modulus: ArrayLike = self.bulk_modulus(temperature)
+        integral: Array = (
+            self.volume_1bar(temperature)
+            * bulk_modulus
+            / (self.dKdP - 1)
+            * ((1 + self.dKdP * (pressure - 1.0) / bulk_modulus) ** (1.0 - 1.0 / self.dKdP) - 1)
+        )
+
+        return integral
+
+
 class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
@@ -306,6 +424,8 @@ class ThermodynamicProperties(eqx.Module):
     """Enthalpy model"""
     entropy_model: Entropy
     """Entropy model"""
+    pv_model: MurnaghanEOS | None = None
+    """Pressure-volume model. Defaults to ``None`` if unused."""
 
     @classmethod
     def from_reference_values(
