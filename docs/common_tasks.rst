@@ -29,6 +29,20 @@ Rather than editing the packaged file, you can also load your own file of coeffi
 
 ``GlennDataBase()`` uses the packaged data, which is also what ``ChemicalSpecies.create_gas`` and ``ChemicalSpecies.create_condensed`` use. To provide data from another source, inherit from ``DataBase`` in the ``database`` module and implement its abstract methods.
 
+You can add a species to a database, or replace an existing one, with ``add_species``. For example, diamond from the heat capacity model of :cite:t:`Vassiliev2021` can be added alongside graphite (``C_s``):
+
+.. code-block:: python
+
+    from atmodeller import GlennDataBase
+    from atmodeller.thermodata.vassiliev import diamond_1b
+
+    db = GlennDataBase()
+    db.add_species("C", "diamond", diamond_1b)  # named "C_diamond"
+    c_s = db.create_condensed("C")  # graphite
+    c_diamond = db.create_condensed("C", state="diamond")
+
+``GlennDataBase.with_diamond()`` creates the packaged database with diamond already added.
+
 Add solubility laws
 -------------------
 

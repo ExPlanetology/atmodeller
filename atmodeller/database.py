@@ -14,6 +14,9 @@ A database provides thermodynamic data for species and creates
     h2o_l: ChemicalSpecies = db.create_condensed("H2O", state="l")
 
     db_custom: DataBase = GlennDataBase.from_file("my_glenn_coefficients.txt")
+
+    db_diamond: DataBase = GlennDataBase.with_diamond()
+    c_diamond: ChemicalSpecies = db_diamond.create_condensed("C", state="diamond")
 """
 
 from abc import ABC, abstractmethod
@@ -26,6 +29,7 @@ from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ChemicalSpeciesData
 from atmodeller.thermodata.core import ThermodynamicProperties
 from atmodeller.thermodata.janaf import glenn_properties, read_glenn_coefficients
+from atmodeller.thermodata.vassiliev import diamond_1b
 
 
 class DataBase(ABC):
@@ -42,6 +46,16 @@ class DataBase(ABC):
 
         Returns:
             The default database
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_thermodynamic_properties(self, name: str, properties: ThermodynamicProperties) -> None:
+        """Sets the thermodynamic properties of a species, replacing any existing ones
+
+        Args:
+            name: Name of the species, as Hill formula and state, e.g. ``H2O_g``
+            properties: Thermodynamic properties
         """
         raise NotImplementedError
 
@@ -68,6 +82,21 @@ class DataBase(ABC):
             KeyError: If the species is not available
         """
         raise NotImplementedError
+
+    def add_species(self, formula: str, state: str, properties: ThermodynamicProperties) -> None:
+        """Adds a species to the database, or replaces it if it already exists.
+
+        The species is named from its formula and state in the same way as when it is created, so
+        that ``add_species("C", "diamond", ...)`` is found by
+        ``create_condensed("C", state="diamond")``.
+
+        Args:
+            formula: Formula
+            state: State of aggregation, or any other label, e.g. ``diamond``
+            properties: Thermodynamic properties
+        """
+        name: str = ChemicalSpeciesData(formula, state).name
+        self.set_thermodynamic_properties(name, properties)
 
     def _get_thermodynamic_properties(self, formula: str, state: str) -> ThermodynamicProperties:
         """Gets the thermodynamic properties of a species with an informative error
@@ -136,9 +165,10 @@ class GlennDataBase(DataBase):
     """
 
     def __init__(self, path: str | Path | None = None):
-        # The packaged data are already loaded, so reuse them
+        # The packaged data are already loaded, so reuse them. Copy the dictionary so that adding
+        # species does not change the packaged data shared by other databases.
         self._coefficients: dict[str, ThermodynamicProperties] = (
-            glenn_properties if path is None else read_glenn_coefficients(path)
+            dict(glenn_properties) if path is None else read_glenn_coefficients(path)
         )
 
     @classmethod
@@ -162,6 +192,31 @@ class GlennDataBase(DataBase):
             The default database
         """
         return cls()
+
+    @classmethod
+    def with_diamond(cls) -> Self:
+        """Creates the database from the packaged NASA Glenn coefficients with diamond added.
+
+        Diamond is :data:`~atmodeller.thermodata.vassiliev.diamond_1b`, created with
+        ``create_condensed("C", state="diamond")``, and graphite remains ``C_s``.
+
+        Returns:
+            The database with diamond
+        """
+        database = cls()
+        database.add_species("C", "diamond", diamond_1b)
+
+        return database
+
+    @override
+    def set_thermodynamic_properties(self, name: str, properties: ThermodynamicProperties) -> None:
+        """Sets the thermodynamic properties of a species, replacing any existing ones
+
+        Args:
+            name: Name of the species, as Hill formula and state, e.g. ``H2O_g``
+            properties: Thermodynamic properties
+        """
+        self._coefficients[name] = properties
 
     @override
     def available_species(self) -> tuple[str, ...]:
