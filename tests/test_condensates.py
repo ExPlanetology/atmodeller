@@ -41,6 +41,7 @@ H_g: ChemicalSpecies = ChemicalSpecies.create_gas("H")
 
 # Condensates
 graphite: PurePhase = PurePhase.from_species("C", state="s")
+diamond: PurePhase = PurePhase.from_species("C", state="diamond")
 water: PurePhase = PurePhase.from_species("H2O", state="l")
 
 
@@ -265,3 +266,40 @@ def test_impose_stable() -> None:
     # output.to_excel("test_impose_stable")
 
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
+
+
+@pytest.mark.parametrize(
+    "pressure, stable, unstable",
+    [(1, "C_s", "C_diamond"), (1e5, "C_diamond", "C_s")],
+)
+def test_graphite_diamond(pressure: float, stable: str, unstable: str) -> None:
+    """Tests that the solver selects graphite at low pressure and diamond at high pressure
+
+    At 1500 K the graphite-diamond transition is around 45 kbar. The unstable polymorph has a
+    negligible amount and an activity less than unity.
+    """
+    gas_species: tuple[ChemicalSpecies, ...] = (H2_g, CH4_g)
+    condensates: tuple[PurePhase, ...] = (graphite, diamond)
+
+    state: ThermodynamicState = ThermodynamicState.from_species(
+        gas_species, pressure=pressure, temperature=1500, condensates=condensates
+    )
+
+    mass_constraints: dict[str, ArrayLike] = {"C": 1.0, "H": 1.0}
+
+    parameters: Parameters = Parameters(
+        state, mass_constraints=mass_constraints, mass_units="moles"
+    )
+
+    model: EquilibriumModel = EquilibriumModel(parameters)
+
+    output: Output = model.solve_with_default()
+    out: dict[str, Any] = output.to_dict(to_numpy=True)
+
+    stable_species: dict[str, Any] = out[stable]["species"]
+    unstable_species: dict[str, Any] = out[unstable]["species"]
+
+    assert np.isclose(stable_species["activity"][stable].item(), 1.0)
+    assert stable_species["number_moles"][stable].item() > 0.1
+    assert unstable_species["activity"][unstable].item() < 1.0
+    assert unstable_species["number_moles"][unstable].item() < 1.0e-20
