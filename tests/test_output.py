@@ -11,10 +11,13 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
+import equinox as eqx
+import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 import pytest
 from jaxtyping import ArrayLike
+from openpyxl import load_workbook
 
 from atmodeller import __version__, debug_logger
 from atmodeller.classes import EquilibriumModel
@@ -124,6 +127,23 @@ def h_only_output() -> Output:
     h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(1)
 
     return _solve((H2_g, H_g), {"H": h_kg})
+
+
+@pytest.fixture(scope="module")
+def partially_failed_output(batched_output: Output) -> Output:
+    """Output for a batch of two where the second solve failed the convergence post-check.
+
+    The batch retry solver reports the solver status of the first attempt for a model that never
+    converged, so ``solver_success`` can be ``True`` while ``success`` is ``False``. This is
+    emulated by zeroing the attempt index of the second model.
+    """
+    failed_output: Output = eqx.tree_at(
+        lambda output: output.multi_attempt_solution._attempts, batched_output, jnp.array([1, 0])
+    )
+    assert np.all(np.asarray(failed_output.multi_attempt_solution.solver_success))
+    assert not np.asarray(failed_output.multi_attempt_solution.success)[1]
+
+    return failed_output
 
 
 class TestToDict:
@@ -243,9 +263,19 @@ class TestToDataframes:
         assert isinstance(dataframes, dict)
         assert len(dataframes) > 0
 
-        n_success: int = int(np.sum(np.asarray(h2o_output.multi_attempt_solution.solver_success)))
+        n_success: int = int(np.sum(np.asarray(h2o_output.multi_attempt_solution.success)))
         for df in dataframes.values():
             assert len(df) == n_success
+
+    def test_to_dataframes_drop_failed_post_check(self, partially_failed_output: Output) -> None:
+        """Tests that a model that failed the convergence post-check is dropped, even though the
+        solver status reports success."""
+        dataframes: dict[str, pd.DataFrame] = partially_failed_output.to_dataframes(
+            drop_unsuccessful_solves=True
+        )
+
+        for df in dataframes.values():
+            assert df.index.tolist() == [0]
 
     def test_to_dataframes_elements_species(self, h2o_output: Output) -> None:
         dataframes: dict[str, pd.DataFrame] = h2o_output.to_dataframes(
@@ -329,6 +359,38 @@ class TestExports:
         expected: Path = tmp_path / "relative_out.xlsx"
         assert expected.exists()
 
+    @pytest.mark.parametrize(
+        "drop_unsuccessful_solves, expected_highlighted_rows",
+        [
+            pytest.param(False, [3], id="keep_unsuccessful"),
+            pytest.param(True, [], id="drop_unsuccessful"),
+        ],
+    )
+    def test_to_excel_highlights_unsuccessful_rows(
+        self,
+        partially_failed_output: Output,
+        tmp_path: Path,
+        drop_unsuccessful_solves: bool,
+        expected_highlighted_rows: list[int],
+    ) -> None:
+        """Tests that only the rows of unsuccessful models are highlighted, including when they
+        are dropped (Excel rows are 1-indexed and row 1 is the header)."""
+        prefix: Path = tmp_path / "highlight"
+        partially_failed_output.to_excel(
+            file_prefix=prefix,
+            drop_unsuccessful_solves=drop_unsuccessful_solves,
+            append_version=False,
+        )
+
+        workbook = load_workbook(tmp_path / "highlight.xlsx")
+        for sheet in workbook.worksheets:
+            highlighted_rows: list[int] = [
+                row_number
+                for row_number, row in enumerate(sheet.iter_rows(), start=1)
+                if row[0].fill.fgColor.rgb == "00FFFF00"
+            ]
+            assert highlighted_rows == expected_highlighted_rows
+
 
 class TestElementsSpeciesMetallicity:
     """Tests for the metallicity branches of OutputElementsSpeciesDict, exercised via
@@ -397,9 +459,7 @@ class TestRecursivelyMergeDictionaries:
                 {"a": {"x": 1, "y": 3, "z": 4}},
                 id="recursive_merge_of_nested_dicts",
             ),
-            pytest.param(
-                {"a": {"x": 1}}, {"a": 5}, {"a": 5}, id="dict_overwritten_by_non_dict"
-            ),
+            pytest.param({"a": {"x": 1}}, {"a": 5}, {"a": 5}, id="dict_overwritten_by_non_dict"),
         ],
     )
     def test_merge(self, d1: dict[str, Any], d2: dict[str, Any], expected: dict[str, Any]) -> None:

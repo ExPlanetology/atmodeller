@@ -257,7 +257,9 @@ def make_tau_sweep_solver(batch_retry_solver: Callable) -> Callable:
         ``TAU_MAX`` down to ``TAU`` is swept via :func:`jax.lax.scan`, applying the solver at each
         step for all batch elements. Because ``tau`` must remain a scalar throughout the scan
         (to keep the vmapping axes consistent), converged and failed elements both run the full
-        sweep; converged ones simply re-solve quickly from their existing solution.
+        sweep; converged ones simply re-solve quickly from their existing solution, but keep the
+        result of their solve at ``TAU``. An element that failed the solve at ``TAU`` is reported
+        as converged only if the final step of the sweep, which solves at ``TAU``, converged.
 
         Args:
             initial_guess: Batched array of initial guesses
@@ -324,39 +326,71 @@ def make_tau_sweep_solver(batch_retry_solver: Callable) -> Callable:
             parameters.solver_parameters.max_starts - 1,
             parameters.solver_parameters.atol,
         )
-        first_solution: Float[Array, "... solution"] = first_sol.value
-        # jax.debug.print("first_solution = {out}", out=first_solution)
+        # jax.debug.print("first_solution = {out}", out=first_sol.value)
         # jax.debug.print("solver success = {out}", out=first_sol.result._value)
         first_converged: Bool[Array, "..."] = first_sol.attempts > 0
         # jax.debug.print("first_converged = {out}", out=first_converged)
-        first_steps: Integer[Array, "..."] = first_sol.stats["num_steps"]
-        # jax.debug.print("first_steps = {out}", out=first_steps)
+        # jax.debug.print("first_steps = {out}", out=first_sol.num_steps)
 
         def run_scan(args_in: tuple) -> MultiAttemptSolution:
             """Run the full tau sweep scan across all batch elements.
 
             Called when at least one element failed the initial solve at ``TAU``. All batch
             elements (including those that already converged) run every step of the
-            ``varying_schedule`` scan. The final solution, result, and the maximum step count
-            and attempt index across all tau steps are returned.
+            ``varying_schedule`` scan, but elements that converged at ``TAU`` on the first attempt
+            keep the result of that solve. The remaining elements report the final solution and
+            result of the sweep, along with the maximum step count and attempt index across all
+            tau steps. Only the final step solves at ``TAU``, so these elements have converged
+            only if the final step converged; otherwise their step count and attempt index are
+            zero.
             """
-            key, guess, first_converged, first_steps = args_in
-            initial_carry_: tuple[PRNGKeyArray, Float[Array, "... solution"]] = (key, guess)
+            key, first_sol = args_in
+            first_converged: Bool[Array, "..."] = first_sol.attempts > 0
+            initial_carry_: tuple[PRNGKeyArray, Float[Array, "... solution"]] = (
+                key,
+                first_sol.value,
+            )
             _, results_ = jax.lax.scan(solve_tau_step, initial_carry_, varying_schedule)
             solution_, result_value_, steps_, attempts_ = results_
+
+            # Convergence at an earlier (larger) tau does not imply convergence at TAU
+            sweep_converged_: Bool[Array, "..."] = attempts_[-1] > 0
+            # jax.debug.print("sweep_converged_ = {out}", out=sweep_converged_)
+
+            # For steps and attempts, report the maximum across all tau steps to capture the
+            # worst-case performance, or zero if the final step at TAU did not converge.
+            sweep_steps_: Integer[Array, "..."] = jnp.where(
+                sweep_converged_, jnp.max(steps_, axis=0), 0
+            )
+            sweep_attempts_: Integer[Array, "..."] = jnp.where(
+                sweep_converged_, jnp.max(attempts_, axis=0), 0
+            )
+
+            # Elements that converged at TAU on the first attempt keep the result of that solve,
+            # so their result does not depend on whether other batch elements failed.
+            report_solution_: Float[Array, "... solution"] = jnp.where(
+                first_converged[..., None], first_sol.value, solution_[-1]
+            )
+            report_result_value_: Integer[Array, "..."] = jnp.where(
+                first_converged,
+                first_sol.result._value,  # pyright: ignore
+                result_value_[-1],
+            )
+            report_steps_: Integer[Array, "..."] = jnp.where(
+                first_converged, first_sol.num_steps, sweep_steps_
+            )
+            report_attempts_: Integer[Array, "..."] = jnp.where(
+                first_converged, first_sol.attempts, sweep_attempts_
+            )
+
             final_result_: optx.RESULTS = cast(
                 optx.RESULTS,
-                EnumerationItem(result_value_[-1], optx.RESULTS),  # pyright: ignore
+                EnumerationItem(report_result_value_, optx.RESULTS),  # pyright: ignore
             )
-            # For steps, report the maximum, either from the initial solve at TAU (if the case
-            # converged) or from the tau sweep, to capture the worst-case performance across all
-            # tau steps.
-            report_steps_ = jnp.where(first_converged, first_steps, jnp.max(steps_, axis=0))
-
             sol_: Solution = Solution(
-                solution_[-1], final_result_, None, {"num_steps": report_steps_}, None
+                report_solution_, final_result_, None, {"num_steps": report_steps_}, None
             )
-            return MultiAttemptSolution(sol_, jnp.max(attempts_, axis=0))
+            return MultiAttemptSolution(sol_, report_attempts_)
 
         def run_single_step(_: tuple) -> MultiAttemptSolution:
             """All batch elements converged at ``TAU`` on the first attempt: return immediately."""
@@ -366,10 +400,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable) -> Callable:
         # If all entries converged at TAU on the first attempt, skip the sweep entirely
         all_converged: Bool[Array, ""] = jnp.all(first_converged)
         multi_sol: MultiAttemptSolution = lax.cond(
-            all_converged,
-            run_single_step,
-            run_scan,
-            operand=(key, first_solution, first_converged, first_steps),
+            all_converged, run_single_step, run_scan, operand=(key, first_sol)
         )
 
         return multi_sol

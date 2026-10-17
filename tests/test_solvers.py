@@ -15,17 +15,21 @@ directly, bypassing :class:`~atmodeller.classes.EquilibriumModel` since it is ha
 
 import logging
 from collections.abc import Callable
+from typing import cast
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
 import pytest
-from jaxtyping import Array, ArrayLike, PRNGKeyArray
+from equinox._enum import EnumerationItem
+from jaxtyping import Array, ArrayLike, Bool, Float, Integer, PRNGKeyArray
 
 from atmodeller import debug_logger
+from atmodeller.constants import TAU
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol
+from atmodeller.jax_utils import MultiAttemptSolution
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.phases import PurePhase
@@ -34,6 +38,7 @@ from atmodeller.solvers import (
     make_solver,
     make_solver_with_jit_batch_only,
     make_solver_with_jit_dual_path,
+    make_tau_sweep_solver,
 )
 from atmodeller.state import BaseThermodynamicState, Planet
 from atmodeller.thermodata import IronWustiteBuffer
@@ -172,3 +177,92 @@ def test_make_solver_with_jit_batch_only() -> None:
     # optimistix Solution) is the meaningful per-element convergence signal here.
     assert jnp.all(output.multi_attempt_solution.solution.result == optx.RESULTS.successful)
     assert jnp.all(output.multi_attempt_solution.solver_success)
+
+
+def _make_stub_batch_retry_solver(warm_start_converges_at_tau: bool) -> Callable:
+    """Makes a stub batch retry solver with a prescribed convergence pattern for two models.
+
+    The first model always converges. The second model converges at a larger tau, but at ``TAU``
+    it only converges from a warm start (an initial guess that has already been solved at a larger
+    tau), and only if ``warm_start_converges_at_tau``. Each converged solve adds one to the initial
+    guess, and reports more steps and attempts at a larger tau. As with the batch retry solver, a
+    model that does not converge keeps its initial guess and reports zero steps and attempts.
+
+    Args:
+        warm_start_converges_at_tau: Whether the second model converges at ``TAU`` from a warm
+            start
+
+    Returns:
+        Callable with the same signature as the batch retry solver
+    """
+
+    def batch_retry_solver(
+        initial_guess: Float[Array, "batch solution"],
+        parameters: Parameters,
+        key: PRNGKeyArray,
+        max_retries: int,
+        tolerance: float,
+    ) -> MultiAttemptSolution:
+        del key, max_retries, tolerance
+        larger_tau: Bool[Array, ""] = parameters.solver_parameters.tau > TAU
+        warm_start: Bool[Array, ""] = initial_guess[1, 0] > 0
+        second_converged: Bool[Array, ""] = jnp.logical_or(
+            larger_tau, jnp.logical_and(warm_start, warm_start_converges_at_tau)
+        )
+        converged: Bool[Array, " batch"] = jnp.stack([jnp.array(True), second_converged])
+
+        value: Float[Array, "batch solution"] = jnp.where(
+            converged[:, None], initial_guess + 1.0, initial_guess
+        )
+        num_steps: Integer[Array, " batch"] = jnp.where(converged, jnp.where(larger_tau, 5, 3), 0)
+        attempts: Integer[Array, " batch"] = jnp.where(converged, jnp.where(larger_tau, 2, 1), 0)
+        # As with the batch retry solver, the solver status is reported for each model. It is
+        # irrelevant here, since a model that does not converge is identified by its attempts.
+        result_value: Integer[Array, " batch"] = jnp.full(
+            2,
+            optx.RESULTS.successful._value,  # pyright: ignore
+        )
+        result: optx.RESULTS = cast(
+            optx.RESULTS,
+            EnumerationItem(result_value, optx.RESULTS),  # pyright: ignore
+        )
+        sol: optx.Solution = optx.Solution(value, result, None, {"num_steps": num_steps}, None)
+
+        return MultiAttemptSolution(sol, attempts)
+
+    return batch_retry_solver
+
+
+@pytest.mark.parametrize(
+    "warm_start_converges_at_tau, expected_value, expected_steps, expected_attempts",
+    [
+        pytest.param(True, [1.0, 2.0], [3, 5], [1, 2], id="converged_at_final_tau"),
+        pytest.param(False, [1.0, 1.0], [3, 0], [1, 0], id="failed_at_final_tau"),
+    ],
+)
+def test_tau_sweep_reports_final_tau(
+    warm_start_converges_at_tau: bool,
+    expected_value: list[float],
+    expected_steps: list[int],
+    expected_attempts: list[int],
+) -> None:
+    """Tests the result reported by the tau sweep when one model fails the first solve at ``TAU``.
+
+    The first model converged on the first solve at ``TAU``, so it keeps that result rather than
+    the result of re-solving it during the sweep. The second model has only converged if the final
+    step of the sweep, which solves at ``TAU``, converged; converging at a larger tau earlier in
+    the sweep is not sufficient.
+    """
+    parameters: Parameters = _build_parameters(with_condensate=True)
+    tau_sweep_solver: Callable = make_tau_sweep_solver(
+        _make_stub_batch_retry_solver(warm_start_converges_at_tau)
+    )
+
+    multi_sol: MultiAttemptSolution = tau_sweep_solver(
+        jnp.zeros((2, 2)), parameters, jax.random.PRNGKey(0)
+    )
+
+    np.testing.assert_array_equal(multi_sol.value[:, 0], expected_value)
+    np.testing.assert_array_equal(multi_sol.num_steps, expected_steps)
+    np.testing.assert_array_equal(multi_sol.attempts, expected_attempts)
+    np.testing.assert_array_equal(multi_sol.success, np.asarray(expected_attempts) > 0)

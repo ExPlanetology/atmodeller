@@ -157,6 +157,9 @@ class Output(eqx.Module):
     ) -> dict[str, pd.DataFrame]:
         """Drops unsuccessful solves.
 
+        A solve is unsuccessful unless it passes both the convergence post-check and the solver
+        status, consistent with the rows highlighted by :meth:`to_excel`.
+
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
 
@@ -167,7 +170,7 @@ class Output(eqx.Module):
             Dictionary of dataframes without unsuccessful models
         """
         return {
-            key: df.loc[np.asarray(self.multi_attempt_solution.solver_success)]
+            key: df.loc[np.asarray(self.multi_attempt_solution.success)]
             for key, df in dataframes.items()
         }
 
@@ -265,8 +268,11 @@ class Output(eqx.Module):
                 df.to_excel(writer, sheet_name=df_name, index=True)
                 sheet = writer.sheets[df_name]
 
+                # Map batch indices to row positions, since unsuccessful solves may be dropped
+                unsuccessful_rows: NpArray = np.flatnonzero(df.index.isin(unsuccessful_indices))
+
                 # Apply highlighting to the rows where the solver failed to find a solution
-                for idx in unsuccessful_indices:
+                for idx in unsuccessful_rows:
                     # Highlight the entire row (starting from index 2 to skip header row)
                     for col in range(1, len(df.columns) + 2):
                         # row=idx+2 because Excel is 1-indexed and row 1 is the header

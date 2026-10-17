@@ -304,7 +304,7 @@ The solver has a dictionary key of `solver`.
    * - Name
      - Type
      - Description
-   * - status
+   * - solver_success
      - Boolean
      - Indicates whether the solver terminated successfully according to its internal convergence criteria
    * - steps
@@ -312,10 +312,13 @@ The solver has a dictionary key of `solver`.
      - Number of iterations taken during the successful attempt
    * - attempts
      - Integer
-     - Total number of solver attempts (e.g., in a multistart procedure).
+     - Attempt on which the solution succeeded in a multistart procedure (``0`` if no attempt succeeded)
    * - converged
      - Boolean
      - Indicates whether the solution meets the objective-based convergence criteria (independent of solver status).
+   * - success
+     - Boolean
+     - Indicates whether the solution is both converged and reported as successful by the solver. Rows where this is ``False`` are dropped by ``drop_unsuccessful_solves`` and highlighted in Excel output.
 
 Other output
 ------------
