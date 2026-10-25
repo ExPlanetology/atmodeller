@@ -14,7 +14,9 @@ jobs:
 
   deploy:
     needs: tests
-    if: github.event.release.prerelease == false
+    # Only a published, non-pre-release GitHub release uploads to PyPI; a manual run only runs
+    # the tests. (On a manual run there is no release, and null == false would be true.)
+    if: github.event_name == 'release' && !github.event.release.prerelease
     runs-on: ubuntu-latest
     # Settings > Environments > release can require a manual approval before publishing
     environment: release
