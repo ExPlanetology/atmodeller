@@ -45,14 +45,6 @@ CHN_lide: RealGas = VanderWaals(1.129e-5, 8.81e-5)
 """HCN van der Waals :cite:p:`Lide2005`"""
 CHN_lide_bounded: RealGas = CombinedRealGas.create([CHN_lide], [experimental_calibration])
 """HCN bounded to data range"""
-H4Si_isham: RealGas = VanderWaals(2.478e-6, 3.275e-5)
-"""SiH4 van der Waals (Isham) :cite:p:`Lide2005`"""
-H4Si_isham_bounded: RealGas = CombinedRealGas.create([H4Si_isham], [experimental_calibration])
-"""SiH4 (Isham) bounded to data range"""
-OSi_isham: RealGas = VanderWaals(8.698e-6, 8.582e-6)
-"""OSi van der Waals (Isham) :cite:p:`Lide2005`"""
-OSi_isham_bounded: RealGas = CombinedRealGas.create([OSi_isham], [experimental_calibration])
-"""OSi (Isham) bounded to data range"""
 
 
 def get_vanderwaals_eos_models() -> dict[str, RealGas]:
