@@ -27,8 +27,22 @@ DISSOLUTION_PPMW_FLOOR: float = 1.0e-20
 """Minimum dissolved concentration (ppmw) used before taking logs in dissolution reactions.
 
 Numerical floor for dissolved-species solubility in dissolution reactions. This prevents ``log(0)``
-while keeping the floor large enough to avoid excessive solver stiffness in underflow-prone 
+while keeping the floor large enough to avoid excessive solver stiffness in underflow-prone
 regimes.
+"""
+
+# Penalty for a species outside the temperature range of its thermodynamic data
+NO_DATA_GIBBS_OVER_RT: float = 100.0
+"""Standard Gibbs energy over RT added to a species outside the temperature range of its data
+when extrapolation is off.
+
+This reduces the equilibrium activity of the species by a factor of :math:`\\exp(-100)`, so that
+it is not stable. The value is a numerical margin, not a thermodynamic estimate. Liquid water is
+the most demanding case: with its Gibbs energy held at the 600 K value, even :math:`10^5` bar of
+H2O is supersaturated by only :math:`\\ln(10^5/124) \\approx 7`, where 124 bar is the saturation
+pressure at 600 K. In the TRAPPIST-1e example, values of 10, 100 and 1000 give the same
+equilibrium, and only the trace amount of the suppressed condensate changes (roughly as the
+inverse of the value).
 """
 
 # Phase indices. These are used to index into the phase system. TODO: Make Atmodeller completely

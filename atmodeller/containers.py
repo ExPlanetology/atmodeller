@@ -78,6 +78,8 @@ class ChemicalSpecies(eqx.Module):
         number_solution: int,
         include_in_phase_mass: bool,
         thermo: ThermodynamicProperties | None = None,
+        extrapolate_below: bool = True,
+        extrapolate_above: bool = True,
     ) -> Self:
         """Creates an instance.
 
@@ -91,6 +93,12 @@ class ChemicalSpecies(eqx.Module):
                 fraction aggregations.
             thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
                 in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            extrapolate_below: Whether to extrapolate the thermodynamic data below their
+                temperature range, otherwise the species is not stable there. Defaults to
+                ``True``.
+            extrapolate_above: Whether to extrapolate the thermodynamic data above their
+                temperature range, otherwise the species is not stable there. Defaults to
+                ``True``.
 
         Returns:
             An instance
@@ -105,6 +113,9 @@ class ChemicalSpecies(eqx.Module):
                     f"{species_data.name} not available. "
                     f"Available species are {tuple(default_properties)}"
                 )
+
+        if not (extrapolate_below and extrapolate_above):
+            thermo = thermo.with_extrapolation(extrapolate_below, extrapolate_above)
 
         return cls(
             species_data,
@@ -125,8 +136,15 @@ class ChemicalSpecies(eqx.Module):
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
         thermo: ThermodynamicProperties | None = None,
+        extrapolate_below: bool = False,
+        extrapolate_above: bool = False,
     ) -> Self:
         """Creates a condensed species with some default values.
+
+        By default, the thermodynamic data are not extrapolated outside their temperature range,
+        where the species is therefore not stable. A condensed phase is often bounded by a phase
+        boundary, such as a melting point, so the same set of condensates can be used at any
+        temperature.
 
         Args:
             formula: Formula
@@ -138,6 +156,12 @@ class ChemicalSpecies(eqx.Module):
                 fraction aggregations. Defaults to ``True``.
             thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
                 in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            extrapolate_below: Whether to extrapolate the thermodynamic data below their
+                temperature range, otherwise the species is not stable there. Defaults to
+                ``False``.
+            extrapolate_above: Whether to extrapolate the thermodynamic data above their
+                temperature range, otherwise the species is not stable there. Defaults to
+                ``False``.
 
         Returns:
             A condensed species
@@ -155,6 +179,8 @@ class ChemicalSpecies(eqx.Module):
             number_solution,
             include_in_phase_mass,
             thermo,
+            extrapolate_below,
+            extrapolate_above,
         )
 
     @classmethod
