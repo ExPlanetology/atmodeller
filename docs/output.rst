@@ -334,6 +334,8 @@ For a generic thermodynamic state (not a planet), the state has the following ad
      - kg
      - Mass of the solid silicate
 
+.. _OutputSolver:
+
 Solver
 ------
 

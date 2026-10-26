@@ -47,3 +47,11 @@ The main solver starts from the initializer's result and drops its simplificatio
 3. **Derivatives.** A final solve from the converged root attaches derivatives with respect to the inputs, using the implicit function theorem. The results can therefore be differentiated, however many retries were needed to find the root.
 
 This describes the default solver, which is one of the more extensive solver options. Other options bypass the retries and the :math:`\tau` sweep to reduce compilation and execution time, at the cost of potentially less robust convergence.
+
+.. _NestedSolvers:
+
+Nested solvers
+--------------
+Some real-gas equations of state give the pressure as a function of volume and temperature, :math:`P(V, T)`, and cannot be rearranged to give the volume directly. These include the van der Waals, Beattie–Bridgeman :cite:p:`HWZ58`, implicit Redlich–Kwong :cite:p:`HP91` and Zhang and Duan :cite:p:`ZD09` equations of state. For these, *Atmodeller* finds the molar volume at the given temperature and pressure with its own Newton solve, and then computes the fugacity coefficient :math:`\phi` from the volume by integrating over pressure, :math:`RT \ln \phi = \int_0^P (V - RT/P')\,dP'`.
+
+These volume solves are nested inside the main solver: every evaluation of the fugacity, and hence of the equations, solves for the volume of each such species. The derivatives of the volume, which the main solver needs for its Jacobian, follow from the implicit function theorem, so they do not depend on how many iterations the volume solve took.
