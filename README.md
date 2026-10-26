@@ -113,7 +113,7 @@ output.to_excel("example_single")
 
 ## Contributing
 
-Community development of Atmodeller is strongly encouraged, and bug fixes and new features are welcome. Please open an [issue](https://github.com/ExPlanetology/atmodeller/issues) to report a bug, request a feature or ask for help. To submit changes, see [CONTRIBUTING.md](https://github.com/ExPlanetology/atmodeller/blob/main/CONTRIBUTING.md).
+Community development of Atmodeller is strongly encouraged, and bug fixes and new features are welcome. Please open an [issue](https://github.com/ExPlanetology/atmodeller/issues) to report a bug or request a feature. For questions, ideas, or to share how you are using Atmodeller, start a thread in [Discussions](https://github.com/ExPlanetology/atmodeller/discussions). To submit changes, see [CONTRIBUTING.md](https://github.com/ExPlanetology/atmodeller/blob/main/CONTRIBUTING.md).
 
 ## Funding
 Atmodeller was created as part of a SERI-funded ERC Starting grant '2ATMO' granted to P. Sossi (Contract no. MB22.00033), with additional funding provided through a Swiss National Science Foundation (SNSF) Eccellenza Professorship (#203668).

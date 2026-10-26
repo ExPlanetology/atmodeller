@@ -4,7 +4,7 @@ Community development of Atmodeller is strongly encouraged, and bug fixes and ne
 
 ## Reporting bugs and asking for help
 
-Please open an [issue](https://github.com/ExPlanetology/atmodeller/issues) to report a bug, request a feature or ask for help. For bugs, include a minimal example that reproduces the problem, the versions of Atmodeller and JAX you are using, and any error message.
+Please open an [issue](https://github.com/ExPlanetology/atmodeller/issues) to report a bug or request a feature. For questions, ideas, or to share how you are using Atmodeller, start a thread in [Discussions](https://github.com/ExPlanetology/atmodeller/discussions). For bugs, include a minimal example that reproduces the problem, the versions of Atmodeller and JAX you are using, and any error message.
 
 ## Submitting changes
 

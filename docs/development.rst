@@ -27,7 +27,7 @@ A pull request can be merged once the automated checks pass and a maintainer has
 
 Don't let these checks put you off contributing. You don't need to get everything right before opening a pull request: open it anyway, even as a draft, and the development team is happy to help you add tests, fix failing checks and get your changes merged.
 
-To report a bug, request a feature or ask for help, please open an `issue <https://github.com/ExPlanetology/atmodeller/issues>`__. For bugs, include a minimal example that reproduces the problem, the versions of *Atmodeller* and JAX you are using, and any error message.
+To report a bug or request a feature, please open an `issue <https://github.com/ExPlanetology/atmodeller/issues>`__. For questions, ideas, or to share how you are using *Atmodeller*, start a thread in `Discussions <https://github.com/ExPlanetology/atmodeller/discussions>`__. For bugs, include a minimal example that reproduces the problem, the versions of *Atmodeller* and JAX you are using, and any error message.
 
 Under the Apache License 2.0 you are not required to make your changes public, but we encourage you to contribute them back so the whole community benefits. Contributions submitted by pull request are licensed under the same terms as the project.
 
