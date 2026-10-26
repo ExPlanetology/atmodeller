@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Tests the integrated thermodynamic properties, the diamond of Gustafson (1986), the NASA
-Glenn data outside their temperature ranges, and the alternative carbon and silicon models of
-Vassiliev (2021) and Holland and Powell"""
+Glenn data outside their temperature ranges with and without extrapolation, and the alternative
+carbon and silicon models of Vassiliev (2021) and Holland and Powell"""
 
 from typing import cast
 
@@ -15,7 +15,9 @@ import numpy as np
 from jaxtyping import Array
 from scipy.optimize import brentq
 
-from atmodeller.constants import TEMPERATURE_REFERENCE
+from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
+from atmodeller.containers import ChemicalSpecies
+from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
     ThermodynamicProperties,
@@ -113,6 +115,38 @@ def test_glenn_extrapolation_uses_nearest_range() -> None:
         graphite.standard_gibbs_over_RT(6000.0, 1.0),
         rtol=1e-8,
     )
+
+
+def test_no_extrapolation_holds_gibbs_and_adds_penalty() -> None:
+    """Without extrapolation, G is held at the bound and the penalty is added outside the range.
+    Condensates do not extrapolate by default, whereas gases keep the shared default data."""
+    water: ThermodynamicProperties = glenn_properties["H2O_l"]
+    no_extrapolation: ThermodynamicProperties = water.with_extrapolation(False, False)
+    temperature_min, temperature_max = water.temperature_range()
+
+    def held(temperature_bound: float, temperature: float) -> Array:
+        return water.gibbs_energy(temperature_bound) / (GAS_CONSTANT * temperature)
+
+    np.testing.assert_array_equal(
+        no_extrapolation.standard_gibbs_over_RT(500.0), water.standard_gibbs_over_RT(500.0)
+    )
+    np.testing.assert_allclose(
+        no_extrapolation.standard_gibbs_over_RT(jnp.array([200.0, 1000.0])),
+        [
+            held(temperature_min, 200.0) + NO_DATA_GIBBS_OVER_RT,
+            held(temperature_max, 1000.0) + NO_DATA_GIBBS_OVER_RT,
+        ],
+        rtol=1e-12,
+    )
+    # Extrapolating below only
+    np.testing.assert_array_equal(
+        water.with_extrapolation(True, False).standard_gibbs_over_RT(200.0),
+        water.standard_gibbs_over_RT(200.0),
+    )
+
+    condensed: ThermodynamicProperties = ChemicalSpecies.create_condensed("H2O", state="l").thermo
+    assert not condensed.extrapolate_below and not condensed.extrapolate_above
+    assert ChemicalSpecies.create_gas("H2O").thermo is glenn_properties["H2O_g"]
 
 
 def test_vassiliev_heat_capacity() -> None:
