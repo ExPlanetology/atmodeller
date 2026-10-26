@@ -85,10 +85,20 @@ class ThermodynamicProperties(eqx.Module):
     r"""Thermodynamic properties of an individual species
 
     Subclasses provide the heat capacity, enthalpy and entropy of a data source, from which this
-    class gets the Gibbs energy. The standard state is 1 bar and the reference temperature is
-    :data:`~atmodeller.constants.TEMPERATURE_REFERENCE`. An optional volume model adds the
-    pressure dependence of a condensed phase to the Gibbs energy. Gases do not need one, since
-    their pressure dependence enters through the fugacity.
+    class gets the Gibbs energy. The properties are at 1 bar and follow the NASA Glenn
+    convention:
+
+    - The enthalpy is relative to the elements in their reference states, which have zero
+      enthalpy at :data:`~atmodeller.constants.TEMPERATURE_REFERENCE` and 1 bar. At that
+      temperature the enthalpy therefore equals the enthalpy of formation.
+    - The entropy is absolute (third law).
+    - The Gibbs energy, :math:`G^\circ = H^\circ - TS^\circ`, is therefore not a Gibbs energy of
+      formation. Reaction Gibbs energies and equilibrium constants are unaffected, because the
+      element terms cancel.
+
+    An optional volume model adds the pressure dependence of a condensed phase to the standard
+    Gibbs energy (see :meth:`standard_gibbs_over_RT`). Gases do not need one, since their
+    pressure dependence enters through the fugacity.
     """
 
     volume_model: VolumeProtocol | None = eqx.field(default=None, kw_only=True)
@@ -121,7 +131,9 @@ class ThermodynamicProperties(eqx.Module):
     def enthalpy(self, temperature: ArrayLike) -> FloatArray:
         r"""Gets enthalpy.
 
-        This is :math:`H` in the JANAF tables.
+        This is :math:`H^\circ`, relative to the elements in their reference states at
+        :data:`~atmodeller.constants.TEMPERATURE_REFERENCE` (the NASA Glenn convention). The
+        JANAF tables give the equivalent :math:`\Delta_f H^\circ(T_r) + [H^\circ - H^\circ(T_r)]`.
 
         Args:
             temperature: Temperature (K)
@@ -147,6 +159,10 @@ class ThermodynamicProperties(eqx.Module):
 
     def gibbs_energy(self, temperature: ArrayLike) -> FloatArray:
         r"""Gets the Gibbs energy at 1 bar.
+
+        This is :math:`G^\circ = H^\circ - TS^\circ`, without the pressure dependence of any
+        volume model, and is not a Gibbs energy of formation. Reactions use
+        :meth:`standard_gibbs_over_RT`, which adds the pressure dependence.
 
         Args:
             temperature: Temperature (K)
@@ -184,10 +200,8 @@ class ThermodynamicProperties(eqx.Module):
           temperature and pressure of interest, so the result includes
           :math:`\int_{1\,\mathrm{bar}}^P V\,dP`.
 
-        The enthalpy follows the NASA Glenn convention: the elements in their reference states
-        have zero enthalpy at 298.15 K and 1 bar. This is therefore not a Gibbs energy of
-        formation, but reaction Gibbs energies and equilibrium constants are unaffected because
-        the element terms cancel.
+        Like :meth:`gibbs_energy`, this is not a Gibbs energy of formation (see the class
+        docstring for the convention).
 
         Args:
             temperature: Temperature (K)
