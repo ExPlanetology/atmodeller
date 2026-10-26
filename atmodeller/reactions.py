@@ -215,7 +215,7 @@ class BaseReactionBlock(eqx.Module):
         """Number of reactions in the reaction block"""
 
     @abstractmethod
-    def get_log_Kp(self, temperature: FloatArray, *args, **kwargs) -> FloatArray:
+    def log_Kp(self, temperature: FloatArray, *args, **kwargs) -> FloatArray:
         """Gets log of the equilibrium constant of each reaction in the reaction block"""
 
     @abstractmethod
@@ -305,7 +305,7 @@ class ReactionNetwork(BaseReactionBlock):
             - len(self.species.reaction_species.unique_elements),
         )
 
-    def get_gibbs_over_RT(
+    def standard_gibbs_over_RT(
         self, temperature: FloatArray, pressure: FloatArray
     ) -> Float[Array, "... n_reaction_species"]:
         """Gets the standard Gibbs energy over RT of each reaction species.
@@ -334,13 +334,13 @@ class ReactionNetwork(BaseReactionBlock):
 
         return jnp.stack(
             [
-                jnp.broadcast_to(species_.get_gibbs_over_RT(temperature, pressure), shape)
+                jnp.broadcast_to(species_.standard_gibbs_over_RT(temperature, pressure), shape)
                 for species_ in self.species.reaction_species
             ],
             axis=-1,
         )
 
-    def get_log_Kp(
+    def log_Kp(
         self, temperature: FloatArray, pressure: FloatArray
     ) -> Float[Array, "... n_reactions"]:
         """Gets log of the equilibrium constant of each reaction.
@@ -352,7 +352,9 @@ class ReactionNetwork(BaseReactionBlock):
         Returns:
             Log of the equilibrium constant of each reaction
         """
-        gibbs_values: Float[Array, "... n_species"] = self.get_gibbs_over_RT(temperature, pressure)
+        gibbs_values: Float[Array, "... n_species"] = self.standard_gibbs_over_RT(
+            temperature, pressure
+        )
         # jax.debug.print("gibbs_values = {out}", out=gibbs_values)
         reaction_matrix: Float[Array, "n_reactions n_species"] = jnp.asarray(self.reaction_matrix)
         # jax.debug.print("reaction_matrix = {out}", out=reaction_matrix)
@@ -434,7 +436,7 @@ class DissolutionNetwork(BaseReactionBlock):
         """Number of dissolution reactions"""
         return self.species.reservoir_species.number_species
 
-    def get_log_Kp(
+    def log_Kp(
         self,
         temperature: FloatArray,
         gas_species_activity: Float[Array, "... n_gas_species"],
@@ -594,7 +596,7 @@ class ReactionSystem(BaseReactionBlock):
 
         return log_activity
 
-    def get_log_Kp(
+    def log_Kp(
         self,
         log_number_moles: Float[Array, "... n_species"],
         log_activity: Float[Array, "... n_species"],
@@ -615,12 +617,12 @@ class ReactionSystem(BaseReactionBlock):
         Returns:
             Log of the equilibrium constant of each reaction
         """
-        log_Kp_reaction: Float[Array, "... n_core_reactions"] = self.reaction.get_log_Kp(
+        log_Kp_reaction: Float[Array, "... n_core_reactions"] = self.reaction.log_Kp(
             temperature, pressure
         )
         # jax.debug.print("log_Kp_reaction = {out}", out=log_Kp_reaction)
-        log_Kp_dissolution: Float[Array, "... n_dissolution_reactions"] = (
-            self._get_log_Kp_dissolution(log_number_moles, log_activity, temperature, pressure)
+        log_Kp_dissolution: Float[Array, "... n_dissolution_reactions"] = self._log_Kp_dissolution(
+            log_number_moles, log_activity, temperature, pressure
         )
         # jax.debug.print("log_Kp_dissolution = {out}", out=log_Kp_dissolution)
 
@@ -634,7 +636,7 @@ class ReactionSystem(BaseReactionBlock):
 
         return jnp.concatenate([log_Kp_reaction, log_Kp_dissolution], axis=-1)
 
-    def _get_log_Kp_dissolution(
+    def _log_Kp_dissolution(
         self,
         log_number_moles: Float[Array, "... n_species"],
         log_activity: Float[Array, "... n_species"],
@@ -678,7 +680,7 @@ class ReactionSystem(BaseReactionBlock):
         )
         # jax.debug.print("log_solvent_molar_mass = {out}", out=log_solvent_molar_mass)
 
-        return self.dissolution.get_log_Kp(
+        return self.dissolution.log_Kp(
             temperature, activity_dissolution, pressure, fO2, log_solvent_molar_mass
         )
 
@@ -743,7 +745,7 @@ class ReactionSystem(BaseReactionBlock):
         Returns:
             Residual of the reaction network
         """
-        log_Kp: Float[Array, "... n_reactions"] = self.get_log_Kp(
+        log_Kp: Float[Array, "... n_reactions"] = self.log_Kp(
             log_number_moles, log_activity, temperature, pressure
         )
         # jax.debug.print("log_Kp = {out}", out=log_Kp)
@@ -779,8 +781,8 @@ class ReactionSystem(BaseReactionBlock):
         Returns:
             Residual of the dissolution reactions
         """
-        log_Kp_dissolution: Float[Array, "... n_dissolution_reactions"] = (
-            self._get_log_Kp_dissolution(log_number_moles, log_activity, temperature, pressure)
+        log_Kp_dissolution: Float[Array, "... n_dissolution_reactions"] = self._log_Kp_dissolution(
+            log_number_moles, log_activity, temperature, pressure
         )
 
         return (

@@ -528,7 +528,7 @@ class HeuristicInitializer(eqx.Module):
 
         temperature: FloatArray = parameters.state.temperature
         pressure: FloatArray = parameters.state.get_pressure(jnp.log(species_abundance))
-        log_Kp: Float[Array, " n_reactions"] = parameters.reaction_system.reaction.get_log_Kp(
+        log_Kp: Float[Array, " n_reactions"] = parameters.reaction_system.reaction.log_Kp(
             temperature, pressure
         )
         # jax.debug.print("log_Kp = {out}", out=log_Kp)

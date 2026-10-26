@@ -84,8 +84,8 @@ def test_gustafson_reproduces_sgte_boundary() -> None:
 
     def gibbs_difference(pressure: float, temperature: float) -> float:
         return float(
-            diamond_gustafson.get_gibbs_over_RT(temperature, pressure)
-            - graphite_gustafson.get_gibbs_over_RT(temperature, pressure)
+            diamond_gustafson.standard_gibbs_over_RT(temperature, pressure)
+            - graphite_gustafson.standard_gibbs_over_RT(temperature, pressure)
         )
 
     # In K and GPa, from the SGTE Gibbs energies of graphite and diamond (Dinsdale 1991). At
@@ -109,8 +109,8 @@ def test_glenn_extrapolation_uses_nearest_range() -> None:
 
     np.testing.assert_array_equal(graphite.get_index(temperature), [0, 0, 2, 2, 2])
     np.testing.assert_allclose(
-        graphite.get_gibbs_over_RT(6000.0 + 1e-6, 1.0),
-        graphite.get_gibbs_over_RT(6000.0, 1.0),
+        graphite.standard_gibbs_over_RT(6000.0 + 1e-6, 1.0),
+        graphite.standard_gibbs_over_RT(6000.0, 1.0),
         rtol=1e-8,
     )
 
