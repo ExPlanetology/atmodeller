@@ -151,6 +151,15 @@ class ElementPotentialInitializer(eqx.Module):
     strongly coupled and knows nothing of condensates, fugacities or the pressure closure, so
     here it only sets the scale of every species, and Newton then solves the coupled problem.
 
+    The number of sweeps is capped by ``sweeps``. Too few can leave a minor species far from its
+    scale, as in the water trap but for O\ :sub:`2` when H\ :sub:`2`\ O dominates both the
+    hydrogen and the oxygen budgets, since each sweep then moves it only a little. Newton cannot
+    recover within ``newton_iterations``, and the guess can end with the wrong condensates. In the
+    TRAPPIST-1e example at 280 K (1000 conditions), a cap of 3 left 12 guesses with the wrong
+    condensates, whereas with 10 every guess was at the equilibrium, at a cost of about 10% in
+    the run time of the guess for systems that are already easy. More sweeps without more Newton
+    iterations were worse, because Newton then hit its cap in more switching passes.
+
     *The 1-D problem for element e.* Hold the other potentials, the moles held outside the gas
     (:math:`C_e`, in present condensates and dissolved species) and the gas normalisation
     :math:`\sigma = \ln N_\mathrm{gas} - \ln \sum_\mathrm{gas} p` fixed, so that
@@ -208,7 +217,7 @@ class ElementPotentialInitializer(eqx.Module):
         max_log_step: Maximum change in the log moles of any carried species (or in any
             :math:`\lambda_e`) per Newton iteration. Defaults to ``4.0``.
         sweeps: Maximum number of Gauss-Seidel element sweeps at the start of every Newton
-            solve. Defaults to ``3``.
+            solve. Defaults to ``10``.
         sweep_iterations: Maximum number of 1-D Newton iterations per element in a sweep.
             Defaults to ``30``.
         sweep_step_tolerance: Step size at which a 1-D Newton iteration in a sweep stops.
@@ -229,7 +238,7 @@ class ElementPotentialInitializer(eqx.Module):
     max_log_step: float = 4.0
     r"""Maximum change in the log moles of any carried species (or in any :math:`\lambda_e`) per
     Newton iteration"""
-    sweeps: int = 3
+    sweeps: int = 10
     """Maximum number of Gauss-Seidel element sweeps at the start of every Newton solve"""
     sweep_iterations: int = 30
     """Maximum number of 1-D Newton iterations per element in a sweep (each step is at most the
