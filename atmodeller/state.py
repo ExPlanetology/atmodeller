@@ -347,7 +347,7 @@ class BasePlanet(BaseThermodynamicState):
     Note:
         ``background_planet_mass`` is a fixed quantity set once at construction (via
         ``planet_mass``, ``core_mass_fraction``, and ``mantle_melt_fraction`` in
-        :meth:`from_species`) representing the mass *not* modeled by explicit chemical species.
+        :meth:`from_species`) representing the mass *not* modelled by explicit chemical species.
         Any species with ``include_in_phase_mass=True`` in the melt, solid, or metal phases adds
         its solved mass on top of this background. The self-consistent total planet mass —
         combining both — is what :meth:`get_planet_mass` returns, not ``background_planet_mass``

@@ -508,7 +508,7 @@ class HeuristicInitializer(eqx.Module):
         :math:`\nu^\zeta` is the reaction stability matrix (the reaction matrix restricted to
         species with a stability unknown), :math:`K_r` the equilibrium constant and :math:`Q_r`
         the reaction quotient from the estimated activities. A positive signal means that the
-        reaction is driven toward forming the condensate.
+        reaction is driven towards forming the condensate.
 
         Args:
             parameters: Parameters containing the reaction system information

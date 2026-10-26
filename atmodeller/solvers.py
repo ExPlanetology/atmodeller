@@ -565,7 +565,7 @@ def make_solver_with_jit_dual_path(
 def make_solver_with_jit_single_path(
     parameters: Parameters, initializer: InitializerProtocol | None = None
 ) -> Callable:
-    """Gets a JIT-compiled solver with optimized compilation by eliminating unused branches.
+    """Gets a JIT-compiled solver with optimised compilation by eliminating unused branches.
 
     This function inspects ``active_stability`` at construction time (Python-level) to determine
     which solver path to use, then compiles only that path. This results in faster JIT

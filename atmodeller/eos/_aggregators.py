@@ -300,7 +300,7 @@ class CombinedRealGas(RealGas):
             # jax.debug.print("add_only_first_integral: integral = {out}", out=integral)
             return jnp.where(index == 0, total_integral + integral, total_integral + integral2)
 
-        # Initialize. Must be 0.0 to ensure float array.
+        # Initialise. Must be 0.0 to ensure float array.
         total_integral: FloatArray = jnp.array(0.0)
         total_integral = add_first_integral(total_integral)
 

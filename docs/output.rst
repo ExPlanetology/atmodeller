@@ -109,11 +109,11 @@ The gas phase has the following additional phase-level outputs:
    * - log10dIW_1_bar
      - dimensionless
      - :math:`\log_{10}` shift of the O\ :math:`_2` fugacity relative to the iron-wüstite buffer
-       evaluated at 1 bar (only if O\ :math:`_2` is a gas species)
+       evaluated at 1 bar (``NaN`` if O\ :math:`_2` is not a gas species)
    * - log10dIW_P
      - dimensionless
      - :math:`\log_{10}` shift of the O\ :math:`_2` fugacity relative to the iron-wüstite buffer
-       evaluated at the total pressure (only if O\ :math:`_2` is a gas species)
+       evaluated at the total pressure (``NaN`` if O\ :math:`_2` is not a gas species)
    * - metallicity_by_mass
      - kg kg\ :math:`^{-1}`
      - Mass fraction of metals (*Z*), where metals are all elements other than H and He
@@ -235,7 +235,8 @@ Constraints
 -----------
 
 The imposed constraints are under the ``constraints`` key (``named_arrays`` and ``natural``), or
-under ``out[<element or species>]["constraints"]`` (``elements_species``).
+under ``out[<element or species>]["constraints"]`` (``elements_species``). Every element and
+species is listed, and those without the constraint are ``NaN``.
 
 .. list-table:: Outputs for constraints
    :widths: 30 20 50
@@ -333,6 +334,8 @@ For a generic thermodynamic state (not a planet), the state has the following ad
    * - silicate_solid_mass
      - kg
      - Mass of the solid silicate
+
+.. _OutputSolver:
 
 Solver
 ------

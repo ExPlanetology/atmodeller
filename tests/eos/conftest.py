@@ -46,7 +46,7 @@ class CheckValues:
         rtol=RTOL,
         atol=ATOL,
     ) -> None:
-        """Generalized method to check a property (e.g., compressibility, fugacity, etc.)
+        """Generalised method to check a property (e.g., compressibility, fugacity, etc.)
 
         Args:
             property_name: Name of the property to check

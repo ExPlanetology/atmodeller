@@ -11,7 +11,7 @@ equilibrium solver.
 The available phase types are:
 
 - :class:`GasPhase`: Multicomponent gas mixture, supporting both ideal and non-ideal (real gas)
-  behavior. Tracks the O2 index for redox calculations and provides gas-specific outputs (e.g.,
+  behaviour. Tracks the O2 index for redox calculations and provides gas-specific outputs (e.g.,
   partial pressures, volume).
 - :class:`CondensedPhase`: Multicomponent condensed phase, used for the silicate melt, the
   silicate solid and the metal, optionally with dissolved volatiles and/or condensed species
@@ -77,7 +77,7 @@ DEFAULT_BACKGROUND_MASS: float = 0.0
 """Default background mass (kg), i.e. no background mass
 
 See :attr:`BasePhase.background_mass` for what "background" mass means (the portion of a phase's
-mass that is not modeled by explicit chemical species)."""
+mass that is not modelled by explicit chemical species)."""
 DUMMY_MOLAR_MASS: float = 1.0
 """Default molar mass of the background component (kg mol\\ :sup:`-1`) (only meaningful when
 background mass is non-zero)"""
@@ -95,7 +95,7 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
     Note:
         For all methods, temperature and pressure should be provided as scalars or 1-D arrays
         matching the batch dimension. All inputs will be broadcast as needed, but providing
-        compatible shapes avoids shape mismatch errors and ensures correct broadcasting behavior.
+        compatible shapes avoids shape mismatch errors and ensures correct broadcasting behaviour.
 
         All methods that accept number of moles (e.g., ``log_number_moles``) are designed to
         accommodate batched inputs, i.e., arrays with a leading batch dimension. This is required
@@ -106,7 +106,7 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         A phase's total mass is the sum of two independent contributions:
 
         1. ``background_mass``: a fixed quantity, set once at construction time, representing
-           mass that is *not* modeled by any explicit chemical species (e.g., the bulk of a
+           mass that is *not* modelled by any explicit chemical species (e.g., the bulk of a
            planet's iron core when only trace species dissolved in it are tracked reactively).
            It never changes during a solve.
         2. The mass of any species in ``species`` for which ``include_in_phase_mass`` is
@@ -505,7 +505,7 @@ class PhaseOutput(eqx.Module, Generic[TPhase_co]):
     def _reshape_to_batched_species(
         self, x: Float[Array, "... n_species"]
     ) -> Float[Array, "#n_batch n_species"]:
-        """Normalizes phase arrays to shape ``(n_batch, n_species)`` with a generic reshape."""
+        """Normalises phase arrays to shape ``(n_batch, n_species)`` with a generic reshape."""
         return jnp.reshape(x, (-1, self.phase.species.number_species))
 
     @property

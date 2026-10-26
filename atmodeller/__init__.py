@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Package-level exports and logger initialization."""
+"""Package-level exports and logger initialisation."""
 
 __version__: str = "2.0.0"
 
@@ -48,7 +48,7 @@ os.environ["EQX_ON_ERROR"] = "off"
 # https://docs.python.org/3/howto/logging.html#library-config
 logger: logging.Logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-logger.debug("Initialized with double precision (float64)")
+logger.debug("Initialised with double precision (float64)")
 
 
 def complex_formatter() -> logging.Formatter:

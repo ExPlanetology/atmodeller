@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests JAX retracing and recompilation behavior for workflows.
+"""Tests JAX retracing and recompilation behaviour for workflows.
 
 These tests verify two complementary expectations:
 1. Common parameter/state updates keep pytree structure stable and do not retrace the solver.

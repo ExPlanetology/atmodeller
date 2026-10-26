@@ -577,7 +577,7 @@ class ZhangDuanMixture(ZhangDuanBase):
         k1: dict[str, float] = K1_ZHANG_DUAN,
         k2: dict[str, float] = K2_ZHANG_DUAN,
     ):
-        r"""Initializes the mixture model.
+        r"""Initialises the mixture model.
 
         Args:
             species: Tuple of species names

@@ -3,7 +3,7 @@
 Installation
 ============
 
-*Atmodeller* is a Python package that can be installed on a variety of platforms (e.g. Mac, Windows, Linux).
+*Atmodeller* is a Python package that requires Python 3.11 or later. It is tested on Linux and macOS with Python 3.11 and 3.13. Windows is supported by JAX and should work, but it is not tested.
 
 Python environment
 ------------------
@@ -11,7 +11,7 @@ It is recommended to install *Atmodeller* in a virtual environment, whether you 
 
 For more information, see the `Python documentation on venv <https://docs.python.org/3/library/venv.html>`_.
 
-We recommend using a modern dependency manager such as `uv <https://docs.astral.sh/uv>`_, which offers fast installs and reproducible environments by default (See section '2b. Install *Atmodeller*' below).
+We recommend using a modern dependency manager such as `uv <https://docs.astral.sh/uv>`_, which offers fast installs and reproducible environments by default (see :ref:`InstallWithUv` below).
 
 1. Quick install
 ----------------
@@ -19,6 +19,8 @@ We recommend using a modern dependency manager such as `uv <https://docs.astral.
 Use pip::
 
     pip install atmodeller
+
+This installs the latest release from `PyPI <https://pypi.org/project/atmodeller/>`_, which is version 2. This documentation describes version 2, whose interface differs from version 1.
 
 Downloading the source code is also recommended if you'd like access to the example notebooks in ``notebooks/examples/``.
 
@@ -65,13 +67,12 @@ To reduce the complexity of future merges, it is **strongly recommended to keep 
 2b. Install *Atmodeller*
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-To install the package, you may use a Python project/package manager such as `uv <https://docs.astral.sh/uv>`_, `poetry <https://python-poetry.org>`_, or the standard `pip <https://pip.pypa.io/en/stable/getting-started/>`_ tool. These tools manage dependencies using the project's ``pyproject.toml`` file.
+To install the package, use `uv <https://docs.astral.sh/uv>`_ (recommended), which installs the exact versions of the dependencies in the project's lock file (``uv.lock``), or the standard `pip <https://pip.pypa.io/en/stable/getting-started/>`_ tool, which installs the latest versions allowed by ``pyproject.toml``.
 
-Recommended: use ``uv`` or ``poetry`` or similar for reproducible and locked environments.  
-Alternatively, ``pip`` can be used for simpler workflows.
+.. _InstallWithUv:
 
 Option 1: uv (recommended)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This requires `uv <https://docs.astral.sh/uv>`_ to be installed.
 
@@ -79,7 +80,7 @@ In the directory of the source code repository (where ``pyproject.toml`` is loca
 
     uv sync
 
-``uv`` will create a virtual environment in a ``.venv`` directory inside the source repository and install the package along with its development tools and dependencies.
+``uv`` will create a virtual environment in a ``.venv`` directory inside the source repository and install the package along with its development tools and dependencies, using the versions in ``uv.lock``. These are the versions tested by the continuous integration, and ``uv sync --locked`` reproduces its environment exactly. After updating the source code (e.g. with ``git pull``), run ``uv sync`` again to bring the environment up to date.
 
 To activate the virtual environment the command is different depending on your operating system:
 
@@ -87,7 +88,7 @@ Mac/Linux::
 
     source .venv/bin/activate
 
-Windows::
+Windows (PowerShell, or ``.venv\Scripts\activate.bat`` in the Command Prompt)::
 
     .venv\Scripts\Activate.ps1
 
@@ -107,16 +108,14 @@ Optional extras:
 
 .. note::
 
-    If you're using VS Code, you may need to restart the editor for the virtual environment to be detected automatically. In some cases, additional configuration may be required---see the `official guidance 
-    <https://code.visualstudio.com/docs/python/environments>`_.
+    If you're using VS Code, you may need to restart the editor for the virtual environment to be detected automatically. In some cases, additional configuration may be required---see the `official guidance <https://code.visualstudio.com/docs/python/environments>`_.
 
-    As a fallback, prefixing any command with ``uv`` will ensure it runs in the local (uv-created) environment, even if the virtual environment is not activated manually.
+    As a fallback, prefixing any command with ``uv run`` (e.g. ``uv run pytest``) will ensure it runs in the local (uv-created) environment, even if the virtual environment is not activated manually.
 
 Option 2: pip
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
-Create a virtual environment (if you haven't already), typically at the uppermost level of the source code repository.  
-Make sure that the Python version used is compatible with *Atmodeller*'s requirements::
+Create a virtual environment (if you haven't already), typically at the uppermost level of the source code repository. Make sure that the Python version is 3.11 or later::
 
     python -m venv .venv
 
@@ -126,7 +125,7 @@ Mac/Linux::
 
     source .venv/bin/activate
 
-Windows::
+Windows (PowerShell, or ``.venv\Scripts\activate.bat`` in the Command Prompt)::
 
     .venv\Scripts\Activate.ps1
 
@@ -150,7 +149,7 @@ To install additional dependencies:
 
 .. note::
 
-    Zsh treats square brackets (`[ ]`) as globbing characters. You must quote or escape them when using `pip`. Use either of the following::
+    Zsh treats square brackets (``[ ]``) as globbing characters. You must quote or escape them when using ``pip``. Use either of the following::
 
         pip install -e '.[docs]'
         # or
@@ -167,12 +166,12 @@ The dependencies in *Atmodeller* are defined in the ``pyproject.toml`` file, wit
 
 This approach balances stability and reliability on older systems with the latest features and performance improvements from JAX and related libraries on supported platforms.
 
-When working directly with the source code, it may be necessary to update the packages in your virtual environment so they match the versions specified in the latest ``pyproject.toml``. This ensures compatibility with the current development state of *Atmodeller* and avoids conflicts caused by outdated dependencies.
+When working directly with the source code, update the packages in your virtual environment after updating the source code, so they match the latest ``uv.lock`` (with ``uv sync``) or ``pyproject.toml`` (by reinstalling with ``pip``). This ensures compatibility with the current development state of *Atmodeller* and avoids conflicts caused by outdated dependencies.
 
 If you encounter issues installing *Atmodeller*, work through the usual checks:
 
-1. Is the Python version at least the required minimum?
+1. Is the Python version 3.11 or later?
 2. Is the correct environment activated?
-3. Is a lock file preventing dependency updates? (E.g., see `uv project sync docs <https://docs.astral.sh/uv/concepts/projects/sync/>`_)
+3. Are the installed packages up to date with the source code? (With uv, run ``uv sync``; see also the `uv documentation on locking and syncing <https://docs.astral.sh/uv/concepts/projects/sync/>`_.)
 
-Error messages from the resolver are often helpful in diagnosing dependency conflicts. If you suspect the problem is specific to *Atmodeller*, please open an issue on GitHub.
+Error messages from the resolver are often helpful in diagnosing dependency conflicts. If you suspect the problem is specific to *Atmodeller*, please open an `issue <https://github.com/ExPlanetology/atmodeller/issues>`__ on GitHub.

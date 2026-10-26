@@ -128,7 +128,7 @@ def trappist1e_constraints(number_of_realisations: int) -> tuple[dict, dict]:
 def trappist1e_with_solubility(request) -> EquilibriumModel:
     """Sets up a model of TRAPPIST-1e with solubility constraints.
 
-    Pass the number_of_realisations via pytest's indirect parametrization.
+    Pass the number_of_realisations via pytest's indirect parametrisation.
     """
     number_of_realisations: int = request.param
     logger.info(
@@ -260,7 +260,7 @@ def time_jax_compile_and_run(
     return compile_time, avg_exec_time, result1, results
 
 
-# Parameterize the fixture with different numbers of realisations
+# Parametrise the fixture with different numbers of realisations
 @pytest.mark.performance
 @pytest.mark.parametrize("trappist1e_with_solubility", [1, 100, 1000], indirect=True)
 # Extend to 10,000 (or 30,000) realisations for testing the limits of memory usage and performance
