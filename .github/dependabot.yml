@@ -1,5 +1,7 @@
-# Keeps the versions of the GitHub Actions used in .github/workflows up to date. Python dependencies
-# are covered by uv.lock and the weekly run with the latest releases (.github/workflows/weekly.yml).
+# Keeps the versions of the GitHub Actions used in .github/workflows up to date, and opens security
+# fixes for the Python packages locked in uv.lock (with "Dependabot security updates" enabled in
+# Settings > Code security). Routine Python updates are not proposed, since the weekly run with the
+# latest releases (.github/workflows/weekly.yml) already catches upstream breakage.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -13,3 +15,18 @@ updates:
           - "*"
     commit-message:
       prefix: "ci"
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Security updates only: no routine version updates
+    open-pull-requests-limit: 0
+    # One pull request for all security updates
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps"
