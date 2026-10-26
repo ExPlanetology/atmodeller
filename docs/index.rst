@@ -10,8 +10,6 @@ Atmodeller Documentation
 
 For questions and ideas, or to share how you are using *Atmodeller*, join the `Discussions <https://github.com/ExPlanetology/atmodeller/discussions>`__ on GitHub. To report a bug or request a feature, please open an `issue <https://github.com/ExPlanetology/atmodeller/issues>`__.
 
-Atmodeller was created as part of a SERI-funded ERC Starting grant '2ATMO' granted to P. Sossi (Contract no. MB22.00033), with additional funding provided through a Swiss National Science Foundation (SNSF) Eccellenza Professorship (#203668).
-
 .. toctree::
    :maxdepth: 2
    :caption: User Guide

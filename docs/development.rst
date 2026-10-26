@@ -35,13 +35,15 @@ Installation
 ------------
 
 See :ref:`developer_install` for how to install *Atmodeller* and the extra dependencies required for the developer tools and documentation.
- 
+
 Pre-commit
 ----------
 
 Run pre-commit before issuing a pull request to the main repository::
 
-    pre-commit run --all-files
+    uv run pre-commit run --all-files
+
+Without uv, run the same command without ``uv run`` in the activated environment. The same applies to the commands below.
 
 Documentation
 -------------
@@ -52,13 +54,13 @@ Documentation
 The doc dependencies include a bundled copy of pandoc (via ``pypandoc-binary``), which is used if pandoc is not already installed. On Apple Silicon Macs the bundled copy is currently an x86_64 binary that requires Rosetta, so either install pandoc natively (``brew install pandoc``) or install Rosetta (``softwareupdate --install-rosetta``). When the doc dependencies have been installed the documentation can be compiled::
 
     cd docs
-    sphinx-apidoc -f -o source ../atmodeller
+    uv run sphinx-apidoc -f -o source ../atmodeller
 
 To generate HTML documentation use the appropriate command for your operating system:
 
 Mac/Linux::
 
-    make html SPHINXOPTS="-W --keep-going"
+    uv run make html SPHINXOPTS="-W --keep-going"
 
 Windows::
 
@@ -68,7 +70,7 @@ The ``-W --keep-going`` options turn warnings into errors, as in the documentati
 
 To generate PDF documentation, noting that a LaTeX distribution must be available on your system::
 
-    make latexpdf
+    uv run make latexpdf
 
 Documentation is built in the appropriately named subdirectory in ``_build``.
 
@@ -81,20 +83,20 @@ Tests
     Tests should be consistent with the source code, so any changes to the source code should be reflected in changes to the test suite, if required.
 
 You can confirm that all tests pass by navigating to the root directory of *Atmodeller* and running::
-    
-    pytest
+
+    uv run pytest
 
 The performance tests, which time the solver for batches of models, are slow and are skipped by default. To run them::
 
-    pytest -m performance
-    
+    uv run pytest -m performance
+
 Similarly, to test coverage::
 
-    pytest --cov=atmodeller --cov-report=xml
+    uv run pytest --cov=atmodeller --cov-report=xml
 
 To check the coverage of the lines you changed, as the pull request check does, compare with the ``main`` branch of the upstream repository (here the remote ``upstream``)::
 
-    diff-cover coverage.xml --compare-branch=upstream/main --fail-under=80
+    uv run diff-cover coverage.xml --compare-branch=upstream/main --fail-under=80
 
 The overall coverage is reported by Codecov, and shown by the badge in ``README.md``.
 
