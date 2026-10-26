@@ -47,6 +47,8 @@ This is what ``get_default_database()`` returns and what ``ChemicalSpecies`` use
 
 Species with only a heat capacity model can be added with ``IntegratedThermodynamicProperties`` in ``atmodeller.thermodata``, which integrates the heat capacity from the enthalpy and entropy at the reference temperature.
 
+The temperature range of the data you add matters for condensates. By default, a condensate is not stable outside the temperature range of its data (``temperature_range()``): its Gibbs energy is held at its value at the bound, and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added. This is because the range of a condensed phase is often bounded by a phase boundary, such as a melting point. Gas data are extrapolated instead. To extrapolate the data of a condensate below or above its range, pass ``extrapolate_below=True`` or ``extrapolate_above=True`` to ``create_condensed`` (or ``PurePhase.from_species``), or call ``with_extrapolation`` on the thermodynamic properties.
+
 Add solubility laws
 -------------------
 
