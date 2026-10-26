@@ -55,7 +55,8 @@ class ChemicalSpecies(eqx.Module):
         activity: Activity
         solve_for_stability: Solve for stability
         number_solution: Number of solution quantities
-        thermo: Thermodynamic properties
+        thermo: Thermodynamic properties, which provide the heat capacity, enthalpy, entropy and
+            Gibbs energy, e.g. ``species.thermo.enthalpy(temperature)``
         include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
             fraction aggregations.
     """
