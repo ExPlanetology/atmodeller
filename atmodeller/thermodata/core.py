@@ -169,20 +169,32 @@ class ThermodynamicProperties(eqx.Module):
         """
         return replace(self, volume_model=volume_model)
 
-    def get_gibbs_over_RT(
+    def standard_gibbs_over_RT(
         self, temperature: ArrayLike, pressure: ArrayLike = STANDARD_PRESSURE
     ) -> FloatArray:
-        r"""Gets Gibbs energy to :data:`~atmodeller.sci_utils.GAS_CONSTANT`
+        r"""Gets the standard Gibbs energy over :data:`~atmodeller.sci_utils.GAS_CONSTANT`
         :math:`\times T`
 
-        Without a volume model this is the standard-state Gibbs energy at 1 bar for any pressure.
+        This is :math:`\mu^\circ/RT`, the Gibbs energy of the species in its standard state, in
+        which its activity is unity, so that :math:`\mu = \mu^\circ + RT \ln a`:
+
+        - Without a volume model (gases), the standard state is the pure ideal gas at 1 bar, so
+          the result does not depend on pressure. Non-ideality enters through the fugacity.
+        - With a volume model (condensed phases), the standard state is the pure phase at the
+          temperature and pressure of interest, so the result includes
+          :math:`\int_{1\,\mathrm{bar}}^P V\,dP`.
+
+        The enthalpy follows the NASA Glenn convention: the elements in their reference states
+        have zero enthalpy at 298.15 K and 1 bar. This is therefore not a Gibbs energy of
+        formation, but reaction Gibbs energies and equilibrium constants are unaffected because
+        the element terms cancel.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar). Defaults to 1 bar.
 
         Returns:
-            Gibbs energy relative to :data:`~atmodeller.sci_utils.GAS_CONSTANT`
+            Standard Gibbs energy over :data:`~atmodeller.sci_utils.GAS_CONSTANT`
             :math:`\times T`
         """
         temperature = as_j64(temperature)
@@ -233,7 +245,7 @@ class ThermodynamicProperties(eqx.Module):
         Returns:
             Gibbs energy function in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}`
         """
-        gibbs: FloatArray = self.get_gibbs_over_RT(temperature) * GAS_CONSTANT * temperature
+        gibbs: FloatArray = self.standard_gibbs_over_RT(temperature) * GAS_CONSTANT * temperature
         gibbs_function: FloatArray = -(gibbs - self.reference_enthalpy()) / temperature
 
         return gibbs_function

@@ -203,17 +203,20 @@ class ChemicalSpecies(eqx.Module):
     def name(self) -> str:
         return self.data.name
 
-    def get_gibbs_over_RT(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
-        """Gets Gibbs energy over RT
+    def standard_gibbs_over_RT(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
+        """Gets the standard Gibbs energy over RT
+
+        See :meth:`~atmodeller.thermodata.core.ThermodynamicProperties.standard_gibbs_over_RT`
+        for the standard state.
 
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
 
         Returns:
-            Gibbs energy over RT
+            Standard Gibbs energy over RT
         """
-        return self.thermo.get_gibbs_over_RT(temperature, pressure)
+        return self.thermo.standard_gibbs_over_RT(temperature, pressure)
 
     def __str__(self) -> str:
         return f"{self.data.name}: {self.activity.__class__.__name__}"

@@ -41,7 +41,7 @@ def _gibbs_over_RT_all_species(
     species = parameters.reaction_system.species
     reaction_names: list[str] = list(species.reaction_species.species_names)
     gibbs_reaction: Float[Array, " n_reaction_species"] = (
-        parameters.reaction_system.reaction.get_gibbs_over_RT(temperature, pressure)
+        parameters.reaction_system.reaction.standard_gibbs_over_RT(temperature, pressure)
     )
 
     return jnp.stack(
