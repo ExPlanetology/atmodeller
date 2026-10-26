@@ -603,7 +603,7 @@ class OutputNaturalDict(BaseOutputDict):
 
 
 class OutputNamedArraysDict(BaseOutputDict):
-    """Output dictionary with arrays split and labeled by element and species names"""
+    """Output dictionary with arrays split and labelled by element and species names"""
 
     @staticmethod
     def _split_by_name_and_add(

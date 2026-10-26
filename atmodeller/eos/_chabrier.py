@@ -309,7 +309,7 @@ class ChabrierFunction(RealGasBase):
 
         # The chosen functional form is empirical, but by construction recovers a unity fugacity
         # coefficient at 1 bar. The c[0]*exp(c[1]*logP) term captures the overall exponential
-        # behavior, while the c[2] + c[3]*logP terms provide additional flexibility to fit the data
+        # behaviour, while the c[2] + c[3]*logP terms provide additional flexibility to fit the data
         # more accurately before the exponential term dominates at higher pressures.
         # The terms are calculated and summed term-by-term to ensure broadcasting works correctly.
         log_fugacity_coefficient: FloatArray = logP * (

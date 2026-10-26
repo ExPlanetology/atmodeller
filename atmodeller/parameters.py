@@ -11,7 +11,7 @@ This module defines immutable, JAX-friendly parameter objects used by the solver
 - :class:`MassConstraintSet`: stores elemental abundance constraints in moles.
 - :class:`Parameters`: bundles state, constraints, and solver settings into one object.
 
-Factory methods validate and normalize user inputs, while ``update`` methods return new instances
+Factory methods validate and normalise user inputs, while ``update`` methods return new instances
 with leaf shapes kept stable for efficient JAX transformations, also within jitted workflows.
 
 Note:
@@ -82,7 +82,7 @@ class FixedActivityConstraint(eqx.Module):
             This method is designed to be fully compatible with both :func:`jax.vmap` and explicit
             batched input. It supports broadcasting of ``temperature`` and ``pressure`` to match
             the batch size, as required by output routines, while also working with per-instance
-            vectorization as used by the engine and solver.
+            vectorisation as used by the engine and solver.
 
         Args:
             temperature: Temperature (K)
@@ -147,7 +147,7 @@ class ActivityConstraintSet(eqx.Module):
 
         This explicit ordering is required for stable internal JAX operations. Relying on
         dictionary iteration for semantic species alignment is fragile across transformed code
-        paths, so constraints are always materialized in ``species.species_names`` order.
+        paths, so constraints are always materialised in ``species.species_names`` order.
         """
         return tuple(
             self.constraints_dict[species_name] for species_name in self.species.species_names
@@ -174,7 +174,7 @@ class ActivityConstraintSet(eqx.Module):
             This method is designed to be fully compatible with both :func:`jax.vmap` and explicit
             batched input. It supports broadcasting of ``temperature`` and ``pressure`` to match
             the batch size, as required by routines that evaluate batched input outside of
-            :func:`jax.vmap`, while also working with per-instance vectorization as used by the
+            :func:`jax.vmap`, while also working with per-instance vectorisation as used by the
             engine and solver.
 
         Args:

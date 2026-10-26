@@ -104,7 +104,7 @@ class RedoxBuffer(eqx.Module):
             This method is designed to be fully compatible with both :func:`jax.vmap` and explicit
             batched input. It supports broadcasting of ``temperature`` and ``pressure`` to match
             the batch size, as required by output routines (called via :meth:`log_activity`), while
-            also working with per-instance vectorization as used by the engine and solver.
+            also working with per-instance vectorisation as used by the engine and solver.
 
         Args:
             temperature: Temperature (K)

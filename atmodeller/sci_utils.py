@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Standalone helper functions and constants for scientific modeling
+"""Standalone helper functions and constants for scientific modelling
 
 This module provides physical, chemical, and mathematical constants, unit conversions, and utility
-functions for scientific calculations, particularly in planetary and atmospheric modeling. It is
+functions for scientific calculations, particularly in planetary and atmospheric modelling. It is
 designed to be standalone and does not depend on other modules within the atmodeller package.
 """
 

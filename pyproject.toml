@@ -1,7 +1,7 @@
 [project]
 name = "atmodeller"
 version = "2.0.0"
-description = "Thermochemical equilibrium modeling for planetary interiors and atmospheres"
+description = "Thermochemical equilibrium modelling for planetary interiors and atmospheres"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

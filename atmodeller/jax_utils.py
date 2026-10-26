@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Standalone helper functions and utilities for JAX-based scientific modeling
+"""Standalone helper functions and utilities for JAX-based scientific modelling
 
 This module provides type aliases, numerically stable mathematical operations, masking utilities,
 batch handling, and linear algebra helpers for use with JAX, NumPy, and related libraries. It is
@@ -98,7 +98,7 @@ def safe_exp(x: ArrayLike) -> Array:  # pragma: no cover
     Note:
         This function is intended for computations performed in log-space or masked representations
         where ``-inf`` denotes absent or zero-valued contributions. It preserves standard autodiff
-        behavior by default (no gradient suppression).
+        behaviour by default (no gradient suppression).
 
     Args:
         x: Input array-like values
@@ -416,7 +416,7 @@ def partial_rref(matrix: NpArray) -> NpArray:
         if pivot_value == 0:
             # logger.debug("i: %d. Pivot is zero, skipping backward elimination.", i)
             continue  # skip columns with no pivot
-        # Normalize the pivot row.
+        # Normalise the pivot row.
         augmented_matrix[i] /= augmented_matrix[i, i]
 
         # Eliminate entries above the pivot
