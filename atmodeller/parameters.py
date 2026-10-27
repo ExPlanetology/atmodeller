@@ -54,6 +54,37 @@ def _validate_mass_units(units: str) -> Literal["mass", "moles"]:
     return cast(Literal["mass", "moles"], units)
 
 
+def _validate_mass_constraint_keys(keys: Iterable[str], elements: tuple[str, ...]) -> None:
+    """Validates that mass constraints only contain elements in the system.
+
+    Only the keys are checked, which are not traced.
+
+    Args:
+        keys: Elements or species formulae of the mass constraints
+        elements: Elements in the system
+
+    Raises:
+        ValueError: If a key is not a formula, or contains an element that is not in the system
+    """
+    problems: list[str] = []
+    for key in keys:
+        try:
+            absent: list[str] = sorted(set(Formula(key).composition().asdict()) - set(elements))
+        except FormulaError:
+            problems.append(f"{key!r} is not an element or formula")
+            continue
+        if absent == [key]:
+            problems.append(f"{key!r} is not in the system")
+        elif absent:
+            problems.append(f"{key!r} contains {', '.join(absent)}")
+
+    if problems:
+        raise ValueError(
+            f"Mass constraints can only be given for elements in the system {elements}, or "
+            f"formulae of them: {'; '.join(problems)}."
+        )
+
+
 def _validate_activity_constraint_keys(
     keys: Iterable[str], species_names: tuple[str, ...]
 ) -> None:
@@ -313,6 +344,10 @@ class MassConstraintSet(eqx.Module):
             since this class is designed to store per-element abundances as 1D arrays. This allows
             users to input mass constraints direct from output dictionaries without having to
             manually squeeze batch dimensions. Defaults to ``True``.
+
+    Raises:
+        ValueError: If a key of ``mass_constraints`` is not a formula, or contains an element that
+            is not in the system
     """
 
     species: SpeciesCollection
@@ -332,6 +367,7 @@ class MassConstraintSet(eqx.Module):
         mass_constraints_: Mapping[str, ArrayLike] = (
             mass_constraints if mass_constraints is not None else {}
         )
+        _validate_mass_constraint_keys(mass_constraints_, species.unique_elements)
 
         abundance_dict: dict[str, Array] = {}
 
