@@ -51,7 +51,7 @@ gas_species_subneptune: tuple[ChemicalSpecies, ...] = (H2_g, H2O_g, O2_g, SiO_g,
 
 # Force SiO2 to have unity activity, as per previous tests. Eventually can be relaxed to allow for
 # a self-consistent activity, but this is fine for testing the real gas EOS.
-O2Si_l: PurePhase = PurePhase.from_species("O2Si", state="l")
+O2Si_l: PurePhase = PurePhase.from_component("liquid", formula="SiO2")
 condensates_subneptune: tuple[PurePhase, ...] = (O2Si_l,)
 
 

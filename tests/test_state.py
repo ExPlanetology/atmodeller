@@ -89,5 +89,5 @@ def test_duplicate_names_raise() -> None:
     with pytest.raises(ValueError, match="Species names must be unique"):
         BasePlanet.from_species((H2O_g, H2O_g))
     with pytest.raises(ValueError, match="Phase names must be unique"):
-        graphite: PurePhase = PurePhase.from_species("C")
+        graphite: PurePhase = PurePhase.from_component("graphite")
         BasePlanet.from_species((H2O_g,), condensates=(graphite, graphite))

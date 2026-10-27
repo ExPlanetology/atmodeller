@@ -41,9 +41,9 @@ CHN_g: ChemicalSpecies = ChemicalSpecies.create_gas("CHN")
 H_g: ChemicalSpecies = ChemicalSpecies.create_gas("H")
 
 # Condensates
-graphite: PurePhase = PurePhase.from_species("C", state="s")
-diamond: PurePhase = PurePhase.from_species("C", state="diamond")
-water: PurePhase = PurePhase.from_species("H2O", state="l")
+graphite: PurePhase = PurePhase.from_component("graphite")
+diamond: PurePhase = PurePhase.from_component("diamond")
+water: PurePhase = PurePhase.from_component("liquid", formula="H2O")
 
 
 def test_water_stable() -> None:
@@ -100,7 +100,9 @@ def test_graphite_water_stable() -> None:
                 }
             }
         },
-        "C_s": {"species": {"activity": {"C_s": 1.0}, "mass": {"C_s": 8.75101e19}}},
+        "C_graphite": {
+            "species": {"activity": {"C_graphite": 1.0}, "mass": {"C_graphite": 8.75101e19}}
+        },
         "H2O_l": {"species": {"activity": {"H2O_l": 1.0}, "mass": {"H2O_l": 2.74821e21}}},
     }
 
@@ -159,7 +161,7 @@ def test_impose_stable() -> None:
     # Since in this example we do not provide carbon in the injected gas stream, we cannot solve
     # for the stability of any carbon-bearing products because in order to do so requires
     # specification of the mass of carbon in the system.
-    imposed_graphite: PurePhase = PurePhase.from_species("C", state="s", solve_for_stability=False)
+    imposed_graphite: PurePhase = PurePhase.from_component("graphite", solve_for_stability=False)
     condensates: tuple[PurePhase, ...] = (imposed_graphite,)
 
     state: ThermodynamicState = ThermodynamicState.from_species(
@@ -184,7 +186,7 @@ def test_impose_stable() -> None:
                 }
             }
         },
-        "C_s": {"species": {"activity": {"C_s": 1.0}}},
+        "C_graphite": {"species": {"activity": {"C_graphite": 1.0}}},
     }
 
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
@@ -211,7 +213,9 @@ def test_graphite_diamond() -> None:
     out: dict[str, Any] = output.to_dict(to_numpy=True)
 
     # Graphite stable at 1 bar (row 0) and diamond stable at 1e5 bar (row 1)
-    for row, (stable, unstable) in enumerate((("C_s", "C_diamond"), ("C_diamond", "C_s"))):
+    for row, (stable, unstable) in enumerate(
+        (("C_graphite", "C_diamond"), ("C_diamond", "C_graphite"))
+    ):
         stable_species: dict[str, Any] = out[stable]["species"]
         unstable_species: dict[str, Any] = out[unstable]["species"]
 

@@ -12,12 +12,12 @@ A database provides thermodynamic data for species and creates
 
     db: DataBase = GlennDataBase()
     h2o_g: ChemicalSpecies = db.create_gas("H2O")
-    h2o_l: ChemicalSpecies = db.create_condensed("H2O", state="l")
+    h2o_l: ChemicalSpecies = db.condensed_from_component("liquid", formula="H2O")
 
     db_custom: DataBase = GlennDataBase.from_file("my_glenn_coefficients.txt")
 
     db_default: DataBase = get_default_database()
-    c_diamond: ChemicalSpecies = db_default.create_condensed("C", state="diamond")
+    c_diamond: ChemicalSpecies = db_default.condensed_from_component("diamond")
 
 A condensed species can also be created from its phase components, the gas, liquid or minerals
 to which the data refer:
@@ -137,7 +137,9 @@ class DataBase(ABC):
 
         The species is named from its formula and state in the same way as when it is created, so
         that ``add_species("C", "diamond", ...)`` is found by
-        ``create_condensed("C", state="diamond")``.
+        ``create_condensed("C", state="diamond")``. Unless the state is ``s``, the species is also
+        added as a phase component, here ``diamond``, which can only be selected on its own, e.g.
+        with :meth:`condensed_from_component`.
 
         Args:
             formula: Formula

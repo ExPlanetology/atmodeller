@@ -191,8 +191,8 @@ def trappist1e_with_solubility(request) -> EquilibriumModel:
     )
 
     # Condensates
-    C_s: PurePhase = PurePhase.from_species("C")
-    condensates_graphite_only: tuple[PurePhase, ...] = (C_s,)
+    C_graphite: PurePhase = PurePhase.from_component("graphite")
+    condensates_graphite_only: tuple[PurePhase, ...] = (C_graphite,)
 
     magma_ocean_temperature: float = 1800.0
     # In the paper we perform simulations at 0.1 and 1.0 melt fraction

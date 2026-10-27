@@ -50,7 +50,7 @@ Each phase that contains at least one species has its own output. The phase keys
 - ``silicate_melt``: species dissolved in the silicate melt
 - ``silicate_solid``: species in the silicate solid
 - ``metal``: species in the metal phase
-- condensates: each condensed (pure) phase, keyed by its species name (e.g. ``C_s``, ``H2O_l``)
+- condensates: each condensed (pure) phase, keyed by its species name (e.g. ``C_graphite``, ``H2O_l``)
 
 Phase-level outputs
 ~~~~~~~~~~~~~~~~~~~
