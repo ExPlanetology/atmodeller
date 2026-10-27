@@ -328,6 +328,94 @@ def stitch_glenn_properties(
     )
 
 
+def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
+    """Reads a file of NASA Glenn coefficients, or the packaged file if ``path`` is ``None``"""
+    if path is not None:
+        return pd.read_csv(path, comment="#")
+
+    packaged: AbstractContextManager[Path] = importlib.resources.as_file(
+        DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE)  # type: ignore
+    )
+    with packaged as datapath:
+        return pd.read_csv(datapath, comment="#")
+
+
+def _from_rows(df: pd.DataFrame) -> NasaGlennThermodynamicProperties:
+    """Thermodynamic properties from all the temperature ranges in the rows"""
+    cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
+    return NasaGlennThermodynamicProperties(
+        cp_coeffs, df["b1"], df["b2"], df["T_min"], df["T_max"]
+    )
+
+
+def _phase_components_from(
+    data: pd.DataFrame,
+) -> dict[str, dict[str, NasaGlennThermodynamicProperties]]:
+    """Thermodynamic properties of each phase component, keyed by Hill formula and then phase
+    component, in the order of the data"""
+    phase_components: dict[str, dict[str, NasaGlennThermodynamicProperties]] = {}
+    formula_of_component: dict[str, str] = {}
+
+    for key, df in data.groupby(["hill_formula", "phase_component"], sort=False):
+        hill_formula, component = (str(value) for value in cast(tuple[str, str], key))
+        if component not in (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT):
+            if formula_of_component.setdefault(component, hill_formula) != hill_formula:
+                raise ValueError(
+                    f"Phase component {component} is given for "
+                    f"{formula_of_component[component]} and {hill_formula}"
+                )
+        phase_components.setdefault(hill_formula, {})[component] = _from_rows(df)
+
+    return phase_components
+
+
+def read_glenn_phase_components(
+    path: str | Path | None = None,
+) -> dict[str, dict[str, NasaGlennThermodynamicProperties]]:
+    """Reads NASA Glenn coefficients and creates thermodynamic properties for each phase component
+
+    Args:
+        path: Path to a file of NASA Glenn coefficients in the same format as the packaged
+            :data:`THERMODYNAMIC_DATA_SOURCE`. Defaults to ``None``, which uses the packaged
+            file.
+
+    Returns:
+        Thermodynamic properties of each phase component, keyed by Hill formula and then phase
+        component, e.g. ``["O2Si"]["quartz-alpha"]``
+
+    Raises:
+        ValueError: If the same solid phase component is given for more than one formula
+    """
+    return _phase_components_from(_read_glenn_data(path))
+
+
+def _coefficients_from(data: pd.DataFrame) -> dict[str, ThermodynamicProperties]:
+    """Thermodynamic properties of each species, keyed by name"""
+    unique_combinations: pd.DataFrame = cast(
+        pd.DataFrame, data[["hill_formula", "state"]].drop_duplicates()
+    )
+    coefficient_dict: dict[str, ThermodynamicProperties] = {}
+
+    for hill_formula_value, state_value in unique_combinations.itertuples(index=False, name=None):
+        hill_formula: str = str(hill_formula_value)
+        state: str = str(state_value)
+        name: str = f"{hill_formula}_{state}"
+
+        # Find all data across all temperature ranges
+        df: pd.DataFrame = cast(
+            pd.DataFrame, data[(data["hill_formula"] == hill_formula) & (data["state"] == state)]
+        )
+        coefficient_dict[name] = _from_rows(df)
+
+    # Each solid phase component on its own. The gas and liquid are already <hill>_g and <hill>_l.
+    for hill_formula, components in _phase_components_from(data).items():
+        for component, properties in components.items():
+            if component not in (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT):
+                coefficient_dict[f"{hill_formula}_{component}"] = properties
+
+    return coefficient_dict
+
+
 def read_glenn_coefficients(
     path: str | Path | None = None,
 ) -> dict[str, ThermodynamicProperties]:
@@ -351,62 +439,24 @@ def read_glenn_coefficients(
     Raises:
         ValueError: If the same solid phase component is given for more than one formula
     """
-    if path is not None:
-        data: pd.DataFrame = pd.read_csv(path, comment="#")
-    else:
-        packaged: AbstractContextManager[Path] = importlib.resources.as_file(
-            DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE)  # type: ignore
-        )
-        with packaged as datapath:
-            data = pd.read_csv(datapath, comment="#")
-
-    def from_rows(df: pd.DataFrame) -> NasaGlennThermodynamicProperties:
-        """Thermodynamic properties from all the temperature ranges in the rows"""
-        cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
-        return NasaGlennThermodynamicProperties(
-            cp_coeffs, df["b1"], df["b2"], df["T_min"], df["T_max"]
-        )
-
-    unique_combinations: pd.DataFrame = cast(
-        pd.DataFrame, data[["hill_formula", "state"]].drop_duplicates()
-    )
-    coefficient_dict: dict[str, ThermodynamicProperties] = {}
-
-    for hill_formula_value, state_value in unique_combinations.itertuples(index=False, name=None):
-        hill_formula: str = str(hill_formula_value)
-        state: str = str(state_value)
-        name: str = f"{hill_formula}_{state}"
-
-        # Find all data across all temperature ranges
-        df: pd.DataFrame = cast(
-            pd.DataFrame, data[(data["hill_formula"] == hill_formula) & (data["state"] == state)]
-        )
-        coefficient_dict[name] = from_rows(df)
-
-    # Each solid phase component on its own. The gas and liquid are already <hill>_g and <hill>_l.
-    formula_of_component: dict[str, str] = {}
-    solids: pd.DataFrame = cast(
-        pd.DataFrame,
-        data[~data["phase_component"].isin((GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT))],
-    )
-    for key, df in solids.groupby(["hill_formula", "phase_component"], sort=False):
-        hill_formula_value, component_value = cast(tuple[str, str], key)
-        hill_formula = str(hill_formula_value)
-        component: str = str(component_value)
-        if formula_of_component.setdefault(component, hill_formula) != hill_formula:
-            raise ValueError(
-                f"Phase component {component} is given for {formula_of_component[component]} "
-                f"and {hill_formula}"
-            )
-        coefficient_dict[f"{hill_formula}_{component}"] = from_rows(df)
-
-    return coefficient_dict
+    return _coefficients_from(_read_glenn_data(path))
 
 
 # Create the default data once, since they are accessed (potentially many times) when creating
-# species. The value is hidden from sphinx (autodoc), which would otherwise print it in full.
-glenn_properties: dict[str, ThermodynamicProperties] = read_glenn_coefficients()
+# species. The values are hidden from sphinx (autodoc), which would otherwise print them in full.
+_glenn_data: pd.DataFrame = _read_glenn_data(None)
+
+glenn_properties: dict[str, ThermodynamicProperties] = _coefficients_from(_glenn_data)
 """Thermodynamic properties for all species from the packaged NASA Glenn coefficients
+
+:meta hide-value:
+"""
+
+glenn_phase_components: dict[str, dict[str, NasaGlennThermodynamicProperties]] = (
+    _phase_components_from(_glenn_data)
+)
+"""Thermodynamic properties of each phase component from the packaged NASA Glenn coefficients,
+keyed by Hill formula and then phase component
 
 :meta hide-value:
 """
