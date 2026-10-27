@@ -145,7 +145,7 @@ def test_phase_components_and_stitching() -> None:
         silica.standard_gibbs_over_RT(liquid), glenn["O2Si_l"].standard_gibbs_over_RT(liquid)
     )
     # A single phase component is returned as it is, so graphite keeps its volume
-    graphite = default_properties["C_graphite"]
+    graphite = cast(NasaGlennThermodynamicProperties, default_properties["C_graphite"])
     assert stitch_glenn_properties({"graphite": graphite}) is graphite
     np.testing.assert_array_equal(
         graphite.standard_gibbs_over_RT(solid, 1e4),

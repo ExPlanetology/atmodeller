@@ -362,7 +362,7 @@ def read_glenn_coefficients(
 
     def from_rows(df: pd.DataFrame) -> NasaGlennThermodynamicProperties:
         """Thermodynamic properties from all the temperature ranges in the rows"""
-        cp_coeffs: pd.DataFrame = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
+        cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
         return NasaGlennThermodynamicProperties(
             cp_coeffs, df["b1"], df["b2"], df["T_min"], df["T_max"]
         )
@@ -389,9 +389,8 @@ def read_glenn_coefficients(
         pd.DataFrame,
         data[~data["phase_component"].isin((GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT))],
     )
-    for (hill_formula_value, component_value), df in solids.groupby(
-        ["hill_formula", "phase_component"], sort=False
-    ):
+    for key, df in solids.groupby(["hill_formula", "phase_component"], sort=False):
+        hill_formula_value, component_value = cast(tuple[str, str], key)
         hill_formula = str(hill_formula_value)
         component: str = str(component_value)
         if formula_of_component.setdefault(component, hill_formula) != hill_formula:
