@@ -131,6 +131,9 @@ class PhaseSystem(eqx.Module):
     Args:
         gas: Gas phase
         other_phases: Tuple of other phases
+
+    Raises:
+        ValueError: If two phases have the same name
     """
 
     phases: tuple[BasePhase, ...]
@@ -143,6 +146,13 @@ class PhaseSystem(eqx.Module):
     def __init__(self, gas: GasPhase, *, other_phases: Optional[tuple[BasePhase, ...]] = None):
         other_phases_ = tuple() if other_phases is None else other_phases
         self.phases = (gas,) + other_phases_
+        names: list[str] = [phase.name for phase in self.phases]
+        duplicates: list[str] = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(
+                f"Phase names must be unique, but {duplicates} appear more than once (a pure "
+                "phase has the name of its species)"
+            )
 
         other_species: tuple[SpeciesProtocol, ...] = tuple(
             species for phase in other_phases_ for species in phase.species.species
@@ -391,6 +401,9 @@ class DissolutionNetwork(BaseReactionBlock):
 
     Args:
         species: An iterable of species
+
+    Raises:
+        ValueError: If a dissolved species has no gas species of the same formula
     """
 
     species: SpeciesCollection[SpeciesProtocol]
@@ -419,6 +432,11 @@ class DissolutionNetwork(BaseReactionBlock):
             )
             # Gas species index
             name: str = f"{dissolution_species_.data.hill_formula}_{GAS_STATE}"
+            if name not in self.species.species_names:
+                raise ValueError(
+                    f"Dissolved species {dissolution_species_.data.name} needs the gas species "
+                    f"{name} in the model"
+                )
             gas_idx: int = self.species.species_names.index(name)
 
             reaction_indices_map.append(gas_idx)
@@ -535,7 +553,9 @@ class ReactionSystem(BaseReactionBlock):
         self.phase_system = phase_system
         self.formula_matrix = get_formula_matrix(self.species)
 
-        with np.errstate(divide="ignore"):
+        # The stoichiometry of the electron (the charge of an ion) is negative for a cation, and
+        # like zero it is excluded from the log stoichiometry
+        with np.errstate(divide="ignore", invalid="ignore"):
             self._log_stoich_matrix = np.where(
                 self.formula_matrix > 0, np.log(self.formula_matrix), -np.inf
             )

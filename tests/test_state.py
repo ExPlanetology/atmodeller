@@ -10,7 +10,9 @@ import logging
 import pytest
 
 from atmodeller import debug_logger
-from atmodeller.containers import ChemicalSpecies
+from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
+from atmodeller.phases import PurePhase
+from atmodeller.solubility import get_solubility_models
 from atmodeller.state import BasePlanet, PressureScalingLawPlanet, ThermodynamicState
 
 logger: logging.Logger = debug_logger()
@@ -67,3 +69,25 @@ def test_base_planet_update() -> None:
     check(planet.update(mantle_melt_fraction=0.9), mass, 0.3, 0.9)
     # All together
     check(planet.update(planet_mass=6.0e24, core_mass_fraction=0.2), 6.0e24, 0.2, 0.4)
+
+
+def test_dissolved_species_raise() -> None:
+    """A dissolved species raises without its gas species, or outside the silicate melt"""
+    H2O_d: ReservoirSpecies = ReservoirSpecies.create_dissolved(
+        "H2O", solubility=get_solubility_models()["H2O_basalt_dixon95"]
+    )
+    H2_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2")
+
+    with pytest.raises(ValueError, match="H2O_d needs the gas species H2O_g"):
+        BasePlanet.from_species((H2_g,), silicate_melt_species=(H2O_d,))
+    with pytest.raises(ValueError, match="H2O_d in metal_species"):
+        BasePlanet.from_species((H2O_g,), metal_species=(H2O_d,))
+
+
+def test_duplicate_names_raise() -> None:
+    """Two species, or two phases, with the same name raise"""
+    with pytest.raises(ValueError, match="Species names must be unique"):
+        BasePlanet.from_species((H2O_g, H2O_g))
+    with pytest.raises(ValueError, match="Phase names must be unique"):
+        graphite: PurePhase = PurePhase.from_species("C")
+        BasePlanet.from_species((H2O_g,), condensates=(graphite, graphite))

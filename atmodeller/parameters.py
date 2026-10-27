@@ -19,14 +19,14 @@ Note:
     ``update`` methods to preserve leaf signatures and avoid unnecessary retracing.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Literal, Optional, Self, cast
 
 import equinox as eqx
 import jax.numpy as jnp
 import jax.tree_util as jtu
 from jaxtyping import Array, ArrayLike, Bool, Float
-from molmass import Composition, CompositionItem, Formula
+from molmass import Composition, CompositionItem, Formula, FormulaError
 
 from atmodeller.containers import SolverParameters, SpeciesCollection
 from atmodeller.interfaces import ActivityConstraintProtocol, SpeciesProtocol
@@ -52,6 +52,73 @@ def _validate_mass_units(units: str) -> Literal["mass", "moles"]:
     if units not in VALID_MASS_UNITS:  # pragma: no cover
         raise ValueError(f"Invalid units '{units}'. Expected one of {VALID_MASS_UNITS}.")
     return cast(Literal["mass", "moles"], units)
+
+
+def _validate_mass_constraint_keys(keys: Iterable[str], elements: tuple[str, ...]) -> None:
+    """Validates that mass constraints only contain elements in the system.
+
+    Only the keys are checked, which are not traced.
+
+    Args:
+        keys: Elements or species formulae of the mass constraints
+        elements: Elements in the system
+
+    Raises:
+        ValueError: If a key is not a formula, or contains an element that is not in the system
+    """
+    problems: list[str] = []
+    for key in keys:
+        try:
+            absent: list[str] = sorted(set(Formula(key).composition().asdict()) - set(elements))
+        except FormulaError:
+            problems.append(f"{key!r} is not an element or formula")
+            continue
+        if absent == [key]:
+            problems.append(f"{key!r} is not in the system")
+        elif absent:
+            problems.append(f"{key!r} contains {', '.join(absent)}")
+
+    if problems:
+        raise ValueError(
+            f"Mass constraints can only be given for elements in the system {elements}, or "
+            f"formulae of them: {'; '.join(problems)}."
+        )
+
+
+def _validate_activity_constraint_keys(
+    keys: Iterable[str], species_names: tuple[str, ...]
+) -> None:
+    """Validates that activity constraints are only given for species in the system.
+
+    Only the keys are checked, which are not traced, so this also works within jitted workflows.
+
+    Args:
+        keys: Species names of the activity constraints
+        species_names: Names of the species in the system
+
+    Raises:
+        ValueError: If a key is not the name of a species in the system. A key that is a formula
+            (e.g. ``O2``) gets a suggestion of the species with that formula (e.g. ``O2_g``).
+    """
+    unknown: list[str] = [key for key in keys if key not in species_names]
+    if not unknown:
+        return
+
+    suggestions: list[str] = []
+    for key in unknown:
+        try:
+            hill_formula: str = Formula(key).formula
+        except FormulaError:
+            continue
+        suggestions.extend(
+            f"{key} -> {name}" for name in species_names if name.startswith(f"{hill_formula}_")
+        )
+    hint: str = f" Did you mean {', '.join(suggestions)}?" if suggestions else ""
+
+    raise ValueError(
+        f"Activity constraints can only be given for species in the system {species_names}, not "
+        f"{tuple(unknown)}. Give species names, e.g. O2_g.{hint}"
+    )
 
 
 class FixedActivityConstraint(eqx.Module):
@@ -111,6 +178,10 @@ class ActivityConstraintSet(eqx.Module):
         species: Species collection
         activity_constraints: Mapping of a species name and an activity constraint. Defaults to
             ``None``.
+
+    Raises:
+        ValueError: If a key of ``activity_constraints`` is not the name of a species in the
+            system
     """
 
     species: SpeciesCollection
@@ -126,6 +197,7 @@ class ActivityConstraintSet(eqx.Module):
         activity_constraints_: Mapping[str, ActivityConstraintProtocol] = (
             activity_constraints if activity_constraints is not None else {}
         )
+        _validate_activity_constraint_keys(activity_constraints_, species.species_names)
 
         constraints_dict: dict[str, ActivityConstraintProtocol] = {}
 
@@ -223,17 +295,18 @@ class ActivityConstraintSet(eqx.Module):
             new_constraints: Dictionary with new constraint values for some or all species. The
                 keys should be species names and the values should be the new constraint values.
                 Original constraints that are not included in the ``new_constraints`` dictionary
-                will be retained. Unknown species keys are ignored.
+                will be retained.
 
         Returns:
             An instance with updated activity/fugacity constraints
+
+        Raises:
+            ValueError: If a key is not the name of a species in the system
         """
+        _validate_activity_constraint_keys(new_constraints, self.species.species_names)
         constraints_dict: dict[str, ActivityConstraintProtocol] = dict(self.constraints_dict)
 
         for species_name, new_value in new_constraints.items():
-            if species_name not in constraints_dict:  # pragma: no cover
-                continue
-
             original_value: ActivityConstraintProtocol = constraints_dict[species_name]
 
             original_dynamic, _ = eqx.partition(original_value, eqx.is_array)
@@ -271,6 +344,10 @@ class MassConstraintSet(eqx.Module):
             since this class is designed to store per-element abundances as 1D arrays. This allows
             users to input mass constraints direct from output dictionaries without having to
             manually squeeze batch dimensions. Defaults to ``True``.
+
+    Raises:
+        ValueError: If a key of ``mass_constraints`` is not a formula, or contains an element that
+            is not in the system
     """
 
     species: SpeciesCollection
@@ -290,6 +367,7 @@ class MassConstraintSet(eqx.Module):
         mass_constraints_: Mapping[str, ArrayLike] = (
             mass_constraints if mass_constraints is not None else {}
         )
+        _validate_mass_constraint_keys(mass_constraints_, species.unique_elements)
 
         abundance_dict: dict[str, Array] = {}
 

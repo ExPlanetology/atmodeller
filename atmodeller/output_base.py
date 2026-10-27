@@ -957,8 +957,8 @@ class OutputElementsSpeciesDict(BaseOutputDict):
                 phase_output: PhaseOutput = self.get_phase_output_from_index(phase_index)
                 out_ = self._phase_output_to_dict(phase_output)
                 out = recursively_merge_dictionaries(out, out_)
-                out[phase.name] = {}
-                out[phase.name]["phase"] = self.phase_to_dict(phase_output)
+                # A pure phase has the name of its species, so keep the species entry in out
+                out.setdefault(phase.name, {})["phase"] = self.phase_to_dict(phase_output)
 
         # Extra outputs for the gas phase
         if not self.gas.is_empty:

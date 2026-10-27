@@ -3,20 +3,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests the integrated thermodynamic properties, the diamond of Gustafson (1986), the NASA
-Glenn data outside their temperature ranges with and without extrapolation, and the alternative
-carbon and silicon models of Vassiliev (2021) and Holland and Powell"""
+"""Tests the integrated thermodynamic properties, the diamond of Gustafson (1986), the Hill
+formulae of the NASA Glenn data and the data outside their temperature ranges with and without
+extrapolation, and the alternative carbon and silicon models of Vassiliev (2021) and Holland and
+Powell"""
 
 from typing import cast
 
 import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from jaxtyping import Array
+from molmass import Formula
 from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
-from atmodeller.containers import ChemicalSpecies
+from atmodeller.containers import ChemicalSpecies, SpeciesCollection
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
@@ -24,7 +27,12 @@ from atmodeller.thermodata import (
 )
 from atmodeller.thermodata import holland_powell, vassiliev
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
-from atmodeller.thermodata.janaf import NasaGlennThermodynamicProperties, glenn_properties
+from atmodeller.thermodata.defaults import default_properties
+from atmodeller.thermodata.janaf import (
+    NasaGlennThermodynamicProperties,
+    glenn_properties,
+    stitch_glenn_properties,
+)
 
 graphite: NasaGlennThermodynamicProperties = cast(
     NasaGlennThermodynamicProperties, glenn_properties["C_s"]
@@ -103,6 +111,63 @@ def test_gustafson_reproduces_sgte_boundary() -> None:
     ):
         boundary: float = cast(float, brentq(gibbs_difference, 1.0, 1e6, args=(temperature,)))
         np.testing.assert_allclose(boundary / 1e4, pressure, atol=0.005)
+
+
+def test_glenn_formulae_are_hill() -> None:
+    """Every formula in the NASA Glenn data is in Hill order, since species are looked up by the
+    Hill formula of their input formula"""
+    formulae: set[str] = {name.rsplit("_", 1)[0] for name in glenn_properties}
+    not_hill: list[str] = sorted(f for f in formulae if Formula(f).formula != f)
+
+    assert not not_hill, f"Not in Hill order: {not_hill}"
+    assert ChemicalSpecies.create_gas("NH").name == "HN_g"
+
+
+def test_phase_components_and_stitching() -> None:
+    """Each phase component is an entry, and stitching the condensed ones of a formula in order of
+    temperature gives the same as the solid and liquid entries; overlaps, gaps and volume models
+    cannot be stitched"""
+    glenn = cast(dict[str, NasaGlennThermodynamicProperties], glenn_properties)
+    silica = stitch_glenn_properties(
+        {
+            name: glenn[f"O2Si_{name}"]
+            for name in ("quartz-beta", "cristobalite-beta", "quartz-alpha")
+        }
+        | {"liquid": glenn["O2Si_l"]}
+    )
+    solid: Array = jnp.array([300.0, 1000.0, 1500.0, 1990.0])
+    liquid: Array = jnp.array([2500.0, 4000.0])
+
+    np.testing.assert_array_equal(
+        silica.standard_gibbs_over_RT(solid), glenn["O2Si_s"].standard_gibbs_over_RT(solid)
+    )
+    np.testing.assert_array_equal(
+        silica.standard_gibbs_over_RT(liquid), glenn["O2Si_l"].standard_gibbs_over_RT(liquid)
+    )
+    # A single phase component is returned as it is, so graphite keeps its volume
+    graphite = cast(NasaGlennThermodynamicProperties, default_properties["C_graphite"])
+    assert stitch_glenn_properties({"graphite": graphite}) is graphite
+    np.testing.assert_array_equal(
+        graphite.standard_gibbs_over_RT(solid, 1e4),
+        default_properties["C_s"].standard_gibbs_over_RT(solid, 1e4),
+    )
+
+    with pytest.raises(ValueError, match="overlaps"):
+        stitch_glenn_properties({"hematite": glenn["Fe2O3_hematite"], "liquid": glenn["Fe2O3_l"]})
+    with pytest.raises(ValueError, match="gap"):
+        stitch_glenn_properties(
+            {"quartz-alpha": glenn["O2Si_quartz-alpha"], "liquid": glenn["O2Si_l"]}
+        )
+    with pytest.raises(ValueError, match="volume model"):
+        stitch_glenn_properties({"graphite": graphite, "other": glenn["C_graphite"]})
+
+
+def test_ions_can_be_selected() -> None:
+    """Ions have the electron as an element, with the molar mass of the electron"""
+    ions = SpeciesCollection([ChemicalSpecies.create_gas("D+"), ChemicalSpecies.create_gas("D-")])
+
+    assert ions.unique_elements == ("2H", "e-")
+    np.testing.assert_allclose(ions.element_molar_masses, [2.01410177812e-3, 5.48579909065e-7])
 
 
 def test_glenn_extrapolation_uses_nearest_range() -> None:

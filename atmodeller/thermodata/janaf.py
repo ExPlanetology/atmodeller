@@ -14,6 +14,7 @@ Coefficients are available at https://ntrs.nasa.gov/citations/20020085330
 """
 
 import importlib.resources
+from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import cast
@@ -25,12 +26,16 @@ import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float, Integer
 
 from atmodeller import override
+from atmodeller.constants import GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata.core import DATA_DIRECTORY, ThermodynamicProperties
 
 THERMODYNAMIC_DATA_SOURCE: Path = Path("nasa_glenn_coefficients.txt")
 """Source of the thermodynamic data"""
+
+# Temperature tolerance (K) for matching the end of one temperature range to the start of the next
+_RANGE_TOLERANCE: float = 1e-6
 
 
 class NasaGlennThermodynamicProperties(ThermodynamicProperties):
@@ -269,10 +274,70 @@ def nasa_glenn_thermodynamic_properties(
     return NasaGlennThermodynamicProperties(cp_coeffs, b1, b2, T_min, T_max)
 
 
+def stitch_glenn_properties(
+    phase_components: Mapping[str, NasaGlennThermodynamicProperties],
+) -> NasaGlennThermodynamicProperties:
+    """Stitches the phase components of one formula together in order of temperature
+
+    The NASA Glenn data are at 1 bar, and the temperature ranges of the phase components of a
+    formula (e.g. quartz-alpha, quartz-beta, cristobalite-beta and liquid) are its stable sequence
+    at 1 bar, so stitching them gives the stable phase component at each temperature. A single
+    phase component is returned as it is, with any volume model. Several phase components must
+    have no volume model, since the pressure dependence would move the transitions between them.
+
+    Args:
+        phase_components: Thermodynamic properties of each phase component, keyed by its name
+
+    Returns:
+        Thermodynamic properties of the phase components stitched together
+
+    Raises:
+        ValueError: If several phase components are stitched and any has a volume model, or if
+            their temperature ranges overlap or leave a gap
+    """
+    if len(phase_components) == 1:
+        return next(iter(phase_components.values()))
+
+    with_volume: list[str] = [
+        name for name, properties in phase_components.items() if properties.volume_model
+    ]
+    if with_volume:
+        raise ValueError(
+            f"Phase components with a volume model cannot be stitched together: {with_volume}"
+        )
+
+    ordered: list[tuple[str, NasaGlennThermodynamicProperties]] = sorted(
+        phase_components.items(), key=lambda item: min(item[1].T_min)
+    )
+    for (name, properties), (next_name, next_properties) in zip(ordered, ordered[1:]):
+        end: float = max(properties.T_max)
+        start: float = min(next_properties.T_min)
+        if start < end - _RANGE_TOLERANCE:
+            raise ValueError(f"{name} (to {end} K) overlaps {next_name} (from {start} K)")
+        if start > end + _RANGE_TOLERANCE:
+            raise ValueError(
+                f"There is a gap between {name} (to {end} K) and {next_name} (from {start} K)"
+            )
+
+    return NasaGlennThermodynamicProperties(
+        tuple(coeffs for _, properties in ordered for coeffs in properties.cp_coeffs),
+        tuple(value for _, properties in ordered for value in properties.b1),
+        tuple(value for _, properties in ordered for value in properties.b2),
+        tuple(value for _, properties in ordered for value in properties.T_min),
+        tuple(value for _, properties in ordered for value in properties.T_max),
+    )
+
+
 def read_glenn_coefficients(
     path: str | Path | None = None,
 ) -> dict[str, ThermodynamicProperties]:
     """Reads NASA Glenn coefficients and creates thermodynamic properties for all species
+
+    Each phase component of a formula is an entry of its own: ``<hill>_g`` for the gas,
+    ``<hill>_l`` for the liquid and ``<hill>_<phase component>`` for a solid, e.g.
+    ``O2Si_cristobalite-beta``. The solid phase components of a formula are also stitched
+    together as ``<hill>_s``. Other stitches are made on demand with
+    :func:`stitch_glenn_properties`.
 
     Args:
         path: Path to a file of NASA Glenn coefficients in the same format as the packaged
@@ -280,8 +345,11 @@ def read_glenn_coefficients(
             file.
 
     Returns:
-        Thermodynamic properties for all species, keyed by Hill formula and state, e.g.
-        ``H2O_g``
+        Thermodynamic properties for all species, keyed by Hill formula and state or phase
+        component, e.g. ``H2O_g``
+
+    Raises:
+        ValueError: If the same solid phase component is given for more than one formula
     """
     if path is not None:
         data: pd.DataFrame = pd.read_csv(path, comment="#")
@@ -291,6 +359,13 @@ def read_glenn_coefficients(
         )
         with packaged as datapath:
             data = pd.read_csv(datapath, comment="#")
+
+    def from_rows(df: pd.DataFrame) -> NasaGlennThermodynamicProperties:
+        """Thermodynamic properties from all the temperature ranges in the rows"""
+        cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
+        return NasaGlennThermodynamicProperties(
+            cp_coeffs, df["b1"], df["b2"], df["T_min"], df["T_max"]
+        )
 
     unique_combinations: pd.DataFrame = cast(
         pd.DataFrame, data[["hill_formula", "state"]].drop_duplicates()
@@ -306,10 +381,24 @@ def read_glenn_coefficients(
         df: pd.DataFrame = cast(
             pd.DataFrame, data[(data["hill_formula"] == hill_formula) & (data["state"] == state)]
         )
-        cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
-        coefficient_dict[name] = nasa_glenn_thermodynamic_properties(
-            df["b1"], df["b2"], cp_coeffs, df["T_min"], df["T_max"]
-        )
+        coefficient_dict[name] = from_rows(df)
+
+    # Each solid phase component on its own. The gas and liquid are already <hill>_g and <hill>_l.
+    formula_of_component: dict[str, str] = {}
+    solids: pd.DataFrame = cast(
+        pd.DataFrame,
+        data[~data["phase_component"].isin((GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT))],
+    )
+    for key, df in solids.groupby(["hill_formula", "phase_component"], sort=False):
+        hill_formula_value, component_value = cast(tuple[str, str], key)
+        hill_formula = str(hill_formula_value)
+        component: str = str(component_value)
+        if formula_of_component.setdefault(component, hill_formula) != hill_formula:
+            raise ValueError(
+                f"Phase component {component} is given for {formula_of_component[component]} "
+                f"and {hill_formula}"
+            )
+        coefficient_dict[f"{hill_formula}_{component}"] = from_rows(df)
 
     return coefficient_dict
 

@@ -13,7 +13,6 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
-from molmass import Formula
 
 from atmodeller.constants import (
     DISSOLVED_STATE,
@@ -312,7 +311,14 @@ class ReservoirSpecies(eqx.Module):
 
 
 class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
-    """Container of species and metadata"""
+    """Container of species and metadata
+
+    Args:
+        species: Species, whose names must be unique
+
+    Raises:
+        ValueError: If two species have the same name
+    """
 
     species: tuple[TSpecies_co, ...]
     """Species in the collection"""
@@ -326,6 +332,13 @@ class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
     def __init__(self, species: Iterable[TSpecies_co]):
         self.species = tuple(species)
         self.species_names = tuple(species_.data.name for species_ in self)
+        duplicates: list[str] = sorted(
+            {name for name in self.species_names if self.species_names.count(name) > 1}
+        )
+        if duplicates:
+            raise ValueError(
+                f"Species names must be unique, but {duplicates} appear more than once"
+            )
 
         # Ensure number_solution is static
         self.number_solution = sum(species.number_solution for species in self)
@@ -350,15 +363,20 @@ class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
 
     @property
     def element_molar_masses(self) -> NpFloat:
-        """Element molar masses for the unique elements in the species"""
-        element_molar_masses: list[float] = []
+        """Element molar masses for the unique elements in the species
 
-        for element_ in self.unique_elements:
-            mformula: Formula = Formula(element_)
-            molar_mass: float = mformula.mass * unit_conversion.g_to_kg
-            element_molar_masses.append(molar_mass)
+        Each is the mass per atom of the element in the composition of a species that contains it,
+        so the electron (the charge of an ion, element ``e-``) is included like any other element.
+        """
+        element_molar_masses: dict[str, float] = {}
 
-        return np.array(element_molar_masses, dtype=float)
+        for species_ in self:
+            for element_, (count, mass, _) in species_.data.composition.items():
+                element_molar_masses.setdefault(element_, mass / count * unit_conversion.g_to_kg)
+
+        return np.array(
+            [element_molar_masses[element_] for element_ in self.unique_elements], dtype=float
+        )
 
     @property
     def molar_masses(self) -> Float[Array, " n_species"]:
