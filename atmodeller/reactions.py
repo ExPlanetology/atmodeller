@@ -131,6 +131,9 @@ class PhaseSystem(eqx.Module):
     Args:
         gas: Gas phase
         other_phases: Tuple of other phases
+
+    Raises:
+        ValueError: If two phases have the same name
     """
 
     phases: tuple[BasePhase, ...]
@@ -143,6 +146,13 @@ class PhaseSystem(eqx.Module):
     def __init__(self, gas: GasPhase, *, other_phases: Optional[tuple[BasePhase, ...]] = None):
         other_phases_ = tuple() if other_phases is None else other_phases
         self.phases = (gas,) + other_phases_
+        names: list[str] = [phase.name for phase in self.phases]
+        duplicates: list[str] = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(
+                f"Phase names must be unique, but {duplicates} appear more than once (a pure "
+                "phase has the name of its species)"
+            )
 
         other_species: tuple[SpeciesProtocol, ...] = tuple(
             species for phase in other_phases_ for species in phase.species.species

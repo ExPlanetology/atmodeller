@@ -11,6 +11,7 @@ import pytest
 
 from atmodeller import debug_logger
 from atmodeller.containers import ChemicalSpecies
+from atmodeller.phases import PurePhase
 from atmodeller.state import BasePlanet, PressureScalingLawPlanet, ThermodynamicState
 
 logger: logging.Logger = debug_logger()
@@ -67,3 +68,12 @@ def test_base_planet_update() -> None:
     check(planet.update(mantle_melt_fraction=0.9), mass, 0.3, 0.9)
     # All together
     check(planet.update(planet_mass=6.0e24, core_mass_fraction=0.2), 6.0e24, 0.2, 0.4)
+
+
+def test_duplicate_names_raise() -> None:
+    """Two species, or two phases, with the same name raise"""
+    with pytest.raises(ValueError, match="Species names must be unique"):
+        BasePlanet.from_species((H2O_g, H2O_g))
+    with pytest.raises(ValueError, match="Phase names must be unique"):
+        graphite: PurePhase = PurePhase.from_species("C")
+        BasePlanet.from_species((H2O_g,), condensates=(graphite, graphite))
