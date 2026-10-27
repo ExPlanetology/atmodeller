@@ -15,6 +15,7 @@ import pytest
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.database import DataBase, GlennDataBase, components_of, get_default_database
+from atmodeller.interfaces import species_name
 from atmodeller.phases import PurePhase
 from atmodeller.thermodata.core import DATA_DIRECTORY
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
@@ -98,6 +99,9 @@ def test_phase_components() -> None:
     carbon = cast(ChemicalSpecies, PurePhase.from_formula("C").species[0])
 
     assert components_of("SiO2") == ("quartz-alpha", "quartz-beta", "cristobalite-beta", "liquid")
+    cho: dict[str, tuple[str, ...]] = get_default_database().phase_components(("C", "H", "O"))
+    assert {"H2O", "CO2", "C"} <= set(cho) and "O2Si" not in cho
+    assert (species_name("SO2"), species_name("SiO2", "l")) == ("O2S_g", "O2Si_l")
     assert (sio2.name, carbon.name) == ("O2Si_cd", "C_cd")
     # Quartz, then the liquid above the melting point of cristobalite (1996 K)
     for temperature, component in ((1000.0, "quartz-beta"), (2500.0, "liquid")):

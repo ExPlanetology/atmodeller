@@ -20,6 +20,7 @@ import equinox as eqx
 from jaxtyping import Array, ArrayLike, Bool
 from molmass import Formula
 
+from atmodeller.constants import GAS_SUFFIX
 from atmodeller.jax_utils import FloatArray
 from atmodeller.sci_utils import unit_conversion
 
@@ -67,6 +68,23 @@ class ChemicalSpeciesData(eqx.Module):
     def name(self) -> str:
         """Unique name from the Hill formula and the suffix, e.g. ``H2O_g``"""
         return f"{self.hill_formula}_{self.suffix}"
+
+
+def species_name(formula: str, suffix: str = GAS_SUFFIX) -> str:
+    """Name of a species, from the Hill formula of its formula and a suffix
+
+    This gives the names used for constraints and in the output, e.g. ``species_name("SO2")`` is
+    ``O2S_g`` and ``species_name("SiO2", "l")`` is ``O2Si_l``.
+
+    Args:
+        formula: Formula
+        suffix: Suffix of the name (see :class:`ChemicalSpeciesData`). Defaults to
+            :data:`~atmodeller.constants.GAS_SUFFIX`.
+
+    Returns:
+        Name of the species
+    """
+    return ChemicalSpeciesData(formula, suffix).name
 
 
 @runtime_checkable

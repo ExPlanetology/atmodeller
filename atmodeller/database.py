@@ -51,6 +51,12 @@ def _hill(formula: str) -> str:
     return Formula(formula).formula
 
 
+@cache
+def _elements(formula: str) -> frozenset[str]:
+    """Elements of a formula, cached since listings check every formula"""
+    return frozenset(Formula(formula).composition().keys())
+
+
 class DataBase(ABC):
     """Thermodynamic database of phase components
 
@@ -91,16 +97,25 @@ class DataBase(ABC):
         """
         raise NotImplementedError
 
-    def phase_components(self) -> dict[str, tuple[str, ...]]:
+    def phase_components(
+        self, elements: Iterable[str] | None = None
+    ) -> dict[str, tuple[str, ...]]:
         """Phase components of each formula
+
+        Args:
+            elements: Elements to which the formulas are limited, e.g. ``("C", "H", "O")``.
+                Defaults to ``None``, which lists all formulas.
 
         Returns:
             Names of the phase components, keyed by Hill formula, e.g.
             ``{"H2O": ("gas", "ice", "liquid"), ...}``
         """
+        allowed: frozenset[str] | None = None if elements is None else frozenset(elements)
+
         return {
             hill_formula: tuple(components)
             for hill_formula, components in self._phase_components.items()
+            if allowed is None or _elements(hill_formula) <= allowed
         }
 
     def get_phase_component(self, formula: str, component: str) -> ThermodynamicProperties:
