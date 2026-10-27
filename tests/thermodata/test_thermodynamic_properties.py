@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests the integrated thermodynamic properties, the diamond of Gustafson (1986), the NASA
-Glenn data outside their temperature ranges with and without extrapolation, and the alternative
-carbon and silicon models of Vassiliev (2021) and Holland and Powell"""
+"""Tests the integrated thermodynamic properties, the diamond of Gustafson (1986), the Hill
+formulae of the NASA Glenn data and the data outside their temperature ranges with and without
+extrapolation, and the alternative carbon and silicon models of Vassiliev (2021) and Holland and
+Powell"""
 
 from typing import cast
 
@@ -13,6 +14,7 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array
+from molmass import Formula
 from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
@@ -103,6 +105,16 @@ def test_gustafson_reproduces_sgte_boundary() -> None:
     ):
         boundary: float = cast(float, brentq(gibbs_difference, 1.0, 1e6, args=(temperature,)))
         np.testing.assert_allclose(boundary / 1e4, pressure, atol=0.005)
+
+
+def test_glenn_formulae_are_hill() -> None:
+    """Every formula in the NASA Glenn data is in Hill order, since species are looked up by the
+    Hill formula of their input formula"""
+    formulae: set[str] = {name.rsplit("_", 1)[0] for name in glenn_properties}
+    not_hill: list[str] = sorted(f for f in formulae if Formula(f).formula != f)
+
+    assert not not_hill, f"Not in Hill order: {not_hill}"
+    assert ChemicalSpecies.create_gas("NH").name == "HN_g"
 
 
 def test_glenn_extrapolation_uses_nearest_range() -> None:
