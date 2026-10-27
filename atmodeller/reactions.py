@@ -401,6 +401,9 @@ class DissolutionNetwork(BaseReactionBlock):
 
     Args:
         species: An iterable of species
+
+    Raises:
+        ValueError: If a dissolved species has no gas species of the same formula
     """
 
     species: SpeciesCollection[SpeciesProtocol]
@@ -429,6 +432,11 @@ class DissolutionNetwork(BaseReactionBlock):
             )
             # Gas species index
             name: str = f"{dissolution_species_.data.hill_formula}_{GAS_STATE}"
+            if name not in self.species.species_names:
+                raise ValueError(
+                    f"Dissolved species {dissolution_species_.data.name} needs the gas species "
+                    f"{name} in the model"
+                )
             gas_idx: int = self.species.species_names.index(name)
 
             reaction_indices_map.append(gas_idx)

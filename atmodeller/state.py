@@ -31,12 +31,45 @@ from atmodeller.constants import (
     SILICATE_MELT_PHASE_INDEX,
     SILICATE_SOLID_PHASE_INDEX,
 )
-from atmodeller.containers import ChemicalSpecies
+from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.interfaces import SpeciesProtocol
 from atmodeller.jax_utils import FloatArray, as_j64
 from atmodeller.phases import BasePhase, CondensedPhase, GasPhase, PurePhase
 from atmodeller.reactions import PhaseSystem, ReactionSystem
 from atmodeller.sci_utils import FE_MOLAR_MASS, SIO2_MOLAR_MASS, earth, unit_conversion
+
+
+def _validate_dissolved_species(
+    silicate_solid_species: tuple[SpeciesProtocol, ...], metal_species: tuple[SpeciesProtocol, ...]
+) -> None:
+    """Validates that dissolved species are only in the silicate melt.
+
+    A dissolved species follows a solubility law for a gas dissolving in the silicate melt, and
+    the solvent of the dissolution reactions is the silicate melt. Species in the silicate solid
+    or the metal are instead condensed species, with an activity model if needed.
+
+    Args:
+        silicate_solid_species: Species in the silicate solid phase
+        metal_species: Species in the metal phase
+
+    Raises:
+        ValueError: If a dissolved species is in the silicate solid or the metal
+    """
+    misplaced: list[str] = [
+        f"{species.data.name} in {argument}"
+        for argument, species_ in (
+            ("silicate_solid_species", silicate_solid_species),
+            ("metal_species", metal_species),
+        )
+        for species in species_
+        if isinstance(species, ReservoirSpecies)
+    ]
+    if misplaced:
+        raise ValueError(
+            "Dissolved species can only be in silicate_melt_species, since their solubility law "
+            f"is for the silicate melt, not {misplaced}. Species in the silicate solid or the "
+            "metal are condensed species, with an activity model if needed."
+        )
 
 
 class BaseThermodynamicState(eqx.Module):
@@ -237,7 +270,14 @@ class ThermodynamicState(BaseThermodynamicState):
 
         Returns:
             An instance
+
+        Raises:
+            ValueError: If a dissolved species is not in ``silicate_melt_species``
         """
+        silicate_solid_species = tuple(silicate_solid_species)
+        metal_species = tuple(metal_species)
+        _validate_dissolved_species(silicate_solid_species, metal_species)
+
         background_silicate_melt_mass: ArrayLike = mass * melt_fraction
         background_silicate_solid_mass: ArrayLike = mass * (1 - melt_fraction)
 
@@ -470,7 +510,14 @@ class BasePlanet(BaseThermodynamicState):
 
         Returns:
             An instance
+
+        Raises:
+            ValueError: If a dissolved species is not in ``silicate_melt_species``
         """
+        silicate_solid_species = tuple(silicate_solid_species)
+        metal_species = tuple(metal_species)
+        _validate_dissolved_species(silicate_solid_species, metal_species)
+
         if core_mass_fraction is None:
             mantle_mass: ArrayLike = planet_mass
             metallic_core_mass: ArrayLike = 0.0
