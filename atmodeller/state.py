@@ -72,6 +72,60 @@ def _validate_dissolved_species(
         )
 
 
+def _build_reaction_system(
+    gas_species: Iterable[ChemicalSpecies],
+    silicate_melt_species: Iterable[SpeciesProtocol],
+    silicate_solid_species: Iterable[SpeciesProtocol],
+    metal_species: Iterable[SpeciesProtocol],
+    condensates: Iterable[PurePhase],
+    *,
+    melt_mass: ArrayLike,
+    solid_mass: ArrayLike,
+    metal_mass: ArrayLike,
+    silicate_molar_mass: ArrayLike,
+    metal_molar_mass: ArrayLike,
+) -> ReactionSystem:
+    """Builds the reaction system of the phases of a state
+
+    Args:
+        gas_species: Species in the gas phase
+        silicate_melt_species: Species in the silicate melt phase
+        silicate_solid_species: Species in the silicate solid phase
+        metal_species: Species in the metal phase
+        condensates: Pure phases of the condensates
+        melt_mass: Background mass of the silicate melt (kg)
+        solid_mass: Background mass of the silicate solid (kg)
+        metal_mass: Background mass of the metal (kg)
+        silicate_molar_mass: Background molar mass of the silicate phases (kg mol\\ :sup:`-1`)
+        metal_molar_mass: Background molar mass of the metal (kg mol\\ :sup:`-1`)
+
+    Returns:
+        The reaction system
+
+    Raises:
+        ValueError: If a dissolved species is in the silicate solid or the metal
+    """
+    silicate_solid_species = tuple(silicate_solid_species)
+    metal_species = tuple(metal_species)
+    _validate_dissolved_species(silicate_solid_species, metal_species)
+
+    gas: GasPhase = GasPhase(gas_species)
+    silicate_melt: CondensedPhase = CondensedPhase(
+        silicate_melt_species, "silicate_melt", melt_mass, silicate_molar_mass
+    )
+    silicate_solid: CondensedPhase = CondensedPhase(
+        silicate_solid_species, "silicate_solid", solid_mass, silicate_molar_mass
+    )
+    metal: CondensedPhase = CondensedPhase(metal_species, "metal", metal_mass, metal_molar_mass)
+    # The order of the phases must match GAS_PHASE_INDEX, SILICATE_MELT_PHASE_INDEX,
+    # SILICATE_SOLID_PHASE_INDEX and METAL_PHASE_INDEX, followed by the condensates
+    other_phases: tuple[BasePhase, ...] = (silicate_melt, silicate_solid, metal) + tuple(
+        condensates
+    )
+
+    return ReactionSystem(PhaseSystem(gas, other_phases=other_phases))
+
+
 class BaseThermodynamicState(eqx.Module):
     reaction_system: ReactionSystem
     """Reaction system representing the thermodynamic state of the system"""
@@ -274,35 +328,18 @@ class ThermodynamicState(BaseThermodynamicState):
         Raises:
             ValueError: If a dissolved species is not in ``silicate_melt_species``
         """
-        silicate_solid_species = tuple(silicate_solid_species)
-        metal_species = tuple(metal_species)
-        _validate_dissolved_species(silicate_solid_species, metal_species)
-
-        background_silicate_melt_mass: ArrayLike = mass * melt_fraction
-        background_silicate_solid_mass: ArrayLike = mass * (1 - melt_fraction)
-
-        gas: GasPhase = GasPhase(gas_species)
-        silicate_melt: CondensedPhase = CondensedPhase(
+        reaction_system: ReactionSystem = _build_reaction_system(
+            gas_species,
             silicate_melt_species,
-            "silicate_melt",
-            background_silicate_melt_mass,
-            background_silicate_molar_mass,
-        )
-        silicate_solid: CondensedPhase = CondensedPhase(
             silicate_solid_species,
-            "silicate_solid",
-            background_silicate_solid_mass,
-            background_silicate_molar_mass,
+            metal_species,
+            condensates,
+            melt_mass=mass * melt_fraction,
+            solid_mass=mass * (1 - melt_fraction),
+            metal_mass=background_metal_mass,
+            silicate_molar_mass=background_silicate_molar_mass,
+            metal_molar_mass=background_metal_molar_mass,
         )
-        metal: CondensedPhase = CondensedPhase(
-            metal_species, "metal", background_metal_mass, background_metal_molar_mass
-        )
-        # NOTE: This ordering must be maintained
-        other_phases: tuple[BasePhase, ...] = (silicate_melt, silicate_solid, metal) + tuple(
-            condensates
-        )
-        phase_system: PhaseSystem = PhaseSystem(gas, other_phases=other_phases)
-        reaction_system: ReactionSystem = ReactionSystem(phase_system)
 
         return cls(reaction_system, temperature, pressure)
 
@@ -514,41 +551,24 @@ class BasePlanet(BaseThermodynamicState):
         Raises:
             ValueError: If a dissolved species is not in ``silicate_melt_species``
         """
-        silicate_solid_species = tuple(silicate_solid_species)
-        metal_species = tuple(metal_species)
-        _validate_dissolved_species(silicate_solid_species, metal_species)
-
         if core_mass_fraction is None:
             mantle_mass: ArrayLike = planet_mass
             metallic_core_mass: ArrayLike = 0.0
         else:
             mantle_mass = planet_mass * (1 - core_mass_fraction)
             metallic_core_mass = planet_mass * core_mass_fraction
-        background_melt_mass: ArrayLike = mantle_mass * mantle_melt_fraction
-        background_solid_mass: ArrayLike = mantle_mass * (1 - mantle_melt_fraction)
-
-        gas: GasPhase = GasPhase(gas_species)
-        silicate_melt: CondensedPhase = CondensedPhase(
+        reaction_system: ReactionSystem = _build_reaction_system(
+            gas_species,
             silicate_melt_species,
-            "silicate_melt",
-            background_melt_mass,
-            background_silicate_molar_mass,
-        )
-        silicate_solid: CondensedPhase = CondensedPhase(
             silicate_solid_species,
-            "silicate_solid",
-            background_solid_mass,
-            background_silicate_molar_mass,
+            metal_species,
+            condensates,
+            melt_mass=mantle_mass * mantle_melt_fraction,
+            solid_mass=mantle_mass * (1 - mantle_melt_fraction),
+            metal_mass=metallic_core_mass,
+            silicate_molar_mass=background_silicate_molar_mass,
+            metal_molar_mass=background_metal_molar_mass,
         )
-        metal: CondensedPhase = CondensedPhase(
-            metal_species, "metal", metallic_core_mass, background_metal_molar_mass
-        )
-        # NOTE: This ordering must be maintained
-        other_phases: tuple[BasePhase, ...] = (silicate_melt, silicate_solid, metal) + tuple(
-            condensates
-        )
-        phase_system = PhaseSystem(gas, other_phases=other_phases)
-        reaction_system: ReactionSystem = ReactionSystem(phase_system)
 
         return cls(reaction_system, surface_radius, temperature, pressure, planet_mass)
 
