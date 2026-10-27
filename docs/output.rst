@@ -47,10 +47,12 @@ Phases
 Each phase that contains at least one species has its own output. The phase keys are:
 
 - ``gas``: the gas phase (atmosphere)
-- ``silicate_melt``: species dissolved in the silicate melt
+- ``silicate_melt``: species in the silicate melt, both dissolved volatiles (e.g. ``H2O_d``) and
+  end-members of the melt (e.g. ``O2Si_l``)
 - ``silicate_solid``: species in the silicate solid
-- ``metal``: species in the metal phase
-- condensates: each condensed (pure) phase, keyed by its species name (e.g. ``C_graphite``, ``H2O_l``)
+- ``metal``: species in the metal, e.g. ``Fe_l`` and ``Si_l``
+- condensates: each pure phase, keyed by the name of its species (e.g. ``C_graphite``, ``H2O_l``;
+  see :doc:`species`)
 
 Phase-level outputs
 ~~~~~~~~~~~~~~~~~~~

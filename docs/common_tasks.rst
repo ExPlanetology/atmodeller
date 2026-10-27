@@ -10,6 +10,8 @@ If you extend the capabilities of *Atmodeller*, you are encouraged to contribute
 
     *Atmodeller* is designed to be highly modular, enabling each sub-package to be developed and tested independently. This modular architecture makes it easier to focus on specific functionality without needing to modify or execute the entire codebase.
 
+.. _CommonTasksThermodynamicData:
+
 Add thermodynamic data
 ----------------------
 
