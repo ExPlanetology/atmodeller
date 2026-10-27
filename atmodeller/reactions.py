@@ -34,7 +34,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
 
-from atmodeller.constants import DISSOLUTION_PPMW_FLOOR, GAS_STATE, SILICATE_MELT_PHASE_INDEX
+from atmodeller.constants import DISSOLUTION_PPMW_FLOOR, GAS_SUFFIX, SILICATE_MELT_PHASE_INDEX
 from atmodeller.containers import SpeciesCollection, get_formula_matrix
 from atmodeller.interfaces import SpeciesProtocol
 from atmodeller.jax_utils import (
@@ -426,7 +426,7 @@ class DissolutionNetwork(BaseReactionBlock):
                 dtype=bool,
             )
             # Gas species index
-            name: str = f"{dissolution_species_.data.hill_formula}_{GAS_STATE}"
+            name: str = f"{dissolution_species_.data.hill_formula}_{GAS_SUFFIX}"
             if name not in self.species.species_names:
                 raise ValueError(
                     f"Dissolved species {dissolution_species_.data.name} needs the gas species "

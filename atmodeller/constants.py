@@ -15,21 +15,19 @@ STANDARD_PRESSURE: float = 1.0
 """Standard state pressure (bar)"""
 STANDARD_FUGACITY: float = STANDARD_PRESSURE
 """Standard fugacity for gases (bar)"""
-GAS_STATE: str = "g"
-"""Suffix to identify gases as per JANAF convention for the state of aggregation"""
-SOLID_STATE: str = "s"
-"""Suffix to identify solids as per JANAF convention for the state of aggregation"""
-LIQUID_STATE: str = "l"
-"""Suffix to identify liquids as per JANAF convention for the state of aggregation"""
-CONDENSED_STATE: str = "cd"
-"""Suffix to identify a condensed species whose phase components (solids and liquid) are stitched
-together in order of temperature"""
+GAS_SUFFIX: str = "g"
+"""Suffix of the name of a gas species"""
+LIQUID_SUFFIX: str = "l"
+"""Suffix of the name of a liquid species"""
+CONDENSED_SUFFIX: str = "cd"
+"""Suffix of the name of a condensed species whose phase components (solids and liquid) are
+stitched together in order of temperature"""
 GAS_PHASE_COMPONENT: str = "gas"
 """Phase component of the thermodynamic data of a gas"""
 LIQUID_PHASE_COMPONENT: str = "liquid"
 """Phase component of the thermodynamic data of a liquid"""
-DISSOLVED_STATE: str = "d"
-"""Suffix to identify dissolved species for output purposes"""
+DISSOLVED_SUFFIX: str = "d"
+"""Suffix of the name of a dissolved species"""
 
 # Numerical floor for dissolved-species solubility in dissolution reactions
 DISSOLUTION_PPMW_FLOOR: float = 1.0e-20

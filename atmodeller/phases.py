@@ -22,13 +22,13 @@ The available phase types are:
   liquid). Only one species is permitted, and its activity is fixed at unity.
 
 All phases are JAX-compatible :class:`equinox.Module` subclasses and wrap a
-:class:`~atmodeller.containers.SpeciesCollection` of thermodynamic species (Hill formula +
-aggregation state). Species are constructed from their Hill formulas and assigned an aggregation
-state consistent with the JANAF/NASA convention:
+:class:`~atmodeller.containers.SpeciesCollection` of thermodynamic species, each named from its Hill
+formula and a suffix (see :class:`~atmodeller.interfaces.ChemicalSpeciesData`):
 
 - ``"g"`` : gas
 - ``"l"`` : liquid
-- ``"s"`` : solid
+- the phase component of a mineral, e.g. ``"quartz-alpha"``
+- ``"cd"`` : the condensed phase components of a formula stitched together
 
 Quantities are accumulated in log-space throughout for numerical stability. Many methods accept an
 optional background component (e.g., the silicate melt mass) that contributes to phase totals but
@@ -62,7 +62,7 @@ from molmass import Formula
 
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
-from atmodeller.constants import CONDENSED_STATE, GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
+from atmodeller.constants import CONDENSED_SUFFIX, GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
 from atmodeller.database import DataBase, _default_database
 from atmodeller.interfaces import RedoxBufferProtocol, SpeciesProtocol, TSpecies_co
 from atmodeller.jax_utils import FloatArray, as_j64, masked_logsumexp, safe_exp
@@ -865,7 +865,7 @@ class PurePhase(CondensedPhase):
         (:meth:`~atmodeller.database.DataBase.components_of`), e.g. quartz to cristobalite to
         liquid for ``SiO2``, are stitched together in order of temperature
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
-        :data:`~atmodeller.constants.CONDENSED_STATE`, e.g. ``O2Si_cd``.
+        :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``.
 
         Args:
             formula: Formula
@@ -886,7 +886,7 @@ class PurePhase(CondensedPhase):
             raise KeyError(f"{Formula(formula).formula} has no condensed phase components")
 
         return cls.from_components(
-            components, name=CONDENSED_STATE, formula=formula, database=database, **kwargs
+            components, name=CONDENSED_SUFFIX, formula=formula, database=database, **kwargs
         )
 
     @classmethod

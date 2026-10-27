@@ -15,11 +15,11 @@ import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller.constants import (
-    DISSOLVED_STATE,
+    DISSOLVED_SUFFIX,
     GAS_PHASE_COMPONENT,
-    GAS_STATE,
+    GAS_SUFFIX,
     LIQUID_PHASE_COMPONENT,
-    LIQUID_STATE,
+    LIQUID_SUFFIX,
     LOG_NUMBER_MOLES_LOWER,
     LOG_NUMBER_MOLES_UPPER,
     LOG_STABILITY_LOWER,
@@ -70,7 +70,7 @@ class ChemicalSpecies(eqx.Module):
     def create(
         cls,
         formula: str,
-        state: str,
+        suffix: str,
         activity: ActivityProtocol,
         solve_for_stability: bool,
         number_solution: int,
@@ -83,7 +83,7 @@ class ChemicalSpecies(eqx.Module):
 
         Args:
             formula: Formula
-            state: State of aggregation, as typically defined by JANAF
+            suffix: Suffix of the name, e.g. ``g`` for ``H2O_g``
             activity: Activity
             solve_for_stability: Solve for stability
             number_solution: Number of solution quantities
@@ -100,7 +100,7 @@ class ChemicalSpecies(eqx.Module):
         Returns:
             An instance
         """
-        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state)
+        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, suffix)
 
         if not (extrapolate_below and extrapolate_above):
             thermo = thermo.with_extrapolation(extrapolate_below, extrapolate_above)
@@ -180,7 +180,7 @@ class ChemicalSpecies(eqx.Module):
             formula = database.formula_of(component)
         if thermo is None:
             thermo = database.get_phase_component(formula, component)
-        state: str = LIQUID_STATE if component == LIQUID_PHASE_COMPONENT else component
+        suffix: str = LIQUID_SUFFIX if component == LIQUID_PHASE_COMPONENT else component
 
         # Either both the number of moles and stability are solved for, or alternatively stability
         # can be enforced in which case the number of moles is irrelevant and there is nothing to
@@ -189,7 +189,7 @@ class ChemicalSpecies(eqx.Module):
 
         return cls.create(
             formula,
-            state,
+            suffix,
             activity,
             solve_for_stability,
             number_solution,
@@ -242,7 +242,7 @@ class ChemicalSpecies(eqx.Module):
 
         return cls.create(
             formula,
-            GAS_STATE,
+            GAS_SUFFIX,
             activity,
             solve_for_stability,
             number_solution,
@@ -316,7 +316,7 @@ class ReservoirSpecies(eqx.Module):
         Returns:
             A dissolved species
         """
-        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state=DISSOLVED_STATE)
+        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, DISSOLVED_SUFFIX)
 
         if solubility is None:  # pragma: no cover
             solubility = NoSolubility()

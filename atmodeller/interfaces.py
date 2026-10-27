@@ -34,14 +34,15 @@ class ChemicalSpeciesData(eqx.Module):
 
     Args:
         formula: Formula
-        state: State of aggregation, typically follows JANAF convention: 'g' for gas, 'l' for
-            liquid, 's' for solid.
+        suffix: Suffix of the name: ``g`` for a gas, ``l`` for a liquid, ``d`` for a dissolved
+            species, the phase component for a mineral (e.g. ``quartz-alpha``), ``cd`` for
+            stitched phase components, or another name for a chosen stitch
     """
 
     formula: str
     """Formula"""
-    state: str
-    """State of aggregation. Defaults to an empty string."""
+    suffix: str
+    """Suffix of the name"""
     composition: dict[str, tuple[int, float, float]]
     """Composition"""
     hill_formula: str
@@ -49,9 +50,9 @@ class ChemicalSpeciesData(eqx.Module):
     molar_mass: float = eqx.field(converter=float)
     """Molar mass"""
 
-    def __init__(self, formula: str, state: str = ""):
+    def __init__(self, formula: str, suffix: str):
         self.formula = formula
-        self.state = state
+        self.suffix = suffix
         mformula: Formula = Formula(self.formula)
         self.composition = mformula.composition().asdict()
         self.hill_formula = mformula.formula
@@ -64,8 +65,8 @@ class ChemicalSpeciesData(eqx.Module):
 
     @property
     def name(self) -> str:
-        """Unique name by combining Hill notation and state of aggregation"""
-        return f"{self.hill_formula}_{self.state}"
+        """Unique name from the Hill formula and the suffix, e.g. ``H2O_g``"""
+        return f"{self.hill_formula}_{self.suffix}"
 
 
 @runtime_checkable
