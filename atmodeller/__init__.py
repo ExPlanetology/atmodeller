@@ -125,6 +125,7 @@ from atmodeller.containers import (  # noqa: E402, F401
 from atmodeller.database import (  # noqa: E402, F401
     DataBase,
     GlennDataBase,
+    components_of,
     get_default_database,
 )
 from atmodeller.output import Output  # noqa: E402, F401

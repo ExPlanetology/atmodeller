@@ -62,6 +62,7 @@ from molmass import Formula
 
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
+from atmodeller.database import DataBase, get_default_database
 from atmodeller.interfaces import RedoxBufferProtocol, SpeciesProtocol, TSpecies_co
 from atmodeller.jax_utils import FloatArray, as_j64, masked_logsumexp, safe_exp
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
@@ -879,3 +880,97 @@ class PurePhase(CondensedPhase):
         phase_name: str = species_list[0].name
 
         return cls(species_list, phase_name)
+
+    @classmethod
+    def from_formula(cls, formula: str, *, database: DataBase | None = None, **kwargs) -> Self:
+        """Creates a pure phase from all the condensed phase components of a formula
+
+        The phase components from the data file, e.g. quartz to cristobalite to liquid for
+        ``SiO2``, are stitched together in order of temperature, giving ``O2Si_cd``. See
+        :meth:`~atmodeller.database.DataBase.condensed_from_formula`.
+
+        Args:
+            formula: Formula
+            database: Database. Defaults to ``None``, which uses the default database.
+            **kwargs: Keyword arguments for
+                :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+
+        Returns:
+            A pure phase, which has the name of its species
+        """
+        species: ChemicalSpecies = _get_database(database).condensed_from_formula(
+            formula, **kwargs
+        )
+
+        return cls((species,), species.name)
+
+    @classmethod
+    def from_components(
+        cls,
+        components: Iterable[str],
+        *,
+        name: str,
+        formula: str | None = None,
+        database: DataBase | None = None,
+        **kwargs,
+    ) -> Self:
+        """Creates a pure phase by stitching phase components together
+
+        For example, ``from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
+        ``O2Si_quartz``. See :meth:`~atmodeller.database.DataBase.condensed_from_components`.
+
+        Args:
+            components: Names of the phase components
+            name: Suffix of the species name
+            formula: Formula. Defaults to ``None``, which takes the formula of the minerals, and
+                is only needed when the components are all shared by several formulas, such as
+                ``liquid``.
+            database: Database. Defaults to ``None``, which uses the default database.
+            **kwargs: Keyword arguments for
+                :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+
+        Returns:
+            A pure phase, which has the name of its species
+        """
+        species: ChemicalSpecies = _get_database(database).condensed_from_components(
+            components, name=name, formula=formula, **kwargs
+        )
+
+        return cls((species,), species.name)
+
+    @classmethod
+    def from_component(
+        cls,
+        component: str,
+        *,
+        formula: str | None = None,
+        database: DataBase | None = None,
+        **kwargs,
+    ) -> Self:
+        """Creates a pure phase from one phase component
+
+        For example, ``from_component("cristobalite-beta")`` gives ``O2Si_cristobalite-beta`` and
+        ``from_component("liquid", formula="H2O")`` gives ``H2O_l``. See
+        :meth:`~atmodeller.database.DataBase.condensed_from_component`.
+
+        Args:
+            component: Name of the phase component
+            formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
+                needed for ``liquid``, which is a phase component of several formulas.
+            database: Database. Defaults to ``None``, which uses the default database.
+            **kwargs: Keyword arguments for
+                :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+
+        Returns:
+            A pure phase, which has the name of its species
+        """
+        species: ChemicalSpecies = _get_database(database).condensed_from_component(
+            component, formula=formula, **kwargs
+        )
+
+        return cls((species,), species.name)
+
+
+def _get_database(database: DataBase | None) -> DataBase:
+    """The database, or the default database if ``None``"""
+    return database or get_default_database()
