@@ -123,6 +123,7 @@ def test_phase_components() -> None:
     assert PurePhase.from_component("cristobalite-beta").name == "O2Si_cristobalite-beta"
     assert PurePhase.from_component("liquid", formula="H2O").name == "H2O_l"
     assert PurePhase.from_component("diamond").name == "C_diamond"
+    assert PurePhase(ChemicalSpecies.from_component("graphite")).name == "C_graphite"
     assert PurePhase.from_components(("quartz-alpha", "quartz-beta"), name="qz").name == "O2Si_qz"
     melt_sio2 = ChemicalSpecies.from_component(
         "liquid", formula="SiO2", include_in_phase_mass=False

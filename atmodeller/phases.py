@@ -829,33 +829,22 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
 
 
 class PurePhase(CondensedPhase):
-    """Single-species, unity-activity phase (e.g., a pure mineral, ice, or liquid)
+    """Single-species phase (e.g., a pure mineral, ice, or liquid)
+
+    A pure phase has the name of its species, under which it appears in the output, and no
+    background. Its activity is that of its species, which is unity by default
+    (:class:`~atmodeller.thermodata.core.ActivityCoefficient`). A species with an activity model
+    for a mixture belongs in a :class:`CondensedPhase` instead.
 
     Args:
-        species: An iterable of species in the phase
-        name: Name of the phase. Defaults to ``pure_phase``.
-        background_mass: Mass of the background (untracked) component (kg); see
-            :class:`BasePhase`'s docstring. Defaults to :data:`DEFAULT_BACKGROUND_MASS` (zero).
-        background_molar_mass: Molar mass of the background component (kg mol\\ :sup:`-1`).
-            Defaults to :data:`DUMMY_MOLAR_MASS`; only meaningful when ``background_mass`` is not
-            zero.
+        species: Species of the phase
     """
 
     # Without an override pylance gets confused, throwing missing argument warnings even though
     # defaults are provided in the base class. This avoids reporting this false-alarm to the user.
     @override
-    def __init__(
-        self,
-        species: Iterable[ChemicalSpecies] = (),
-        name: str = "pure_phase",
-        background_mass: ArrayLike = DEFAULT_BACKGROUND_MASS,
-        background_molar_mass: ArrayLike = DUMMY_MOLAR_MASS,
-    ):
-        super().__init__(species, name, background_mass, background_molar_mass)
-
-    def __check_init__(self):
-        if self.species.number_species != 1:  # pragma: no cover
-            raise ValueError("A pure phase must contain exactly one species.")
+    def __init__(self, species: ChemicalSpecies):
+        super().__init__((species,), species.name)
 
     @classmethod
     def from_formula(cls, formula: str, *, database: DataBase | None = None, **kwargs) -> Self:
@@ -940,7 +929,7 @@ class PurePhase(CondensedPhase):
             name, formula=formula, thermo=thermo, **kwargs
         )
 
-        return cls((species,), species.name)
+        return cls(species)
 
     @classmethod
     def from_component(
@@ -972,4 +961,4 @@ class PurePhase(CondensedPhase):
             component, formula=formula, database=database, **kwargs
         )
 
-        return cls((species,), species.name)
+        return cls(species)
