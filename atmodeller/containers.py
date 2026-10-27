@@ -16,16 +16,19 @@ from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller.constants import (
     DISSOLVED_STATE,
+    GAS_PHASE_COMPONENT,
     GAS_STATE,
+    LIQUID_PHASE_COMPONENT,
+    LIQUID_STATE,
     LOG_NUMBER_MOLES_LOWER,
     LOG_NUMBER_MOLES_UPPER,
     LOG_STABILITY_LOWER,
     LOG_STABILITY_UPPER,
-    SOLID_STATE,
     TAU,
     TAU_MAX,
     TAU_NUM,
 )
+from atmodeller.database import DataBase, _default_database
 from atmodeller.eos.core import IdealGas
 from atmodeller.interfaces import (
     ActivityProtocol,
@@ -37,11 +40,7 @@ from atmodeller.interfaces import (
 from atmodeller.jax_utils import NpFloat, NpInt, RootFindParameters, as_j64
 from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
-from atmodeller.thermodata import (
-    ActivityCoefficient,
-    ThermodynamicProperties,
-    default_properties,
-)
+from atmodeller.thermodata import ActivityCoefficient, ThermodynamicProperties
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -76,7 +75,7 @@ class ChemicalSpecies(eqx.Module):
         solve_for_stability: bool,
         number_solution: int,
         include_in_phase_mass: bool,
-        thermo: ThermodynamicProperties | None = None,
+        thermo: ThermodynamicProperties,
         extrapolate_below: bool = True,
         extrapolate_above: bool = True,
     ) -> Self:
@@ -90,8 +89,7 @@ class ChemicalSpecies(eqx.Module):
             number_solution: Number of solution quantities
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations.
-            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            thermo: Thermodynamic properties
             extrapolate_below: Whether to extrapolate the thermodynamic data below their
                 temperature range, otherwise the species is not stable there. Defaults to
                 ``True``.
@@ -103,15 +101,6 @@ class ChemicalSpecies(eqx.Module):
             An instance
         """
         species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state)
-
-        if thermo is None:
-            try:
-                thermo = default_properties[species_data.name]
-            except KeyError:  # pragma: no cover
-                raise KeyError(
-                    f"{species_data.name} not available. "
-                    f"Available species are {tuple(default_properties)}"
-                )
 
         if not (extrapolate_below and extrapolate_above):
             thermo = thermo.with_extrapolation(extrapolate_below, extrapolate_above)
@@ -126,19 +115,27 @@ class ChemicalSpecies(eqx.Module):
         )
 
     @classmethod
-    def create_condensed(
+    def from_component(
         cls,
-        formula: str,
+        component: str,
         *,
-        state: str = SOLID_STATE,
+        formula: str | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
         thermo: ThermodynamicProperties | None = None,
+        database: DataBase | None = None,
         extrapolate_below: bool = False,
         extrapolate_above: bool = False,
     ) -> Self:
-        """Creates a condensed species with some default values.
+        """Creates a condensed species from a phase component
+
+        This creates a species of a pure phase, such as a mineral, or of a mixed phase, such as
+        the silicate melt or metal, of which the phase component is an end-member. The species is
+        named from the phase component, e.g. ``O2Si_cristobalite-beta``, or ``H2O_l`` for the
+        liquid. To stitch several phase components together for a pure phase, use
+        :meth:`~atmodeller.phases.PurePhase.from_formula` or
+        :meth:`~atmodeller.phases.PurePhase.from_components`.
 
         By default, the thermodynamic data are not extrapolated outside their temperature range,
         where the species is therefore not stable. A condensed phase is often bounded by a phase
@@ -146,15 +143,19 @@ class ChemicalSpecies(eqx.Module):
         temperature.
 
         Args:
-            formula: Formula
-            state: State of aggregation as defined by JANAF. Defaults to
-                :data:`~atmodeller.constants.SOLID_STATE`.
+            component: Name of the phase component, e.g. ``cristobalite-beta`` or ``liquid``, or
+                a name for the thermodynamic data given by ``thermo``
+            formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
+                needed for ``liquid``, which is a phase component of several formulas, and for
+                data given by ``thermo``.
             activity: Activity. Defaults to unity activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            thermo: Thermodynamic properties. Defaults to ``None``, which takes them from the
+                database.
+            database: Database. Defaults to ``None``, which uses the default database
+                (:func:`~atmodeller.database.get_default_database`).
             extrapolate_below: Whether to extrapolate the thermodynamic data below their
                 temperature range, otherwise the species is not stable there. Defaults to
                 ``False``.
@@ -164,7 +165,23 @@ class ChemicalSpecies(eqx.Module):
 
         Returns:
             A condensed species
+
+        Raises:
+            KeyError: If the phase component is not available for the formula
+            ValueError: If the phase component is the gas, or is shared by several formulas and no
+                formula is given
         """
+        if component == GAS_PHASE_COMPONENT:
+            raise ValueError(
+                "The gas is not a condensed phase component. Create it with create_gas."
+            )
+        database = database or _default_database()
+        if formula is None:
+            formula = database.formula_of(component)
+        if thermo is None:
+            thermo = database.get_phase_component(formula, component)
+        state: str = LIQUID_STATE if component == LIQUID_PHASE_COMPONENT else component
+
         # Either both the number of moles and stability are solved for, or alternatively stability
         # can be enforced in which case the number of moles is irrelevant and there is nothing to
         # solve for.
@@ -187,28 +204,36 @@ class ChemicalSpecies(eqx.Module):
         cls,
         formula: str,
         *,
-        state: str = GAS_STATE,
         activity: ActivityProtocol = IdealGas(),
         solve_for_stability: bool = False,
         include_in_phase_mass: bool = True,
         thermo: ThermodynamicProperties | None = None,
+        database: DataBase | None = None,
     ) -> Self:
         """Creates a gas species with some default values.
 
         Args:
             formula: Formula
-            state: State of aggregation as defined by JANAF. Defaults to
-                :data:`~atmodeller.constants.GAS_STATE`.
             activity: Activity. Defaults to an ideal gas.
             solve_for_stability: Solve for stability. Defaults to ``False``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            thermo: Thermodynamic properties. Defaults to ``None``, which takes the gas phase
+                component from the database.
+            database: Database. Defaults to ``None``, which uses the default database
+                (:func:`~atmodeller.database.get_default_database`).
 
         Returns:
             A gas species
+
+        Raises:
+            KeyError: If the gas is not available for the formula
         """
+        if thermo is None:
+            thermo = (database or _default_database()).get_phase_component(
+                formula, GAS_PHASE_COMPONENT
+            )
+
         # The number of moles is always solved for, and stability can be if desired, although
         # this is not typically done for gas species because they are usually stable over the range
         # of conditions considered and truncating the abundance can severely distort the results,
@@ -217,7 +242,7 @@ class ChemicalSpecies(eqx.Module):
 
         return cls.create(
             formula,
-            state,
+            GAS_STATE,
             activity,
             solve_for_stability,
             number_solution,

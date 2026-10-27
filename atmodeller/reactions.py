@@ -48,7 +48,6 @@ from atmodeller.jax_utils import (
     safe_exp,
 )
 from atmodeller.phases import BasePhase, GasPhase
-from atmodeller.thermodata import default_properties
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -301,10 +300,6 @@ class ReactionNetwork(BaseReactionBlock):
             np.ceil(temperature_min),
             np.floor(temperature_max),
         )
-
-    @classmethod
-    def available_species(cls) -> tuple[str, ...]:  # pragma: no cover
-        return tuple(default_properties)
 
     @property
     def number_reactions(self) -> int:

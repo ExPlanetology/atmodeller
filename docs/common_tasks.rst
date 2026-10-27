@@ -17,37 +17,38 @@ Thermodynamic data are stored in the file ``nasa_glenn_coefficients.txt``, locat
 
 In some cases, :cite:t:`MZG02` may not include the species of interest, or it may lack coefficients for the required temperature range. In such situations, you must fit the thermodynamic data yourself for the species and temperature range in question, ensuring consistency with the standard state (1 bar), the reference temperature (298.15 K) and the definition of reference enthalpy, as discussed in the introduction of :cite:t:`MZG02`. Additional guidance is provided through the methods and docstrings in the ``thermodata.core`` and ``thermodata.janaf`` modules, including how to relate these data to JANAF tables :cite:p:`Cha98`.
 
-Rather than editing the packaged file, you can also load your own file of coefficients in the same format and create species from it:
+Each row of the file gives the coefficients of one temperature range of a phase component, with the columns ``phase_component,hill_formula,T_min,T_max,a1,...,a7,b1,b2``. The phase component is ``gas``, ``liquid`` or the name of a mineral, such as ``quartz-alpha``, which must refer to one formula only. Rather than editing the packaged file, you can also load your own file in the same format and create species from it by passing the database:
 
 .. code-block:: python
 
-    from atmodeller import GlennDataBase
+    from atmodeller import ChemicalSpecies, GlennDataBase, PurePhase
 
     db = GlennDataBase.from_file("my_glenn_coefficients.txt")
-    h2o_g = db.create_gas("H2O")
-    h2o_l = db.condensed_from_component("liquid", formula="H2O")
+    h2o_g = ChemicalSpecies.create_gas("H2O", database=db)
+    h2o_l = ChemicalSpecies.from_component("liquid", formula="H2O", database=db)
+    sio2 = PurePhase.from_formula("SiO2", database=db)
 
-``GlennDataBase()`` uses the packaged data unchanged. ``ChemicalSpecies.create_gas`` and ``ChemicalSpecies.create_condensed`` instead use the default data (``default_properties`` in ``atmodeller.thermodata``), which are the packaged data with graphite (``C_graphite``) given the volume of :cite:t:`Gustafson1986` and diamond (``C_diamond``) added from the same assessment. The volumes make the Gibbs energies of graphite and diamond, and hence the equilibrium constant of any reaction involving them, depend on pressure; their activities are unchanged, as are gases and other condensates. ``get_default_database()`` returns a database of the default data. To provide data from another source, inherit from ``DataBase`` in the ``database`` module and implement its abstract methods.
+``GlennDataBase()`` uses the packaged data unchanged. Without a database, species are created from the default database, ``get_default_database()``, whose data (``default_properties`` in ``atmodeller.thermodata``) are the packaged data with graphite given the volume of :cite:t:`Gustafson1986` and diamond added from the same assessment. The volumes make the Gibbs energies of graphite and diamond, and hence the equilibrium constant of any reaction involving them, depend on pressure; their activities are unchanged, as are gases and other condensates. To provide data from another source, inherit from ``DataBase`` in the ``database`` module, which only needs the data keyed by Hill formula and then phase component, e.g. ``{"H2O": {"gas": ..., "liquid": ...}}``, and a ``default`` method.
 
-You can add a species to a database, or replace an existing one, with ``add_species``. For example, diamond from the assessment of :cite:t:`Gustafson1986` can be added alongside graphite (``C_graphite``) in a database of the packaged data. Diamond has a volume model, so graphite must be given the volume model of the same assessment, replacing the packaged graphite, which has none. Otherwise only diamond depends on pressure and the graphite-diamond transition is wrong above about 1 bar:
+You can add a phase component to a database, or replace an existing one, with ``set_phase_component``. For example, diamond from the assessment of :cite:t:`Gustafson1986` can be added alongside graphite in a database of the packaged data. Diamond has a volume model, so graphite must be given the volume model of the same assessment, replacing the packaged graphite, which has none. Otherwise only diamond depends on pressure and the graphite-diamond transition is wrong above about 1 bar:
 
 .. code-block:: python
 
-    from atmodeller import GlennDataBase
+    from atmodeller import ChemicalSpecies, GlennDataBase
     from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 
     db = GlennDataBase()
-    graphite = db.get_thermodynamic_properties("C_graphite")
-    db.add_species("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
-    db.add_species("C", "diamond", diamond_gustafson)  # named "C_diamond"
-    c_graphite = db.condensed_from_component("graphite")
-    c_diamond = db.condensed_from_component("diamond")
+    graphite = db.get_phase_component("C", "graphite")
+    db.set_phase_component("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
+    db.set_phase_component("C", "diamond", diamond_gustafson)
+    c_graphite = ChemicalSpecies.from_component("graphite", database=db)  # named "C_graphite"
+    c_diamond = ChemicalSpecies.from_component("diamond", database=db)  # named "C_diamond"
 
-This is what ``get_default_database()`` returns and what ``ChemicalSpecies`` uses by default, so you can start from it and add further species. Diamond (``diamond_gustafson`` in ``atmodeller.thermodata.gustafson``) has the Gibbs energy of graphite plus the Gibbs energy of diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, which is valid to 6000 K, and graphite and diamond take the volumes of the same assessment.
+This is the default database, so you can start from ``get_default_database()`` and add further phase components. Diamond (``diamond_gustafson`` in ``atmodeller.thermodata.gustafson``) has the Gibbs energy of graphite plus the Gibbs energy of diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, which is valid to 6000 K, and graphite and diamond take the volumes of the same assessment. A phase component that is replaced, such as graphite, is still stitched together with the other phase components of its formula by ``PurePhase.from_formula``, whereas a phase component that is added, such as diamond, can only be selected on its own.
 
 Species with only a heat capacity model can be added with ``IntegratedThermodynamicProperties`` in ``atmodeller.thermodata``, which integrates the heat capacity from the enthalpy and entropy at the reference temperature.
 
-The temperature range of the data you add matters for condensates. By default, a condensate is not stable outside the temperature range of its data (``temperature_range()``): its Gibbs energy is held at its value at the bound, and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added. This is because the range of a condensed phase is often bounded by a phase boundary, such as a melting point. Gas data are extrapolated instead. To extrapolate the data of a condensate below or above its range, pass ``extrapolate_below=True`` or ``extrapolate_above=True`` to ``create_condensed`` (or the ``PurePhase`` methods, such as ``PurePhase.from_component``), or call ``with_extrapolation`` on the thermodynamic properties.
+The temperature range of the data you add matters for condensates. By default, a condensate is not stable outside the temperature range of its data (``temperature_range()``): its Gibbs energy is held at its value at the bound, and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added. This is because the range of a condensed phase is often bounded by a phase boundary, such as a melting point. Gas data are extrapolated instead. To extrapolate the data of a condensate below or above its range, pass ``extrapolate_below=True`` or ``extrapolate_above=True`` to ``ChemicalSpecies.from_component`` (or the ``PurePhase`` methods), or call ``with_extrapolation`` on the thermodynamic properties.
 
 Add solubility laws
 -------------------

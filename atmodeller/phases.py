@@ -62,10 +62,12 @@ from molmass import Formula
 
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
-from atmodeller.database import DataBase, get_default_database
+from atmodeller.constants import CONDENSED_STATE, GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
+from atmodeller.database import DataBase, _default_database
 from atmodeller.interfaces import RedoxBufferProtocol, SpeciesProtocol, TSpecies_co
 from atmodeller.jax_utils import FloatArray, as_j64, masked_logsumexp, safe_exp
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
+from atmodeller.thermodata import ThermodynamicProperties
 from atmodeller.thermodata._redox_buffers import IronWustiteBuffer
 
 # Due to a Pyright bug (#4965). See Equinox documentation.
@@ -856,53 +858,36 @@ class PurePhase(CondensedPhase):
             raise ValueError("A pure phase must contain exactly one species.")
 
     @classmethod
-    def from_species(cls, species: str | Iterable[str] = (), **kwargs) -> Self:
-        r"""Creates a phase instance from species names using the factory class.
-
-        Args:
-            species: A single species name or an iterable of names
-            **kwargs: Arbitrary keyword arguments to pass to the factory class when constructing
-                species instances.
-
-        Returns:
-            An instance of the phase with the specified species and background properties
-        """
-        if isinstance(species, str):
-            species = [species]
-
-        species_list: list[ChemicalSpecies] = []
-
-        for species_ in species:
-            hill_formula: str = Formula(species_).formula
-            species_list.append(ChemicalSpecies.create_condensed(hill_formula, **kwargs))
-
-        # Pure phase name should always correspond to the single species it contains
-        phase_name: str = species_list[0].name
-
-        return cls(species_list, phase_name)
-
-    @classmethod
     def from_formula(cls, formula: str, *, database: DataBase | None = None, **kwargs) -> Self:
         """Creates a pure phase from all the condensed phase components of a formula
 
-        The phase components from the data file, e.g. quartz to cristobalite to liquid for
-        ``SiO2``, are stitched together in order of temperature, giving ``O2Si_cd``. See
-        :meth:`~atmodeller.database.DataBase.condensed_from_formula`.
+        The condensed phase components from the data file
+        (:meth:`~atmodeller.database.DataBase.components_of`), e.g. quartz to cristobalite to
+        liquid for ``SiO2``, are stitched together in order of temperature
+        (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
+        :data:`~atmodeller.constants.CONDENSED_STATE`, e.g. ``O2Si_cd``.
 
         Args:
             formula: Formula
             database: Database. Defaults to ``None``, which uses the default database.
             **kwargs: Keyword arguments for
-                :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+                :meth:`~atmodeller.containers.ChemicalSpecies.from_component`
 
         Returns:
             A pure phase, which has the name of its species
-        """
-        species: ChemicalSpecies = _get_database(database).condensed_from_formula(
-            formula, **kwargs
-        )
 
-        return cls((species,), species.name)
+        Raises:
+            KeyError: If the formula has no condensed phase components
+            ValueError: If the phase components cannot be stitched together
+        """
+        database = database or _default_database()
+        components: tuple[str, ...] = database.components_of(formula)
+        if not components:
+            raise KeyError(f"{Formula(formula).formula} has no condensed phase components")
+
+        return cls.from_components(
+            components, name=CONDENSED_STATE, formula=formula, database=database, **kwargs
+        )
 
     @classmethod
     def from_components(
@@ -917,7 +902,8 @@ class PurePhase(CondensedPhase):
         """Creates a pure phase by stitching phase components together
 
         For example, ``from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
-        ``O2Si_quartz``. See :meth:`~atmodeller.database.DataBase.condensed_from_components`.
+        ``O2Si_quartz``. The phase components must be of one formula, and are stitched together in
+        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`).
 
         Args:
             components: Names of the phase components
@@ -927,13 +913,31 @@ class PurePhase(CondensedPhase):
                 ``liquid``.
             database: Database. Defaults to ``None``, which uses the default database.
             **kwargs: Keyword arguments for
-                :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+                :meth:`~atmodeller.containers.ChemicalSpecies.from_component`
 
         Returns:
             A pure phase, which has the name of its species
+
+        Raises:
+            KeyError: If a phase component is not available for the formula
+            ValueError: If the phase components cannot be stitched together, or no formula is
+                given for phase components that are shared by several formulas
         """
-        species: ChemicalSpecies = _get_database(database).condensed_from_components(
-            components, name=name, formula=formula, **kwargs
+        database = database or _default_database()
+        components = tuple(components)
+        if not components:
+            raise ValueError("At least one phase component is needed")
+        # A mineral is a phase component of one formula only, so it gives the formula
+        if formula is None:
+            minerals: list[str] = [
+                component
+                for component in components
+                if component not in (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT)
+            ]
+            formula = database.formula_of(minerals[0] if minerals else components[0])
+        thermo: ThermodynamicProperties = database.stitch(formula, components)
+        species: ChemicalSpecies = ChemicalSpecies.from_component(
+            name, formula=formula, thermo=thermo, **kwargs
         )
 
         return cls((species,), species.name)
@@ -951,7 +955,7 @@ class PurePhase(CondensedPhase):
 
         For example, ``from_component("cristobalite-beta")`` gives ``O2Si_cristobalite-beta`` and
         ``from_component("liquid", formula="H2O")`` gives ``H2O_l``. See
-        :meth:`~atmodeller.database.DataBase.condensed_from_component`.
+        :meth:`~atmodeller.containers.ChemicalSpecies.from_component`.
 
         Args:
             component: Name of the phase component
@@ -959,18 +963,13 @@ class PurePhase(CondensedPhase):
                 needed for ``liquid``, which is a phase component of several formulas.
             database: Database. Defaults to ``None``, which uses the default database.
             **kwargs: Keyword arguments for
-                :meth:`~atmodeller.containers.ChemicalSpecies.create_condensed`
+                :meth:`~atmodeller.containers.ChemicalSpecies.from_component`
 
         Returns:
             A pure phase, which has the name of its species
         """
-        species: ChemicalSpecies = _get_database(database).condensed_from_component(
-            component, formula=formula, **kwargs
+        species: ChemicalSpecies = ChemicalSpecies.from_component(
+            component, formula=formula, database=database, **kwargs
         )
 
         return cls((species,), species.name)
-
-
-def _get_database(database: DataBase | None) -> DataBase:
-    """The database, or the default database if ``None``"""
-    return database or get_default_database()

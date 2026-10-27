@@ -210,18 +210,19 @@ This is :data:`diamond_sgte` minus :data:`graphite_sgte`. At 298.15 K, diamond m
 1895.79 J/mol in enthalpy and -3.3825 J/K/mol in entropy."""
 
 diamond_gustafson: RelativeThermodynamicProperties = RelativeThermodynamicProperties(
-    glenn_properties["C_graphite"],
+    glenn_properties["C"]["graphite"],
     diamond_relative_to_graphite,
     volume_model=DIAMOND_VOLUME_GUSTAFSON,
 )
 """Diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, valid from 298.15
 to 6000 K, with the volume :data:`DIAMOND_VOLUME_GUSTAFSON`.
 
-The Gibbs energy of diamond is that of graphite from the NASA Glenn coefficients (``C_graphite`` in
-:data:`~atmodeller.thermodata.janaf.glenn_properties`) plus the Gibbs energy of diamond relative to
-graphite of :cite:t:`Gustafson1986` (:data:`diamond_relative_to_graphite`). This keeps graphite
-consistent with the other NASA Glenn species while reproducing the Gibbs energy of diamond relative
-to graphite of :cite:t:`Gustafson1986` exactly.
+The Gibbs energy of diamond is that of graphite from the NASA Glenn coefficients
+(``["C"]["graphite"]`` in :data:`~atmodeller.thermodata.janaf.glenn_properties`) plus the Gibbs
+energy of diamond relative to graphite of :cite:t:`Gustafson1986`
+(:data:`diamond_relative_to_graphite`). This keeps graphite consistent with the other NASA Glenn
+species while reproducing the Gibbs energy of diamond relative to graphite of
+:cite:t:`Gustafson1986` exactly.
 
 For equilibrium between diamond and graphite at high pressure, use graphite with
 :data:`GRAPHITE_VOLUME_GUSTAFSON`, as in :func:`~atmodeller.database.get_default_database`. This

@@ -8,10 +8,10 @@
 The default data are the packaged NASA Glenn coefficients
 (:data:`~atmodeller.thermodata.janaf.glenn_properties`) with the following changes:
 
-    - Graphite (``C_s``, and also ``C_graphite``) includes the volume
+    - Graphite (``["C"]["graphite"]``) includes the volume
       :data:`~atmodeller.thermodata.gustafson.GRAPHITE_VOLUME_GUSTAFSON`, so that its Gibbs energy,
       and hence the equilibrium constant of any reaction involving it, depends on pressure.
-    - Diamond (``C_diamond``) is added as
+    - Diamond (``["C"]["diamond"]``) is added as
       :data:`~atmodeller.thermodata.gustafson.diamond_gustafson`, with the Gibbs energy of
       graphite plus the Gibbs energy of diamond relative to graphite of :cite:t:`Gustafson1986`
       and its own volume.
@@ -24,15 +24,19 @@ from atmodeller.thermodata.core import ThermodynamicProperties
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 from atmodeller.thermodata.janaf import glenn_properties
 
-default_properties: dict[str, ThermodynamicProperties] = {
-    **glenn_properties,
+default_properties: dict[str, dict[str, ThermodynamicProperties]] = {
     **{
-        name: glenn_properties[name].with_volume(GRAPHITE_VOLUME_GUSTAFSON)
-        for name in ("C_s", "C_graphite")
+        formula: dict[str, ThermodynamicProperties](components)
+        for formula, components in glenn_properties.items()
     },
-    "C_diamond": diamond_gustafson,
+    "C": {
+        **glenn_properties["C"],
+        "graphite": glenn_properties["C"]["graphite"].with_volume(GRAPHITE_VOLUME_GUSTAFSON),
+        "diamond": diamond_gustafson,
+    },
 }
-"""Default thermodynamic properties of each species, keyed by name
+"""Default thermodynamic properties of each phase component, keyed by Hill formula and then phase
+component, e.g. ``default_properties["C"]["graphite"]``
 
 :meta hide-value:
 """

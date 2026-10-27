@@ -331,8 +331,8 @@ def test_subNeptune_melt_phase() -> None:
 
     # The species we specify in the melt should be considered as already included in the
     # "background" melt mass, so we set include_in_phase_mass=False for both species
-    O2Si_l: ChemicalSpecies = ChemicalSpecies.create_condensed(
-        "O2Si", state="l", include_in_phase_mass=False
+    O2Si_l: ChemicalSpecies = ChemicalSpecies.from_component(
+        "liquid", formula="SiO2", include_in_phase_mass=False
     )
     H2O_d: ReservoirSpecies = ReservoirSpecies.create_dissolved(
         "H2O", solubility=solubility_models["H2O_peridotite_sossi23"], include_in_phase_mass=False
