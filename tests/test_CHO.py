@@ -25,7 +25,7 @@ from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol, SolubilityProtocol, SpeciesProtocol
 from atmodeller.jax_utils import NpFloat
 from atmodeller.output import Output
-from atmodeller.output_base import OutputNamedArraysDict
+from atmodeller.output_base import OutputElementsSpeciesDict, OutputNamedArraysDict
 from atmodeller.parameters import FixedActivityConstraint, Parameters
 from atmodeller.phases import PurePhase
 from atmodeller.sci_utils import earth
@@ -286,8 +286,8 @@ CHO_CASES: dict[str, tuple[float, float, float, float, float, list[dict[str, Any
 
 
 @pytest.fixture(scope="module")
-def CHO_output() -> dict[str, Any]:
-    """Output of the C-H-O model with graphite, solved for all cases in one batch"""
+def CHO_solution() -> Output:
+    """Solution of the C-H-O model with graphite, solved for all cases in one batch"""
     gas_species: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_g)
     condensates: tuple[PurePhase, ...] = (PurePhase.from_species("C", state="s"),)
 
@@ -308,9 +308,28 @@ def CHO_output() -> dict[str, Any]:
     output: Output = EquilibriumModel(parameters).solve_with_default()
     assert bool(np.all(output.multi_attempt_solution.success))
 
+    return output
+
+
+@pytest.fixture(scope="module")
+def CHO_output(CHO_solution: Output) -> dict[str, Any]:
+    """Output of the C-H-O model with graphite in the named arrays format"""
     return OutputNamedArraysDict(
-        output.parameters, output.multi_attempt_solution, output.initial_guess
+        CHO_solution.parameters, CHO_solution.multi_attempt_solution, CHO_solution.initial_guess
     ).to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
+
+
+def test_CHO_elements_species(CHO_solution: Output, CHO_output: dict[str, Any]) -> None:
+    """In the elements and species format, the graphite phase, which has the name of its species,
+    keeps the species entry beside its phase entry, with the same values as the named arrays"""
+    out: dict[str, Any] = OutputElementsSpeciesDict(
+        CHO_solution.parameters, CHO_solution.multi_attempt_solution, CHO_solution.initial_guess
+    ).to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
+    graphite_mass: NpFloat = CHO_output["C_s"]["species"]["mass"]["C_s"]
+
+    assert {"C_s", "phase"} <= set(out["C_s"])
+    np.testing.assert_array_equal(out["C_s"]["C_s"]["mass"], graphite_mass)
+    np.testing.assert_array_equal(out["C"]["C_s"]["mass"], graphite_mass)
 
 
 @pytest.mark.parametrize("case", CHO_CASES)
