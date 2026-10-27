@@ -137,6 +137,9 @@ def value_update_workflow() -> Callable[[EquilibriumModel], bool]:
         # Species keys are accepted at construction but not when updating, which raises
         with pytest.raises(ValueError, match="H2O"):
             model.update_constraints(mass_constraints={"H2O": 1.0e21})
+
+        with pytest.raises(ValueError, match="O2 -> O2_g"):
+            model.update_constraints(activity_constraints={"O2": IronWustiteBuffer(1.0)})
         # jax.debug.print("Third call to solver complete.")
 
         # Replace oxygen mass constraint with a fugacity-style activity constraint.
@@ -206,6 +209,16 @@ def test_repeated_jitted_workflow_calls_do_not_retrace(
     for i in range(10):
         logger.debug("Loop iteration %d", i)
         assert jitted_value_update_workflow(equilibrium_model)
+
+
+def test_unknown_activity_constraint_raises(equilibrium_model: EquilibriumModel) -> None:
+    """An activity constraint for a species not in the system raises when the parameters are built
+    (and on update, within the workflows above)"""
+    with pytest.raises(ValueError, match="O2 -> O2_g"):
+        Parameters(
+            state=equilibrium_model.parameters.state,
+            activity_constraints={"O2": IronWustiteBuffer()},
+        )
 
 
 def test_rebuilding_solver_retraces_call_solver(
