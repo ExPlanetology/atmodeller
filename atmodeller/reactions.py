@@ -535,7 +535,9 @@ class ReactionSystem(BaseReactionBlock):
         self.phase_system = phase_system
         self.formula_matrix = get_formula_matrix(self.species)
 
-        with np.errstate(divide="ignore"):
+        # The stoichiometry of the electron (the charge of an ion) is negative for a cation, and
+        # like zero it is excluded from the log stoichiometry
+        with np.errstate(divide="ignore", invalid="ignore"):
             self._log_stoich_matrix = np.where(
                 self.formula_matrix > 0, np.log(self.formula_matrix), -np.inf
             )

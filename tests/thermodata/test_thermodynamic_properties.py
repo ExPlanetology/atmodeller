@@ -18,7 +18,7 @@ from molmass import Formula
 from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
-from atmodeller.containers import ChemicalSpecies
+from atmodeller.containers import ChemicalSpecies, SpeciesCollection
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
@@ -115,6 +115,14 @@ def test_glenn_formulae_are_hill() -> None:
 
     assert not not_hill, f"Not in Hill order: {not_hill}"
     assert ChemicalSpecies.create_gas("NH").name == "HN_g"
+
+
+def test_ions_can_be_selected() -> None:
+    """Ions have the electron as an element, with the molar mass of the electron"""
+    ions = SpeciesCollection([ChemicalSpecies.create_gas("D+"), ChemicalSpecies.create_gas("D-")])
+
+    assert ions.unique_elements == ("2H", "e-")
+    np.testing.assert_allclose(ions.element_molar_masses, [2.01410177812e-3, 5.48579909065e-7])
 
 
 def test_glenn_extrapolation_uses_nearest_range() -> None:

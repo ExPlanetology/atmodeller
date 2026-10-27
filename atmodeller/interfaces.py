@@ -27,6 +27,11 @@ from atmodeller.sci_utils import unit_conversion
 class ChemicalSpeciesData(eqx.Module):
     """General data container for an individual species
 
+    The charge of an ion, such as ``D+`` (``[[2H]]+``), is part of its composition as the element
+    ``e-`` (electrons), and its molar mass includes the mass of the electrons. Charge balance is not
+    enforced yet, so a model with ions needs another constraint, such as an imposed fugacity, to be
+    determined.
+
     Args:
         formula: Formula
         state: State of aggregation, typically follows JANAF convention: 'g' for gas, 'l' for

@@ -13,7 +13,6 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
-from molmass import Formula
 
 from atmodeller.constants import (
     DISSOLVED_STATE,
@@ -350,15 +349,20 @@ class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
 
     @property
     def element_molar_masses(self) -> NpFloat:
-        """Element molar masses for the unique elements in the species"""
-        element_molar_masses: list[float] = []
+        """Element molar masses for the unique elements in the species
 
-        for element_ in self.unique_elements:
-            mformula: Formula = Formula(element_)
-            molar_mass: float = mformula.mass * unit_conversion.g_to_kg
-            element_molar_masses.append(molar_mass)
+        Each is the mass per atom of the element in the composition of a species that contains it,
+        so the electron (the charge of an ion, element ``e-``) is included like any other element.
+        """
+        element_molar_masses: dict[str, float] = {}
 
-        return np.array(element_molar_masses, dtype=float)
+        for species_ in self:
+            for element_, (count, mass, _) in species_.data.composition.items():
+                element_molar_masses.setdefault(element_, mass / count * unit_conversion.g_to_kg)
+
+        return np.array(
+            [element_molar_masses[element_] for element_ in self.unique_elements], dtype=float
+        )
 
     @property
     def molar_masses(self) -> Float[Array, " n_species"]:
