@@ -13,6 +13,7 @@ from typing import cast
 import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from jaxtyping import Array
 from molmass import Formula
 from scipy.optimize import brentq
@@ -26,7 +27,12 @@ from atmodeller.thermodata import (
 )
 from atmodeller.thermodata import holland_powell, vassiliev
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
-from atmodeller.thermodata.janaf import NasaGlennThermodynamicProperties, glenn_properties
+from atmodeller.thermodata.defaults import default_properties
+from atmodeller.thermodata.janaf import (
+    NasaGlennThermodynamicProperties,
+    glenn_properties,
+    stitch_glenn_properties,
+)
 
 graphite: NasaGlennThermodynamicProperties = cast(
     NasaGlennThermodynamicProperties, glenn_properties["C_s"]
@@ -115,6 +121,45 @@ def test_glenn_formulae_are_hill() -> None:
 
     assert not not_hill, f"Not in Hill order: {not_hill}"
     assert ChemicalSpecies.create_gas("NH").name == "HN_g"
+
+
+def test_phase_components_and_stitching() -> None:
+    """Each phase component is an entry, and stitching the condensed ones of a formula in order of
+    temperature gives the same as the solid and liquid entries; overlaps, gaps and volume models
+    cannot be stitched"""
+    glenn = cast(dict[str, NasaGlennThermodynamicProperties], glenn_properties)
+    silica = stitch_glenn_properties(
+        {
+            name: glenn[f"O2Si_{name}"]
+            for name in ("quartz-beta", "cristobalite-beta", "quartz-alpha")
+        }
+        | {"liquid": glenn["O2Si_l"]}
+    )
+    solid: Array = jnp.array([300.0, 1000.0, 1500.0, 1990.0])
+    liquid: Array = jnp.array([2500.0, 4000.0])
+
+    np.testing.assert_array_equal(
+        silica.standard_gibbs_over_RT(solid), glenn["O2Si_s"].standard_gibbs_over_RT(solid)
+    )
+    np.testing.assert_array_equal(
+        silica.standard_gibbs_over_RT(liquid), glenn["O2Si_l"].standard_gibbs_over_RT(liquid)
+    )
+    # A single phase component is returned as it is, so graphite keeps its volume
+    graphite = default_properties["C_graphite"]
+    assert stitch_glenn_properties({"graphite": graphite}) is graphite
+    np.testing.assert_array_equal(
+        graphite.standard_gibbs_over_RT(solid, 1e4),
+        default_properties["C_s"].standard_gibbs_over_RT(solid, 1e4),
+    )
+
+    with pytest.raises(ValueError, match="overlaps"):
+        stitch_glenn_properties({"hematite": glenn["Fe2O3_hematite"], "liquid": glenn["Fe2O3_l"]})
+    with pytest.raises(ValueError, match="gap"):
+        stitch_glenn_properties(
+            {"quartz-alpha": glenn["O2Si_quartz-alpha"], "liquid": glenn["O2Si_l"]}
+        )
+    with pytest.raises(ValueError, match="volume model"):
+        stitch_glenn_properties({"graphite": graphite, "other": glenn["C_graphite"]})
 
 
 def test_ions_can_be_selected() -> None:
