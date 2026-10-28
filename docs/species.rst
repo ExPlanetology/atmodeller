@@ -83,7 +83,7 @@ Species are created from the default database, ``get_default_database()``, unles
   - ``PurePhase.from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_component("cristobalite-beta")`` selects one phase component.
 
-To see what can be selected, with ``db = get_default_database()``, ``db.components_of("SiO2")`` gives the condensed phase components of a formula from the data file, in order of temperature, and ``db.phase_components(("C", "H", "O"))`` lists the phase components of every formula made of the given elements.
+To see what can be selected, with ``db = get_default_database()``, ``db.stitchable_components("SiO2")`` gives the condensed phase components of a formula that can be stitched together, in order of temperature, and ``db.phase_components(("C", "H", "O"))`` lists the phase components of every formula made of the given elements.
 
 Stitching phase components together
 -----------------------------------

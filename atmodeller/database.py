@@ -14,8 +14,8 @@ database by :meth:`~atmodeller.containers.ChemicalSpecies.create_gas`,
 
 .. code-block:: python
 
-    db: DataBase = GlennDataBase.from_file("my_glenn_coefficients.txt")
-    db.components_of("SiO2")  # ("quartz-alpha", "quartz-beta", "cristobalite-beta", "liquid")
+    db: DataBase = DataBase.from_glenn_file("my_glenn_coefficients.txt")
+    db.stitchable_components("SiO2")  # quartz-alpha, quartz-beta, cristobalite-beta, liquid
 
     h2o_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O", database=db)
     h2o_l: ChemicalSpecies = ChemicalSpecies.from_component("liquid", formula="H2O", database=db)
@@ -48,7 +48,8 @@ class DataBase:
     ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``. Only the phase components that the
     database is created with, which stay so if their data are replaced, can be stitched together,
     whereas phase components added later, such as diamond, can only be selected on their own.
-    Data from any source can be given, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``.
+    Data from any source can be given, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``,
+    and NASA Glenn coefficients are read with :meth:`from_glenn_file`.
 
     Args:
         phase_components: Thermodynamic properties of each phase component, keyed by Hill formula
@@ -62,6 +63,7 @@ class DataBase:
         self, phase_components: Mapping[str, Mapping[str, ThermodynamicProperties]] | None = None
     ):
         self._phase_components: dict[str, dict[str, ThermodynamicProperties]] = {}
+        self._formula_of_mineral: dict[str, str] = {}
         for formula, components in (phase_components or {}).items():
             for component, properties in components.items():
                 self.set_phase_component(formula, component, properties)
@@ -70,6 +72,20 @@ class DataBase:
             for hill_formula, components in self._phase_components.items()
             for component in components
         )
+
+    @classmethod
+    def from_glenn_file(cls, path: str | Path | None = None) -> Self:
+        """Creates a database of NASA Glenn coefficients :cite:p:`MZG02`
+
+        Args:
+            path: Path to a file of NASA Glenn coefficients in the same format as the packaged
+                file. Defaults to ``None``, which uses the packaged coefficients
+                (:data:`~atmodeller.thermodata.glenn.glenn_properties`).
+
+        Returns:
+            A database
+        """
+        return cls(glenn_properties if path is None else read_glenn_coefficients(path))
 
     def phase_components(
         self, elements: Iterable[str] | None = None
@@ -136,11 +152,9 @@ class DataBase:
         """
         hill_formula: str = Formula(formula).formula
         if component not in _SHARED_COMPONENTS:
-            other: list[str] = [
-                formula_ for formula_ in self._formulas_of(component) if formula_ != hill_formula
-            ]
-            if other:
-                raise ValueError(f"Phase component {component} is already given for {other[0]}")
+            other: str = self._formula_of_mineral.setdefault(component, hill_formula)
+            if other != hill_formula:
+                raise ValueError(f"Phase component {component} is already given for {other}")
         self._phase_components.setdefault(hill_formula, {})[component] = properties
 
     def formula_of(self, component: str) -> str:
@@ -160,14 +174,16 @@ class DataBase:
             raise ValueError(
                 f"{component} is a phase component of several formulas, so give the formula"
             )
-        formulas: list[str] = self._formulas_of(component)
-        if not formulas:
-            raise KeyError(f"Phase component {component} is not available")
+        try:
+            return self._formula_of_mineral[component]
+        except KeyError:
+            raise KeyError(f"Phase component {component} is not available") from None
 
-        return formulas[0]
+    def stitchable_components(self, formula: str) -> tuple[str, ...]:
+        """Condensed phase components of a formula that can be stitched together
 
-    def components_of(self, formula: str) -> tuple[str, ...]:
-        """Condensed phase components of a formula that the database was created with
+        These are the condensed phase components that the database was created with
+        (:meth:`stitch`).
 
         Args:
             formula: Formula
@@ -250,47 +266,8 @@ class DataBase:
             cast(dict[str, NasaGlennThermodynamicProperties], found)
         )
 
-    def _formulas_of(self, component: str) -> list[str]:
-        """Hill formulas that have the phase component"""
-        return [
-            hill_formula
-            for hill_formula, components in self._phase_components.items()
-            if component in components
-        ]
 
-
-class GlennDataBase(DataBase):
-    """Database of NASA Glenn coefficients :cite:p:`MZG02`
-
-    ``GlennDataBase()`` has the packaged coefficients, and :meth:`from_file` those of a file.
-
-    Args:
-        phase_components: Thermodynamic properties of each phase component, keyed by Hill formula
-            and then phase component. Defaults to ``None``, which uses the packaged coefficients
-            (:data:`~atmodeller.thermodata.glenn.glenn_properties`).
-    """
-
-    def __init__(
-        self,
-        phase_components: Mapping[str, Mapping[str, NasaGlennThermodynamicProperties]]
-        | None = None,
-    ):
-        super().__init__(glenn_properties if phase_components is None else phase_components)
-
-    @classmethod
-    def from_file(cls, path: str | Path) -> Self:
-        """Creates a database from a file of NASA Glenn coefficients.
-
-        Args:
-            path: Path to a file in the same format as the packaged file
-
-        Returns:
-            A database
-        """
-        return cls(read_glenn_coefficients(path))
-
-
-def get_default_database() -> GlennDataBase:
+def get_default_database() -> DataBase:
     """Gets the default database
 
     This is the database of packaged NASA Glenn coefficients with the following changes:
@@ -311,7 +288,7 @@ def get_default_database() -> GlennDataBase:
     Returns:
         The default database
     """
-    database = GlennDataBase()
+    database: DataBase = DataBase.from_glenn_file()
     graphite = database.get_phase_component("C", "graphite")
     # Graphite stays a phase component that the database was created with, so it is selected by
     # PurePhase.from_formula("C"). Diamond is added, so it is only selected on its own.

@@ -851,7 +851,7 @@ class PurePhase(CondensedPhase):
         """Creates a pure phase from all the condensed phase components of a formula
 
         The condensed phase components that the database was created with
-        (:meth:`~atmodeller.database.DataBase.components_of`), e.g. quartz to cristobalite to
+        (:meth:`~atmodeller.database.DataBase.stitchable_components`), e.g. quartz to cristobalite to
         liquid for ``SiO2``, are stitched together in order of temperature
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
         :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``.
@@ -870,7 +870,7 @@ class PurePhase(CondensedPhase):
             ValueError: If the phase components cannot be stitched together
         """
         database = database or get_default_database()
-        components: tuple[str, ...] = database.components_of(formula)
+        components: tuple[str, ...] = database.stitchable_components(formula)
         if not components:
             raise KeyError(f"{Formula(formula).formula} has no condensed phase components")
 

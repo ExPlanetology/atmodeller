@@ -23,23 +23,23 @@ Each row of the file gives the coefficients of one temperature range of a phase 
 
 .. code-block:: python
 
-    from atmodeller import ChemicalSpecies, GlennDataBase, PurePhase
+    from atmodeller import ChemicalSpecies, DataBase, PurePhase
 
-    db = GlennDataBase.from_file("my_glenn_coefficients.txt")
+    db = DataBase.from_glenn_file("my_glenn_coefficients.txt")
     h2o_g = ChemicalSpecies.create_gas("H2O", database=db)
     h2o_l = ChemicalSpecies.from_component("liquid", formula="H2O", database=db)
     sio2 = PurePhase.from_formula("SiO2", database=db)
 
-``GlennDataBase()`` uses the packaged data unchanged. Without a database, species are created from the default database, ``get_default_database()``, which is the packaged data with graphite given the volume of :cite:t:`Gustafson1986` and diamond added from the same assessment. The volumes make the Gibbs energies of graphite and diamond, and hence the equilibrium constant of any reaction involving them, depend on pressure; their activities are unchanged, as are gases and other condensates. To provide data from another source, create a ``DataBase`` (in the ``database`` module) with the data keyed by Hill formula and then phase component, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``.
+``DataBase.from_glenn_file()`` uses the packaged data unchanged. Without a database, species are created from the default database, ``get_default_database()``, which is the packaged data with graphite given the volume of :cite:t:`Gustafson1986` and diamond added from the same assessment. The volumes make the Gibbs energies of graphite and diamond, and hence the equilibrium constant of any reaction involving them, depend on pressure; their activities are unchanged, as are gases and other condensates. To provide data from another source, create a ``DataBase`` (in the ``database`` module) with the data keyed by Hill formula and then phase component, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``.
 
 You can add a phase component to a database, or replace an existing one, with ``set_phase_component``. For example, diamond from the assessment of :cite:t:`Gustafson1986` can be added alongside graphite in a database of the packaged data. Diamond has a volume model, so graphite must be given the volume model of the same assessment, replacing the packaged graphite, which has none. Otherwise only diamond depends on pressure and the graphite-diamond transition is wrong above about 1 bar:
 
 .. code-block:: python
 
-    from atmodeller import ChemicalSpecies, GlennDataBase
+    from atmodeller import ChemicalSpecies, DataBase
     from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 
-    db = GlennDataBase()
+    db = DataBase.from_glenn_file()
     graphite = db.get_phase_component("C", "graphite")
     db.set_phase_component("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
     db.set_phase_component("C", "diamond", diamond_gustafson)

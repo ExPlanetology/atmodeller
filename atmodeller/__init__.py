@@ -124,7 +124,6 @@ from atmodeller.containers import (  # noqa: E402, F401
 )
 from atmodeller.database import (  # noqa: E402, F401
     DataBase,
-    GlennDataBase,
     get_default_database,
 )
 from atmodeller.interfaces import species_name  # noqa: E402, F401

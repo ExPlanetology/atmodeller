@@ -13,7 +13,7 @@ import equinox as eqx
 import pytest
 
 from atmodeller.containers import ChemicalSpecies
-from atmodeller.database import DataBase, GlennDataBase, get_default_database
+from atmodeller.database import DataBase, get_default_database
 from atmodeller.interfaces import species_name
 from atmodeller.phases import PurePhase
 from atmodeller.thermodata.core import DATA_DIRECTORY
@@ -42,11 +42,11 @@ def test_from_file(tmp_path: Path) -> None:
         lines: list[str] = Path(path).read_text().splitlines(keepends=True)
     glenn_file: Path = tmp_path / "glenn.txt"
     glenn_file.write_text("".join(line for line in lines if not line.startswith("gas,H2O,")))
-    db: DataBase = GlennDataBase.from_file(glenn_file)
+    db: DataBase = DataBase.from_glenn_file(glenn_file)
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("CO2", database=db),
-        ChemicalSpecies.create_gas("CO2", database=GlennDataBase()),
+        ChemicalSpecies.create_gas("CO2", database=DataBase.from_glenn_file()),
     )
     with pytest.raises(KeyError, match="gas is not a phase component of H2O"):
         ChemicalSpecies.create_gas("H2O", database=db)
@@ -54,21 +54,21 @@ def test_from_file(tmp_path: Path) -> None:
     bad_file: Path = tmp_path / "bad.txt"
     bad_file.write_text("phase_component,hill_formula,T_min,T_max\n")
     with pytest.raises(ValueError, match="is missing the columns"):
-        GlennDataBase.from_file(bad_file)
+        DataBase.from_glenn_file(bad_file)
 
 
 def test_set_phase_component() -> None:
     """Phase components are added or replaced in this database only, and a replaced phase
     component that the database was created with can still be stitched"""
-    db: GlennDataBase = GlennDataBase()
+    db: DataBase = DataBase.from_glenn_file()
     db.set_phase_component("SiO2", "test", diamond_gustafson)
     graphite = db.get_phase_component("C", "graphite").with_volume(GRAPHITE_VOLUME_GUSTAFSON)
     db.set_phase_component("C", "graphite", graphite)
 
     assert ChemicalSpecies.from_component("test", database=db).name == "O2Si_test"
-    assert "test" not in db.components_of("SiO2")
-    assert "test" not in GlennDataBase().phase_components()["O2Si"]
-    assert db.components_of("C") == ("graphite",)
+    assert "test" not in db.stitchable_components("SiO2")
+    assert "test" not in DataBase.from_glenn_file().phase_components()["O2Si"]
+    assert db.stitchable_components("C") == ("graphite",)
     assert eqx.tree_equal(db.stitch("C", ("graphite",)), graphite)
     with pytest.raises(ValueError, match="already given for O2Si"):
         db.set_phase_component("C", "test", diamond_gustafson)
@@ -91,7 +91,7 @@ def test_phase_components() -> None:
     carbon = cast(ChemicalSpecies, PurePhase.from_formula("C").species[0])
 
     db: DataBase = get_default_database()
-    assert db.components_of("SiO2") == (
+    assert db.stitchable_components("SiO2") == (
         "quartz-alpha",
         "quartz-beta",
         "cristobalite-beta",
@@ -111,9 +111,8 @@ def test_phase_components() -> None:
     assert carbon.standard_gibbs_over_RT(1000.0, 1.0e4) == pytest.approx(
         ChemicalSpecies.from_component("graphite").standard_gibbs_over_RT(1000.0, 1.0e4)
     )
-    no_volume = cast(
-        ChemicalSpecies, PurePhase.from_formula("C", database=GlennDataBase()).species[0]
-    )
+    glenn: DataBase = DataBase.from_glenn_file()
+    no_volume = cast(ChemicalSpecies, PurePhase.from_formula("C", database=glenn).species[0])
     assert carbon.standard_gibbs_over_RT(1000.0, 1.0e4) != pytest.approx(
         no_volume.standard_gibbs_over_RT(1000.0, 1.0e4)
     )
