@@ -246,7 +246,7 @@ CHO_CASES: dict[str, tuple[float, float, float, float, float, list[dict[str, Any
         [
             {"partial_pressure": {"CH4_g": 28.66, "CO2_g": 30.88, "CO_g": 46.42,
                                   "H2O_g": 337.16, "H2_g": 236.98, "O2_g": 4.11e-13},
-             "C_s_activity": 0.12202},
+             "C_graphite_activity": 0.12202},
             # FastChem
             {"partial_pressure": {"CH4_g": 29.61919788, "CO2_g": 29.82548282,
                                   "CO_g": 45.94958264, "H2O_g": 332.03616807,
@@ -280,7 +280,7 @@ CHO_CASES: dict[str, tuple[float, float, float, float, float, list[dict[str, Any
         873, np.nan, OCEAN, 5 * OCEAN, 2.73159e19,
         [{"partial_pressure": {"O2_g": 1.27e-25, "H2_g": 14.564, "CO_g": 0.07276,
                                "H2O_g": 4.527, "CO2_g": 0.061195, "CH4_g": 96.74},
-          "C_s_activity": 1.0, "C_s_mass": 3.54162e20}],
+          "C_graphite_activity": 1.0, "C_graphite_mass": 3.54162e20}],
     ),
 }  # fmt: skip
 
@@ -289,7 +289,7 @@ CHO_CASES: dict[str, tuple[float, float, float, float, float, list[dict[str, Any
 def CHO_solution() -> Output:
     """Solution of the C-H-O model with graphite, solved for all cases in one batch"""
     gas_species: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_g)
-    condensates: tuple[PurePhase, ...] = (PurePhase.from_species("C", state="s"),)
+    condensates: tuple[PurePhase, ...] = (PurePhase.from_component("graphite"),)
 
     def column(index: int) -> ArrayLike:
         return np.array([case[index] for case in CHO_CASES.values()], dtype=float)
@@ -325,18 +325,18 @@ def test_CHO_elements_species(CHO_solution: Output, CHO_output: dict[str, Any]) 
     out: dict[str, Any] = OutputElementsSpeciesDict(
         CHO_solution.parameters, CHO_solution.multi_attempt_solution, CHO_solution.initial_guess
     ).to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
-    graphite_mass: NpFloat = CHO_output["C_s"]["species"]["mass"]["C_s"]
+    graphite_mass: NpFloat = CHO_output["C_graphite"]["species"]["mass"]["C_graphite"]
 
-    assert {"C_s", "phase"} <= set(out["C_s"])
-    np.testing.assert_array_equal(out["C_s"]["C_s"]["mass"], graphite_mass)
-    np.testing.assert_array_equal(out["C"]["C_s"]["mass"], graphite_mass)
+    assert {"C_graphite", "phase"} <= set(out["C_graphite"])
+    np.testing.assert_array_equal(out["C_graphite"]["C_graphite"]["mass"], graphite_mass)
+    np.testing.assert_array_equal(out["C"]["C_graphite"]["mass"], graphite_mass)
 
 
 @pytest.mark.parametrize("case", CHO_CASES)
 def test_CHO(CHO_output: dict[str, Any], case: str) -> None:
     """Partial pressures and graphite match FactSage and FastChem"""
     row: int = list(CHO_CASES).index(case)
-    graphite: dict[str, Any] = CHO_output["C_s"]["species"]
+    graphite: dict[str, Any] = CHO_output["C_graphite"]["species"]
 
     for reference in CHO_CASES[case][-1]:
         computed: dict[str, float] = {
@@ -344,12 +344,12 @@ def test_CHO(CHO_output: dict[str, Any], case: str) -> None:
             for name in reference["partial_pressure"]
         }
         expected: dict[str, float] = dict(reference["partial_pressure"])
-        if "C_s_activity" in reference:
-            computed["C_s_activity"] = graphite["activity"]["C_s"][row]
-            expected["C_s_activity"] = reference["C_s_activity"]
-        if "C_s_mass" in reference:
-            computed["C_s_mass"] = graphite["mass"]["C_s"][row]
-            expected["C_s_mass"] = reference["C_s_mass"]
+        if "C_graphite_activity" in reference:
+            computed["C_graphite_activity"] = graphite["activity"]["C_graphite"][row]
+            expected["C_graphite_activity"] = reference["C_graphite_activity"]
+        if "C_graphite_mass" in reference:
+            computed["C_graphite_mass"] = graphite["mass"]["C_graphite"][row]
+            expected["C_graphite_mass"] = reference["C_graphite_mass"]
 
         np.testing.assert_allclose(
             np.log10(list(computed.values())),

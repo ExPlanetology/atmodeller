@@ -59,7 +59,7 @@ GAS_SPECIES: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_
 
 # Graphite condensate: created with the default `solve_for_stability=True`, so including it in a
 # model is what flips `active_stability` to True for one or more species.
-graphite: PurePhase = PurePhase.from_species("C")
+graphite: PurePhase = PurePhase.from_component("graphite")
 
 
 def _build_parameters(*, with_condensate: bool, batch_size: int = 1) -> Parameters:
