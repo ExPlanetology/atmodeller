@@ -37,7 +37,6 @@ from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
     read_glenn_coefficients,
-    stitch_glenn_properties,
 )
 
 _SHARED_COMPONENTS: tuple[str, ...] = (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT)
@@ -258,7 +257,9 @@ class DataBase(ABC):
                 f"Only NASA Glenn polynomials can be stitched together, not {not_glenn}"
             )
 
-        return stitch_glenn_properties(cast(dict[str, NasaGlennThermodynamicProperties], found))
+        return NasaGlennThermodynamicProperties.stitch(
+            cast(dict[str, NasaGlennThermodynamicProperties], found)
+        )
 
     def _formulas_of(self, component: str) -> list[str]:
         """Hill formulas that have the phase component"""

@@ -31,7 +31,6 @@ from atmodeller.thermodata.defaults import default_properties
 from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
-    stitch_glenn_properties,
 )
 
 graphite: NasaGlennThermodynamicProperties = glenn_properties["C"]["graphite"]
@@ -124,8 +123,9 @@ def test_glenn_formulae_are_hill() -> None:
 def test_phase_components_and_stitching() -> None:
     """Stitching the condensed phase components of a formula in order of temperature gives each
     phase component in its range; overlaps, gaps and volume models cannot be stitched"""
+    stitch = NasaGlennThermodynamicProperties.stitch
     silica: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["O2Si"]
-    stitched = stitch_glenn_properties(
+    stitched = stitch(
         {
             name: silica[name]
             for name in ("quartz-beta", "liquid", "cristobalite-beta", "quartz-alpha")
@@ -143,15 +143,15 @@ def test_phase_components_and_stitching() -> None:
         )
     # A single phase component is returned as it is, so graphite keeps its volume
     graphite_volume = cast(NasaGlennThermodynamicProperties, default_properties["C"]["graphite"])
-    assert stitch_glenn_properties({"graphite": graphite_volume}) is graphite_volume
+    assert stitch({"graphite": graphite_volume}) is graphite_volume
 
     hematite: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["Fe2O3"]
     with pytest.raises(ValueError, match="overlaps"):
-        stitch_glenn_properties(hematite)
+        stitch(hematite)
     with pytest.raises(ValueError, match="gap"):
-        stitch_glenn_properties({name: silica[name] for name in ("quartz-alpha", "liquid")})
+        stitch({name: silica[name] for name in ("quartz-alpha", "liquid")})
     with pytest.raises(ValueError, match="volume model"):
-        stitch_glenn_properties({"graphite": graphite_volume, "other": graphite})
+        stitch({"graphite": graphite_volume, "other": graphite})
 
 
 def test_ions_can_be_selected() -> None:

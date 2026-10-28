@@ -17,7 +17,7 @@ import importlib.resources
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import cast
+from typing import Self, cast
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -25,7 +25,6 @@ import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float, Integer
 
 from atmodeller import override
-from atmodeller.constants import GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
 from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata.core import DATA_DIRECTORY, ThermodynamicProperties
@@ -250,59 +249,58 @@ class NasaGlennThermodynamicProperties(ThermodynamicProperties):
         """
         return min(self.T_min), max(self.T_max)
 
+    @classmethod
+    def stitch(cls, phase_components: Mapping[str, Self]) -> Self:
+        """Stitches the phase components of one formula together in order of temperature
 
-def stitch_glenn_properties(
-    phase_components: Mapping[str, NasaGlennThermodynamicProperties],
-) -> NasaGlennThermodynamicProperties:
-    """Stitches the phase components of one formula together in order of temperature
+        The NASA Glenn data are at 1 bar, and the temperature ranges of the phase components of
+        a formula (e.g. quartz-alpha, quartz-beta, cristobalite-beta and liquid) are its stable
+        sequence at 1 bar, so stitching them gives the stable phase component at each
+        temperature. A single phase component is returned as it is, with any volume model.
+        Several phase components must have no volume model, since the pressure dependence would
+        move the transitions between them.
 
-    The NASA Glenn data are at 1 bar, and the temperature ranges of the phase components of a
-    formula (e.g. quartz-alpha, quartz-beta, cristobalite-beta and liquid) are its stable sequence
-    at 1 bar, so stitching them gives the stable phase component at each temperature. A single
-    phase component is returned as it is, with any volume model. Several phase components must
-    have no volume model, since the pressure dependence would move the transitions between them.
+        Args:
+            phase_components: Thermodynamic properties of each phase component, keyed by its name
 
-    Args:
-        phase_components: Thermodynamic properties of each phase component, keyed by its name
+        Returns:
+            Thermodynamic properties of the phase components stitched together
 
-    Returns:
-        Thermodynamic properties of the phase components stitched together
+        Raises:
+            ValueError: If several phase components are stitched and any has a volume model, or if
+                their temperature ranges overlap or leave a gap
+        """
+        if len(phase_components) == 1:
+            return next(iter(phase_components.values()))
 
-    Raises:
-        ValueError: If several phase components are stitched and any has a volume model, or if
-            their temperature ranges overlap or leave a gap
-    """
-    if len(phase_components) == 1:
-        return next(iter(phase_components.values()))
-
-    with_volume: list[str] = [
-        name for name, properties in phase_components.items() if properties.volume_model
-    ]
-    if with_volume:
-        raise ValueError(
-            f"Phase components with a volume model cannot be stitched together: {with_volume}"
-        )
-
-    ordered: list[tuple[str, NasaGlennThermodynamicProperties]] = sorted(
-        phase_components.items(), key=lambda item: min(item[1].T_min)
-    )
-    for (name, properties), (next_name, next_properties) in zip(ordered, ordered[1:]):
-        end: float = max(properties.T_max)
-        start: float = min(next_properties.T_min)
-        if start < end - _RANGE_TOLERANCE:
-            raise ValueError(f"{name} (to {end} K) overlaps {next_name} (from {start} K)")
-        if start > end + _RANGE_TOLERANCE:
+        with_volume: list[str] = [
+            name for name, properties in phase_components.items() if properties.volume_model
+        ]
+        if with_volume:
             raise ValueError(
-                f"There is a gap between {name} (to {end} K) and {next_name} (from {start} K)"
+                f"Phase components with a volume model cannot be stitched together: {with_volume}"
             )
 
-    return NasaGlennThermodynamicProperties(
-        tuple(coeffs for _, properties in ordered for coeffs in properties.cp_coeffs),
-        tuple(value for _, properties in ordered for value in properties.b1),
-        tuple(value for _, properties in ordered for value in properties.b2),
-        tuple(value for _, properties in ordered for value in properties.T_min),
-        tuple(value for _, properties in ordered for value in properties.T_max),
-    )
+        ordered: list[tuple[str, NasaGlennThermodynamicProperties]] = sorted(
+            phase_components.items(), key=lambda item: min(item[1].T_min)
+        )
+        for (name, properties), (next_name, next_properties) in zip(ordered, ordered[1:]):
+            end: float = max(properties.T_max)
+            start: float = min(next_properties.T_min)
+            if start < end - _RANGE_TOLERANCE:
+                raise ValueError(f"{name} (to {end} K) overlaps {next_name} (from {start} K)")
+            if start > end + _RANGE_TOLERANCE:
+                raise ValueError(
+                    f"There is a gap between {name} (to {end} K) and {next_name} (from {start} K)"
+                )
+
+        return cls(
+            tuple(coeffs for _, properties in ordered for coeffs in properties.cp_coeffs),
+            tuple(value for _, properties in ordered for value in properties.b1),
+            tuple(value for _, properties in ordered for value in properties.b2),
+            tuple(value for _, properties in ordered for value in properties.T_min),
+            tuple(value for _, properties in ordered for value in properties.T_max),
+        )
 
 
 def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
@@ -338,14 +336,6 @@ def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
     return data
 
 
-def _from_rows(df: pd.DataFrame) -> NasaGlennThermodynamicProperties:
-    """Thermodynamic properties from all the temperature ranges in the rows"""
-    cp_coeffs: pd.DataFrame | pd.Series = df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]]
-    return NasaGlennThermodynamicProperties(
-        cp_coeffs, df["b1"], df["b2"], df["T_min"], df["T_max"]
-    )
-
-
 def read_glenn_coefficients(
     path: str | Path | None = None,
 ) -> dict[str, dict[str, NasaGlennThermodynamicProperties]]:
@@ -354,7 +344,7 @@ def read_glenn_coefficients(
     Each row of the file gives the coefficients of one temperature range of a phase component
     (``gas``, ``liquid`` or a mineral) of a formula, and the rows of a phase component together
     give its thermodynamic properties. Phase components are stitched together on demand with
-    :func:`stitch_glenn_properties`.
+    :meth:`NasaGlennThermodynamicProperties.stitch`.
 
     Args:
         path: Path to a file of NASA Glenn coefficients in the same format as the packaged
@@ -366,22 +356,22 @@ def read_glenn_coefficients(
         component, e.g. ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``
 
     Raises:
-        ValueError: If the file is not in the format of the packaged file, or the same mineral is
-            given for more than one formula
+        ValueError: If the file does not have the columns of the packaged file
     """
     data: pd.DataFrame = _read_glenn_data(path)
     phase_components: dict[str, dict[str, NasaGlennThermodynamicProperties]] = {}
-    formula_of_component: dict[str, str] = {}
 
     for key, df in data.groupby(["hill_formula", "phase_component"], sort=False):
         hill_formula, component = (str(value) for value in cast(tuple[str, str], key))
-        if component not in (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT):
-            if formula_of_component.setdefault(component, hill_formula) != hill_formula:
-                raise ValueError(
-                    f"Phase component {component} is given for "
-                    f"{formula_of_component[component]} and {hill_formula}"
-                )
-        phase_components.setdefault(hill_formula, {})[component] = _from_rows(df)
+        phase_components.setdefault(hill_formula, {})[component] = (
+            NasaGlennThermodynamicProperties(
+                df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]],
+                df["b1"],
+                df["b2"],
+                df["T_min"],
+                df["T_max"],
+            )
+        )
 
     return phase_components
 
