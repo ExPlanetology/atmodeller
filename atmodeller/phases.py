@@ -63,7 +63,7 @@ from molmass import Formula
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
 from atmodeller.constants import CONDENSED_SUFFIX
-from atmodeller.database import DataBase, get_default_database
+from atmodeller.database import DataBase
 from atmodeller.interfaces import RedoxBufferProtocol, SpeciesProtocol, TSpecies_co
 from atmodeller.jax_utils import FloatArray, as_j64, masked_logsumexp, safe_exp
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
@@ -869,7 +869,7 @@ class PurePhase(CondensedPhase):
             KeyError: If the formula has no condensed phase components
             ValueError: If the phase components cannot be stitched together
         """
-        database = database or get_default_database()
+        database = database or DataBase.default()
         components: tuple[str, ...] = database.stitchable_components(formula)
         if not components:
             raise KeyError(f"{Formula(formula).formula} has no condensed phase components")
@@ -912,7 +912,7 @@ class PurePhase(CondensedPhase):
             ValueError: If the phase components cannot be stitched together, or no formula is
                 given for phase components that are shared by several formulas
         """
-        database = database or get_default_database()
+        database = database or DataBase.default()
         components = tuple(components)
         if formula is None:
             formula = database.formula_of(*components)

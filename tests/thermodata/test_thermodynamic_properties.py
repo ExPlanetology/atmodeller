@@ -20,7 +20,7 @@ from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
-from atmodeller.database import get_default_database
+from atmodeller.database import DataBase
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
@@ -144,7 +144,7 @@ def test_phase_components_and_stitching() -> None:
     # A single phase component is returned as it is, so graphite keeps its volume
     graphite_volume = cast(
         NasaGlennThermodynamicProperties,
-        get_default_database().get_phase_component("C", "graphite"),
+        DataBase.default().get_phase_component("C", "graphite"),
     )
     assert stitch({"graphite": graphite_volume}) is graphite_volume
 

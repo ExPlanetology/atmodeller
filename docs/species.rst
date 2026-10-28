@@ -73,7 +73,7 @@ The same names are used for constraints and in the output, so ``"O2S_g"`` (not `
 Selecting species
 -----------------
 
-Species are created from the default database, ``get_default_database()``, unless another is given with ``database=`` (see :ref:`Add thermodynamic data <CommonTasksThermodynamicData>`).
+Species are created from the default database, ``DataBase.default()``, unless another is given with ``database=`` (see :ref:`Add thermodynamic data <CommonTasksThermodynamicData>`).
 
 - **Gases**: ``ChemicalSpecies.create_gas("H2O")``. The activity defaults to an ideal gas, and can be a real gas equation of state.
 - **One condensed phase component**: ``ChemicalSpecies.from_component(component, formula=...)``. A mineral fixes its formula, e.g. ``from_component("cristobalite-beta")``, whereas ``liquid`` is a phase component of many formulas, so the formula is given, e.g. ``from_component("liquid", formula="SiO2")``. The species can be an end-member of a mixed phase, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
@@ -83,7 +83,7 @@ Species are created from the default database, ``get_default_database()``, unles
   - ``PurePhase.from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_component("cristobalite-beta")`` selects one phase component.
 
-To see what can be selected, with ``db = get_default_database()``, ``db.stitchable_components("SiO2")`` gives the condensed phase components of a formula that can be stitched together, in order of temperature, and ``db.phase_components(("C", "H", "O"))`` lists the phase components of every formula made of the given elements.
+To see what can be selected, with ``db = DataBase.default()``, ``db.stitchable_components("SiO2")`` gives the condensed phase components of a formula that can be stitched together, in order of temperature, and ``db.phase_components(("C", "H", "O"))`` lists the phase components of every formula made of the given elements.
 
 Stitching phase components together
 -----------------------------------

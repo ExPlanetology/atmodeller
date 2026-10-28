@@ -13,7 +13,7 @@ import equinox as eqx
 import pytest
 
 from atmodeller.containers import ChemicalSpecies
-from atmodeller.database import DataBase, get_default_database
+from atmodeller.database import DataBase
 from atmodeller.interfaces import species_name
 from atmodeller.phases import PurePhase
 from atmodeller.thermodata.core import DATA_DIRECTORY
@@ -23,7 +23,7 @@ from atmodeller.thermodata.glenn import THERMODYNAMIC_DATA_SOURCE, glenn_propert
 
 def test_default_database() -> None:
     """The default database gives the same species as creating them without a database"""
-    db: DataBase = get_default_database()
+    db: DataBase = DataBase.default()
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("H2O", database=db), ChemicalSpecies.create_gas("H2O")
@@ -46,7 +46,7 @@ def test_from_file(tmp_path: Path) -> None:
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("CO2", database=db),
-        ChemicalSpecies.create_gas("CO2", database=DataBase.from_glenn_file()),
+        ChemicalSpecies.create_gas("CO2", database=DataBase(glenn_properties)),
     )
     with pytest.raises(KeyError, match="gas is not a phase component of H2O"):
         ChemicalSpecies.create_gas("H2O", database=db)
@@ -60,14 +60,14 @@ def test_from_file(tmp_path: Path) -> None:
 def test_set_phase_component() -> None:
     """Phase components are added or replaced in this database only, and a replaced phase
     component that the database was created with can still be stitched"""
-    db: DataBase = DataBase.from_glenn_file()
+    db: DataBase = DataBase(glenn_properties)
     db.set_phase_component("SiO2", "test", diamond_gustafson)
     graphite = db.get_phase_component("C", "graphite").with_volume(GRAPHITE_VOLUME_GUSTAFSON)
     db.set_phase_component("C", "graphite", graphite)
 
     assert ChemicalSpecies.from_component("test", database=db).name == "O2Si_test"
     assert "test" not in db.stitchable_components("SiO2")
-    assert "test" not in DataBase.from_glenn_file().phase_components()["O2Si"]
+    assert "test" not in DataBase(glenn_properties).phase_components()["O2Si"]
     assert db.stitchable_components("C") == ("graphite",)
     assert eqx.tree_equal(db.stitch("C", ("graphite",)), graphite)
     with pytest.raises(ValueError, match="already given for O2Si"):
@@ -90,7 +90,7 @@ def test_phase_components() -> None:
     sio2 = cast(ChemicalSpecies, PurePhase.from_formula("SiO2").species[0])
     carbon = cast(ChemicalSpecies, PurePhase.from_formula("C").species[0])
 
-    db: DataBase = get_default_database()
+    db: DataBase = DataBase.default()
     assert db.stitchable_components("SiO2") == (
         "quartz-alpha",
         "quartz-beta",
@@ -111,7 +111,7 @@ def test_phase_components() -> None:
     assert carbon.standard_gibbs_over_RT(1000.0, 1.0e4) == pytest.approx(
         ChemicalSpecies.from_component("graphite").standard_gibbs_over_RT(1000.0, 1.0e4)
     )
-    glenn: DataBase = DataBase.from_glenn_file()
+    glenn: DataBase = DataBase(glenn_properties)
     no_volume = cast(ChemicalSpecies, PurePhase.from_formula("C", database=glenn).species[0])
     assert carbon.standard_gibbs_over_RT(1000.0, 1.0e4) != pytest.approx(
         no_volume.standard_gibbs_over_RT(1000.0, 1.0e4)

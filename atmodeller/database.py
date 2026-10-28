@@ -10,7 +10,7 @@ which the data refer, keyed by Hill formula and then phase component. Species ar
 database by :meth:`~atmodeller.containers.ChemicalSpecies.create_gas`,
 :meth:`~atmodeller.containers.ChemicalSpecies.from_component` and the methods of
 :class:`~atmodeller.phases.PurePhase`, which use the default database
-(:func:`get_default_database`) unless another is given, for example:
+(:meth:`DataBase.default`) unless another is given, for example:
 
 .. code-block:: python
 
@@ -48,8 +48,11 @@ class DataBase:
     ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``. Only the phase components that the
     database is created with, which stay so if their data are replaced, can be stitched together,
     whereas phase components added later, such as diamond, can only be selected on their own.
-    Data from any source can be given, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``,
-    and NASA Glenn coefficients are read with :meth:`from_glenn_file`.
+    The default database is :meth:`default`, and a file of NASA Glenn coefficients is read with
+    :meth:`from_glenn_file`. Data from any source can be given, e.g.
+    ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``, and
+    ``DataBase(glenn_properties)`` (:data:`~atmodeller.thermodata.glenn.glenn_properties`) is the
+    packaged NASA Glenn coefficients without the changes of the default database.
 
     Args:
         phase_components: Thermodynamic properties of each phase component, keyed by Hill formula
@@ -74,18 +77,54 @@ class DataBase:
         )
 
     @classmethod
-    def from_glenn_file(cls, path: str | Path | None = None) -> Self:
-        """Creates a database of NASA Glenn coefficients :cite:p:`MZG02`
+    def default(cls) -> Self:
+        """Creates the default database
+
+        This is the packaged NASA Glenn coefficients
+        (:data:`~atmodeller.thermodata.glenn.glenn_properties`) with the following changes:
+
+            - Graphite includes the volume
+              :data:`~atmodeller.thermodata.gustafson.GRAPHITE_VOLUME_GUSTAFSON`, so that its
+              Gibbs energy, and hence the equilibrium constant of any reaction involving it,
+              depends on pressure.
+            - Diamond (:data:`~atmodeller.thermodata.gustafson.diamond_gustafson`) is added,
+              created with ``ChemicalSpecies.from_component("diamond")``. Its Gibbs energy is that
+              of graphite plus the Gibbs energy of diamond relative to graphite of
+              :cite:t:`Gustafson1986`, valid to 6000 K, and it has its own volume.
+
+        The volumes change the Gibbs energies of graphite and diamond, not their activities.
+        Gases and other condensates are unchanged. Each call gives a new database, to which
+        further phase components can be added with :meth:`set_phase_component`.
+
+        Returns:
+            The default database
+        """
+        database = cls(glenn_properties)
+        graphite = database.get_phase_component("C", "graphite")
+        # Graphite stays a phase component that the database was created with, so it is selected
+        # by PurePhase.from_formula("C"). Diamond is added, so it is only selected on its own.
+        database.set_phase_component(
+            "C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON)
+        )
+        database.set_phase_component("C", "diamond", diamond_gustafson)
+
+        return database
+
+    @classmethod
+    def from_glenn_file(cls, path: str | Path) -> Self:
+        """Creates a database from a file of NASA Glenn coefficients :cite:p:`MZG02`
+
+        Only the data of the file are included. For the default database, which also changes
+        graphite and adds diamond, use :meth:`default`.
 
         Args:
             path: Path to a file of NASA Glenn coefficients in the same format as the packaged
-                file. Defaults to ``None``, which uses the packaged coefficients
-                (:data:`~atmodeller.thermodata.glenn.glenn_properties`).
+                file
 
         Returns:
             A database
         """
-        return cls(glenn_properties if path is None else read_glenn_coefficients(path))
+        return cls(read_glenn_coefficients(path))
 
     def phase_components(
         self, elements: Iterable[str] | None = None
@@ -277,33 +316,3 @@ class DataBase:
             cast(dict[str, NasaGlennThermodynamicProperties], found)
         )
 
-
-def get_default_database() -> DataBase:
-    """Gets the default database
-
-    This is the database of packaged NASA Glenn coefficients with the following changes:
-
-        - Graphite includes the volume
-          :data:`~atmodeller.thermodata.gustafson.GRAPHITE_VOLUME_GUSTAFSON`, so that its Gibbs
-          energy, and hence the equilibrium constant of any reaction involving it, depends on
-          pressure.
-        - Diamond (:data:`~atmodeller.thermodata.gustafson.diamond_gustafson`) is added, created
-          with ``ChemicalSpecies.from_component("diamond")``. Its Gibbs energy is that of graphite
-          plus the Gibbs energy of diamond relative to graphite of :cite:t:`Gustafson1986`, valid
-          to 6000 K, and it has its own volume.
-
-    The volumes change the Gibbs energies of graphite and diamond, not their activities. Gases
-    and other condensates are unchanged. Each call gives a new database, to which further phase
-    components can be added with :meth:`DataBase.set_phase_component`.
-
-    Returns:
-        The default database
-    """
-    database: DataBase = DataBase.from_glenn_file()
-    graphite = database.get_phase_component("C", "graphite")
-    # Graphite stays a phase component that the database was created with, so it is selected by
-    # PurePhase.from_formula("C"). Diamond is added, so it is only selected on its own.
-    database.set_phase_component("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
-    database.set_phase_component("C", "diamond", diamond_gustafson)
-
-    return database
