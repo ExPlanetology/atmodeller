@@ -297,6 +297,11 @@ class ReservoirSpecies(eqx.Module):
     can represent a volatile species dissolved in a melt that can exchange with the gas phase but
     is not explicitly included in the reaction network.
 
+    This is separate from :class:`ChemicalSpecies` because dissolution is given by empirically
+    calibrated solubility laws, which relate the concentration of the dissolved species to the
+    fugacity of its gas, rather than by the Gibbs energy of a reaction. A reservoir species
+    therefore has a solubility law instead of thermodynamic data, and only enters the mass balance.
+
     Args:
         data: Chemical species data
         activity: Activity
