@@ -67,7 +67,7 @@ class ChemicalSpecies(eqx.Module):
     include_in_phase_mass: bool
 
     @classmethod
-    def create(
+    def _create(
         cls,
         formula: str,
         suffix: str,
@@ -208,7 +208,7 @@ class ChemicalSpecies(eqx.Module):
         # solve for.
         number_solution: int = 2 if solve_for_stability else 0
 
-        return cls.create(
+        return cls._create(
             formula,
             suffix,
             activity,
@@ -257,7 +257,7 @@ class ChemicalSpecies(eqx.Module):
         # notably for O2.
         number_solution: int = 2 if solve_for_stability else 1
 
-        return cls.create(
+        return cls._create(
             formula,
             GAS_SUFFIX,
             activity,
