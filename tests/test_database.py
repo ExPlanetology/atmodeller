@@ -37,7 +37,7 @@ def test_default_database() -> None:
 
 
 def test_from_file(tmp_path: Path) -> None:
-    """A database from a file matches the packaged data, and a file in the old format raises"""
+    """A database from a file matches the packaged data, and a file with missing columns raises"""
     packaged = DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE)
     with importlib.resources.as_file(packaged) as path:  # type: ignore
         lines: list[str] = Path(path).read_text().splitlines(keepends=True)
@@ -52,10 +52,10 @@ def test_from_file(tmp_path: Path) -> None:
     with pytest.raises(KeyError, match="gas is not a phase component of H2O"):
         ChemicalSpecies.create_gas("H2O", database=db)
 
-    old_file: Path = tmp_path / "old.txt"
-    old_file.write_text("hill_formula,state,phase_component,T_min,T_max\n")
-    with pytest.raises(ValueError, match="has a state column"):
-        GlennDataBase.from_file(old_file)
+    bad_file: Path = tmp_path / "bad.txt"
+    bad_file.write_text("phase_component,hill_formula,T_min,T_max\n")
+    with pytest.raises(ValueError, match="is missing the columns"):
+        GlennDataBase.from_file(bad_file)
 
 
 def test_set_phase_component() -> None:

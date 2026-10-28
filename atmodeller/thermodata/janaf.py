@@ -305,24 +305,6 @@ def stitch_glenn_properties(
     )
 
 
-_GLENN_COLUMNS: tuple[str, ...] = (
-    "phase_component",
-    "hill_formula",
-    "T_min",
-    "T_max",
-    "a1",
-    "a2",
-    "a3",
-    "a4",
-    "a5",
-    "a6",
-    "a7",
-    "b1",
-    "b2",
-)
-"""Columns of a file of NASA Glenn coefficients"""
-
-
 def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
     """Reads a file of NASA Glenn coefficients, or the packaged file if ``path`` is ``None``"""
     if path is not None:
@@ -334,16 +316,24 @@ def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
         with packaged as datapath:
             data = pd.read_csv(datapath, comment="#")
 
-    if "state" in data.columns:
-        raise ValueError(
-            f"{path} has a state column, which is no longer used. Drop it and move "
-            "phase_component to the first column, e.g. with pandas: "
-            'data = pd.read_csv(path, comment="#"); '
-            'data.drop(columns="state")[["phase_component", "hill_formula", *data.columns[3:]]]'
-            ".to_csv(new_path, index=False)"
-        )
-    if tuple(data.columns) != _GLENN_COLUMNS:
-        raise ValueError(f"{path} must have the columns {_GLENN_COLUMNS}")
+    columns: tuple[str, ...] = (
+        "phase_component",
+        "hill_formula",
+        "T_min",
+        "T_max",
+        "a1",
+        "a2",
+        "a3",
+        "a4",
+        "a5",
+        "a6",
+        "a7",
+        "b1",
+        "b2",
+    )
+    missing: list[str] = [column for column in columns if column not in data.columns]
+    if missing:
+        raise ValueError(f"{path} is missing the columns {missing}")
 
     return data
 
