@@ -28,7 +28,7 @@ from atmodeller.thermodata import (
 from atmodeller.thermodata import holland_powell, vassiliev
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 from atmodeller.thermodata.defaults import default_properties
-from atmodeller.thermodata.janaf import (
+from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
     stitch_glenn_properties,

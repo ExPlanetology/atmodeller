@@ -17,7 +17,7 @@ from atmodeller.thermodata.core import (  # noqa: E402, F401
     critical_data_dictionary,
 )
 from atmodeller.thermodata.holland_powell import MurnaghanEOS, TaitEOS  # noqa: E402, F401
-from atmodeller.thermodata.janaf import (  # noqa: E402, F401
+from atmodeller.thermodata.glenn import (  # noqa: E402, F401
     NasaGlennThermodynamicProperties,
     glenn_properties,
 )

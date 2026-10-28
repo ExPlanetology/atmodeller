@@ -6,7 +6,7 @@
 """Default thermodynamic data
 
 The default data are the packaged NASA Glenn coefficients
-(:data:`~atmodeller.thermodata.janaf.glenn_properties`) with the following changes:
+(:data:`~atmodeller.thermodata.glenn.glenn_properties`) with the following changes:
 
     - Graphite (``["C"]["graphite"]``) includes the volume
       :data:`~atmodeller.thermodata.gustafson.GRAPHITE_VOLUME_GUSTAFSON`, so that its Gibbs energy,
@@ -22,7 +22,7 @@ other condensates are unchanged.
 
 from atmodeller.thermodata.core import ThermodynamicProperties
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
-from atmodeller.thermodata.janaf import glenn_properties
+from atmodeller.thermodata.glenn import glenn_properties
 
 default_properties: dict[str, dict[str, ThermodynamicProperties]] = {
     **{

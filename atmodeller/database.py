@@ -33,7 +33,7 @@ from atmodeller import override
 from atmodeller.constants import GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
 from atmodeller.thermodata.core import ThermodynamicProperties
 from atmodeller.thermodata.defaults import default_properties
-from atmodeller.thermodata.janaf import (
+from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
     read_glenn_coefficients,

@@ -19,7 +19,7 @@ from atmodeller.interfaces import species_name
 from atmodeller.phases import PurePhase
 from atmodeller.thermodata.core import DATA_DIRECTORY
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
-from atmodeller.thermodata.janaf import THERMODYNAMIC_DATA_SOURCE, glenn_properties
+from atmodeller.thermodata.glenn import THERMODYNAMIC_DATA_SOURCE, glenn_properties
 
 
 def test_default_database() -> None:

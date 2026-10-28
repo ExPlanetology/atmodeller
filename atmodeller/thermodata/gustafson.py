@@ -23,7 +23,7 @@ from atmodeller.thermodata.core import (
     GibbsThermodynamicProperties,
     RelativeThermodynamicProperties,
 )
-from atmodeller.thermodata.janaf import glenn_properties
+from atmodeller.thermodata.glenn import glenn_properties
 
 
 class SGTEThermodynamicProperties(GibbsThermodynamicProperties):
@@ -218,7 +218,7 @@ diamond_gustafson: RelativeThermodynamicProperties = RelativeThermodynamicProper
 to 6000 K, with the volume :data:`DIAMOND_VOLUME_GUSTAFSON`.
 
 The Gibbs energy of diamond is that of graphite from the NASA Glenn coefficients
-(``["C"]["graphite"]`` in :data:`~atmodeller.thermodata.janaf.glenn_properties`) plus the Gibbs
+(``["C"]["graphite"]`` in :data:`~atmodeller.thermodata.glenn.glenn_properties`) plus the Gibbs
 energy of diamond relative to graphite of :cite:t:`Gustafson1986`
 (:data:`diamond_relative_to_graphite`). This keeps graphite consistent with the other NASA Glenn
 species while reproducing the Gibbs energy of diamond relative to graphite of
