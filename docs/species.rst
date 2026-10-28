@@ -83,6 +83,8 @@ Species are created from the default database, ``DataBase.default()``, unless an
   - ``PurePhase.from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_component("cristobalite-beta")`` selects one phase component.
 
+- **Dissolved species**: ``ReservoirSpecies.create_dissolved("H2O", solubility=...)``, which is ``H2O_d``. Its amount follows from a solubility law and the fugacity of its gas, not from thermodynamic data, so it is not created from a database.
+
 To see what can be selected, with ``db = DataBase.default()``, ``db.stitchable_components("SiO2")`` gives the condensed phase components of a formula that can be stitched together, in order of temperature, and ``db.phase_components(("C", "H", "O"))`` lists the phase components of every formula made of the given elements.
 
 Stitching phase components together
