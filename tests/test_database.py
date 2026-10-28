@@ -14,7 +14,7 @@ import pytest
 
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies
-from atmodeller.database import DataBase, GlennDataBase, components_of, get_default_database
+from atmodeller.database import DataBase, GlennDataBase, get_default_database
 from atmodeller.interfaces import species_name
 from atmodeller.phases import PurePhase
 from atmodeller.thermodata.core import DATA_DIRECTORY
@@ -98,8 +98,14 @@ def test_phase_components() -> None:
     sio2 = cast(ChemicalSpecies, PurePhase.from_formula("SiO2").species[0])
     carbon = cast(ChemicalSpecies, PurePhase.from_formula("C").species[0])
 
-    assert components_of("SiO2") == ("quartz-alpha", "quartz-beta", "cristobalite-beta", "liquid")
-    cho: dict[str, tuple[str, ...]] = get_default_database().phase_components(("C", "H", "O"))
+    db: DataBase = get_default_database()
+    assert db.components_of("SiO2") == (
+        "quartz-alpha",
+        "quartz-beta",
+        "cristobalite-beta",
+        "liquid",
+    )
+    cho: dict[str, tuple[str, ...]] = db.phase_components(("C", "H", "O"))
     assert {"H2O", "CO2", "C"} <= set(cho) and "O2Si" not in cho
     assert (species_name("SO2"), species_name("SiO2", "l")) == ("O2S_g", "O2Si_l")
     assert (sio2.name, carbon.name) == ("O2Si_cd", "C_cd")

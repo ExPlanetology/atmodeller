@@ -331,17 +331,3 @@ def get_default_database() -> GlennDataBase:
         The default database
     """
     return GlennDataBase.default()
-
-
-def components_of(formula: str, database: DataBase | None = None) -> tuple[str, ...]:
-    """Condensed phase components of a formula from a data file
-
-    Args:
-        formula: Formula
-        database: Database. Defaults to ``None``, which uses the default database.
-
-    Returns:
-        Names of the condensed phase components, in order of temperature, e.g.
-        ``("quartz-alpha", "quartz-beta", "cristobalite-beta", "liquid")`` for ``SiO2``
-    """
-    return (database or get_default_database()).components_of(formula)
