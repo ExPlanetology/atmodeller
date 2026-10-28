@@ -249,39 +249,39 @@ class NasaGlennThermodynamicProperties(ThermodynamicProperties):
         return min(self.T_min), max(self.T_max)
 
     @classmethod
-    def stitch(cls, phase_components: Mapping[str, Self]) -> Self:
-        """Stitches the phase components of one formula together in order of temperature
+    def stitch(cls, end_members: Mapping[str, Self]) -> Self:
+        """Stitches the end-members of one formula together in order of temperature
 
-        The NASA Glenn data are at 1 bar, and the temperature ranges of the phase components of
+        The NASA Glenn data are at 1 bar, and the temperature ranges of the end-members of
         a formula (e.g. quartz-alpha, quartz-beta, cristobalite-beta and liquid) are its stable
-        sequence at 1 bar, so stitching them gives the stable phase component at each
-        temperature. A single phase component is returned as it is, with any volume model.
-        Several phase components must have no volume model, since the pressure dependence would
+        sequence at 1 bar, so stitching them gives the stable end-member at each
+        temperature. A single end-member is returned as it is, with any volume model.
+        Several end-members must have no volume model, since the pressure dependence would
         move the transitions between them.
 
         Args:
-            phase_components: Thermodynamic properties of each phase component, keyed by its name
+            end_members: Thermodynamic properties of each end-member, keyed by its name
 
         Returns:
-            Thermodynamic properties of the phase components stitched together
+            Thermodynamic properties of the end-members stitched together
 
         Raises:
-            ValueError: If several phase components are stitched and any has a volume model, or if
+            ValueError: If several end-members are stitched and any has a volume model, or if
                 their temperature ranges overlap or leave a gap
         """
-        if len(phase_components) == 1:
-            return next(iter(phase_components.values()))
+        if len(end_members) == 1:
+            return next(iter(end_members.values()))
 
         with_volume: list[str] = [
-            name for name, properties in phase_components.items() if properties.volume_model
+            name for name, properties in end_members.items() if properties.volume_model
         ]
         if with_volume:
             raise ValueError(
-                f"Phase components with a volume model cannot be stitched together: {with_volume}"
+                f"End-members with a volume model cannot be stitched together: {with_volume}"
             )
 
         ordered: list[tuple[str, NasaGlennThermodynamicProperties]] = sorted(
-            phase_components.items(), key=lambda item: min(item[1].T_min)
+            end_members.items(), key=lambda item: min(item[1].T_min)
         )
         for (name, properties), (next_name, next_properties) in zip(ordered, ordered[1:]):
             end: float = max(properties.T_max)
@@ -305,11 +305,11 @@ class NasaGlennThermodynamicProperties(ThermodynamicProperties):
 def read_glenn_coefficients(
     path: str | Path | StringIO,
 ) -> dict[str, dict[str, NasaGlennThermodynamicProperties]]:
-    """Reads NASA Glenn coefficients and creates thermodynamic properties for each phase component
+    """Reads NASA Glenn coefficients and creates thermodynamic properties for each end-member
 
-    Each row of the file gives the coefficients of one temperature range of a phase component
-    (``gas``, ``liquid`` or a mineral) of a formula, and the rows of a phase component together
-    give its thermodynamic properties. Phase components are stitched together on demand with
+    Each row of the file gives the coefficients of one temperature range of an end-member
+    (``gas``, ``liquid`` or a mineral) of a formula, and the rows of an end-member together
+    give its thermodynamic properties. End-members are stitched together on demand with
     :meth:`NasaGlennThermodynamicProperties.stitch`.
 
     Args:
@@ -317,15 +317,15 @@ def read_glenn_coefficients(
             :data:`THERMODYNAMIC_DATA_SOURCE`, or its contents in a :class:`~io.StringIO`
 
     Returns:
-        Thermodynamic properties of each phase component, keyed by Hill formula and then phase
-        component, e.g. ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``
+        Thermodynamic properties of each end-member, keyed by Hill formula and then
+        end-member, e.g. ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``
 
     Raises:
         ValueError: If the file does not have the columns of the packaged file
     """
     data: pd.DataFrame = pd.read_csv(path, comment="#")
     columns: tuple[str, ...] = (
-        "phase_component",
+        "end_member",
         "hill_formula",
         "T_min",
         "T_max",
@@ -343,32 +343,28 @@ def read_glenn_coefficients(
     if missing:
         raise ValueError(f"{path} is missing the columns {missing}")
 
-    phase_components: dict[str, dict[str, NasaGlennThermodynamicProperties]] = {}
+    end_members: dict[str, dict[str, NasaGlennThermodynamicProperties]] = {}
 
-    for key, df in data.groupby(["hill_formula", "phase_component"], sort=False):
-        hill_formula, component = (str(value) for value in cast(tuple[str, str], key))
-        phase_components.setdefault(hill_formula, {})[component] = (
-            NasaGlennThermodynamicProperties(
-                df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]],
-                df["b1"],
-                df["b2"],
-                df["T_min"],
-                df["T_max"],
-            )
+    for key, df in data.groupby(["hill_formula", "end_member"], sort=False):
+        hill_formula, end_member = (str(value) for value in cast(tuple[str, str], key))
+        end_members.setdefault(hill_formula, {})[end_member] = NasaGlennThermodynamicProperties(
+            df[["a1", "a2", "a3", "a4", "a5", "a6", "a7"]],
+            df["b1"],
+            df["b2"],
+            df["T_min"],
+            df["T_max"],
         )
 
-    return phase_components
+    return end_members
 
 
 # Create the default data once, since they are accessed (potentially many times) when creating
 # species. The value is hidden from sphinx (autodoc), which would otherwise print it in full.
-glenn_properties: dict[str, dict[str, NasaGlennThermodynamicProperties]] = (
-    read_glenn_coefficients(
-        StringIO(DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE).read_text())
-    )
+glenn_properties: dict[str, dict[str, NasaGlennThermodynamicProperties]] = read_glenn_coefficients(
+    StringIO(DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE).read_text())
 )
-"""Thermodynamic properties of each phase component from the packaged NASA Glenn coefficients,
-keyed by Hill formula and then phase component, e.g. ``glenn_properties["H2O"]["gas"]``
+"""Thermodynamic properties of each end-member from the packaged NASA Glenn coefficients,
+keyed by Hill formula and then end-member, e.g. ``glenn_properties["H2O"]["gas"]``
 
 :meta hide-value:
 """

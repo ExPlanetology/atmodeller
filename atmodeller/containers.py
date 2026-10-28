@@ -16,9 +16,9 @@ from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller.constants import (
     DISSOLVED_SUFFIX,
-    GAS_PHASE_COMPONENT,
+    GAS_END_MEMBER,
     GAS_SUFFIX,
-    LIQUID_PHASE_COMPONENT,
+    LIQUID_END_MEMBER,
     LIQUID_SUFFIX,
     LOG_NUMBER_MOLES_LOWER,
     LOG_NUMBER_MOLES_UPPER,
@@ -120,9 +120,9 @@ class ChemicalSpecies(eqx.Module):
         )
 
     @classmethod
-    def from_component(
+    def from_end_member(
         cls,
-        component: str,
+        end_member: str,
         *,
         formula: str | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
@@ -132,14 +132,14 @@ class ChemicalSpecies(eqx.Module):
         extrapolate_below: bool = False,
         extrapolate_above: bool = False,
     ) -> Self:
-        """Creates a condensed species from a phase component
+        """Creates a condensed species from an end-member
 
-        This creates a species of a pure phase, such as a mineral, or of a mixed phase, such as
-        the silicate melt or metal, of which the phase component is an end-member. The species is
-        named from the phase component, e.g. ``O2Si_cristobalite-beta``, or ``H2O_l`` for the
-        liquid. To stitch several phase components together for a pure phase, use
+        This creates the species of a pure phase, such as a mineral, or an end-member of a mixed
+        phase, such as the silicate melt or metal. The species is named from the end-member, e.g.
+        ``O2Si_cristobalite-beta``, or ``H2O_l`` for the liquid. To stitch several end-members
+        together for a pure phase, use
         :meth:`~atmodeller.phases.PurePhase.from_formula` or
-        :meth:`~atmodeller.phases.PurePhase.from_components`.
+        :meth:`~atmodeller.phases.PurePhase.from_end_members`.
 
         By default, the thermodynamic data are not extrapolated outside their temperature range,
         where the species is therefore not stable. A condensed phase is often bounded by a phase
@@ -147,9 +147,9 @@ class ChemicalSpecies(eqx.Module):
         temperature.
 
         Args:
-            component: Name of the phase component, e.g. ``cristobalite-beta`` or ``liquid``
+            end_member: Name of the end-member, e.g. ``cristobalite-beta`` or ``liquid``
             formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
-                needed for ``liquid``, which is a phase component of several formulas.
+                needed for ``liquid``, which is an end-member of several formulas.
             activity: Activity. Defaults to unity activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
@@ -167,22 +167,20 @@ class ChemicalSpecies(eqx.Module):
             A condensed species
 
         Raises:
-            KeyError: If the phase component is not available for the formula
-            ValueError: If the phase component is the gas, or is shared by several formulas and no
+            KeyError: If the end-member is not available for the formula
+            ValueError: If the end-member is the gas, or is shared by several formulas and no
                 formula is given
         """
-        if component == GAS_PHASE_COMPONENT:
-            raise ValueError(
-                "The gas is not a condensed phase component. Create it with create_gas."
-            )
+        if end_member == GAS_END_MEMBER:
+            raise ValueError("The gas is not a condensed end-member. Create it with create_gas.")
         database = database or DataBase.default()
         if formula is None:
-            formula = database.formula_of(component)
+            formula = database.formula_of(end_member)
 
         return cls._create_condensed(
             formula,
-            LIQUID_SUFFIX if component == LIQUID_PHASE_COMPONENT else component,
-            database.get_phase_component(formula, component),
+            LIQUID_SUFFIX if end_member == LIQUID_END_MEMBER else end_member,
+            database.get_end_member(formula, end_member),
             activity=activity,
             solve_for_stability=solve_for_stability,
             include_in_phase_mass=include_in_phase_mass,
@@ -205,7 +203,7 @@ class ChemicalSpecies(eqx.Module):
     ) -> Self:
         """Creates a condensed species from its thermodynamic properties
 
-        Used by :meth:`from_component` and :meth:`~atmodeller.phases.PurePhase.from_components`,
+        Used by :meth:`from_end_member` and :meth:`~atmodeller.phases.PurePhase.from_end_members`,
         which take the thermodynamic properties from a database.
         """
         # Either both the number of moles and stability are solved for, or alternatively stability
@@ -253,8 +251,8 @@ class ChemicalSpecies(eqx.Module):
         Raises:
             KeyError: If the gas is not available for the formula
         """
-        thermo: ThermodynamicProperties = (database or DataBase.default()).get_phase_component(
-            formula, GAS_PHASE_COMPONENT
+        thermo: ThermodynamicProperties = (database or DataBase.default()).get_end_member(
+            formula, GAS_END_MEMBER
         )
 
         # The number of moles is always solved for, and stability can be if desired, although

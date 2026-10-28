@@ -91,7 +91,7 @@ def test_subNeptune_melt_phase_with_si_activity() -> None:
     """
     # The species we specify in the melt should be considered as already included in the
     # "background" melt mass, so we set include_in_phase_mass=False for both species
-    O2Si_l: ChemicalSpecies = ChemicalSpecies.from_component(
+    O2Si_l: ChemicalSpecies = ChemicalSpecies.from_end_member(
         "liquid", formula="SiO2", include_in_phase_mass=False
     )
     H2O_d: ReservoirSpecies = ReservoirSpecies.create_dissolved(
@@ -100,12 +100,12 @@ def test_subNeptune_melt_phase_with_si_activity() -> None:
     melt_species: tuple[SpeciesProtocol, ...] = (O2Si_l, H2O_d)
 
     # Create a metal phase with Fe and Si, where Si additionally has an activity model
-    Fe_l: ChemicalSpecies = ChemicalSpecies.from_component(
+    Fe_l: ChemicalSpecies = ChemicalSpecies.from_end_member(
         "liquid", formula="Fe", include_in_phase_mass=True
     )
     # NOTE: The index of Si in the mole fraction array for the metal species is 1, since Fe is at
     # index 0 in metal_species. You must manually specify the correct index.
-    Si_l: ChemicalSpecies = ChemicalSpecies.from_component(
+    Si_l: ChemicalSpecies = ChemicalSpecies.from_end_member(
         "liquid", formula="Si", include_in_phase_mass=True, activity=Si_iron_badro15(Si_index=1)
     )
     # Since Si_index=1 above, it must appear in the correct order in metal_species

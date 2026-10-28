@@ -1,13 +1,13 @@
 # Data from McBride et al. (2002), NASA Glenn Coefficients for Calculating Thermodynamic Properties of Individual Species, No. 2002-211556 NASA
 # https://ntrs.nasa.gov/citations/20020085330
-# phase_component is the gas, liquid or mineral to which the data refer, following Holland and
-# Powell. It can be one of the components of a mixed phase or the only component of a pure phase.
+# end_member is the gas, liquid or mineral to which the data refer, an end-member in the sense of
+# Holland and Powell (2011). It can be an end-member of a mixed phase or of a pure phase.
 # A mineral name refers to one formula only, whereas gas and liquid are shared by all formulas.
 # hill_formula is the formula in the Hill system
 # Temperature ranges should be in ascending order
 # Gases appear in the top section and condensed species appear further down.
 # Column names are as follows:
-phase_component,hill_formula,T_min,T_max,a1,a2,a3,a4,a5,a6,a7,b1,b2
+end_member,hill_formula,T_min,T_max,a1,a2,a3,a4,a5,a6,a7,b1,b2
 gas,Al,200,1000,5.006608890e+03,1.861304407e+01,2.412531111e00,1.987604647e-04,-2.432362152e-07,1.538281506e-10,-3.944375734e-14,3.887412680e+04,6.086585765e+00
 gas,Al,1000,6000,-2.920820938e+04,1.167751876e+02,2.356906505e+00,7.737231520e-05,-1.529455262e-08,-9.971670260e-13,5.053278264e-16,3.823288650e+04,6.600920155e+00
 gas,Al,6000,20000,-5.040682320e+08,3.802322650e+05,-1.082347159e+02,1.549444292e-02,-1.070103856e-06,3.592110900e-11,-4.696039394e-16,-2.901050501e+06,9.491883160e+02

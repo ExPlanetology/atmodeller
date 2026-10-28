@@ -20,12 +20,12 @@ GAS_SUFFIX: str = "g"
 LIQUID_SUFFIX: str = "l"
 """Suffix of the name of a liquid species"""
 CONDENSED_SUFFIX: str = "cd"
-"""Suffix of the name of a condensed species whose phase components (solids and liquid) are
+"""Suffix of the name of a condensed species whose end-members (solids and liquid) are
 stitched together in order of temperature"""
-GAS_PHASE_COMPONENT: str = "gas"
-"""Phase component of the thermodynamic data of a gas"""
-LIQUID_PHASE_COMPONENT: str = "liquid"
-"""Phase component of the thermodynamic data of a liquid"""
+GAS_END_MEMBER: str = "gas"
+"""End-member of the thermodynamic data of a gas"""
+LIQUID_END_MEMBER: str = "liquid"
+"""End-member of the thermodynamic data of a liquid"""
 DISSOLVED_SUFFIX: str = "d"
 """Suffix of the name of a dissolved species"""
 

@@ -120,9 +120,9 @@ def test_glenn_formulae_are_hill() -> None:
     assert ChemicalSpecies.create_gas("NH").name == "HN_g"
 
 
-def test_phase_components_and_stitching() -> None:
-    """Stitching the condensed phase components of a formula in order of temperature gives each
-    phase component in its range; overlaps, gaps and volume models cannot be stitched"""
+def test_end_members_and_stitching() -> None:
+    """Stitching the condensed end-members of a formula in order of temperature gives each
+    end-member in its range; overlaps, gaps and volume models cannot be stitched"""
     stitch = NasaGlennThermodynamicProperties.stitch
     silica: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["O2Si"]
     stitched = stitch(
@@ -141,10 +141,10 @@ def test_phase_components_and_stitching() -> None:
             stitched.standard_gibbs_over_RT(temperature),
             silica[name].standard_gibbs_over_RT(temperature),
         )
-    # A single phase component is returned as it is, so graphite keeps its volume
+    # A single end-member is returned as it is, so graphite keeps its volume
     graphite_volume = cast(
         NasaGlennThermodynamicProperties,
-        DataBase.default().get_phase_component("C", "graphite"),
+        DataBase.default().get_end_member("C", "graphite"),
     )
     assert stitch({"graphite": graphite_volume}) is graphite_volume
 
@@ -204,7 +204,7 @@ def test_no_extrapolation_holds_gibbs_and_adds_penalty() -> None:
         water.standard_gibbs_over_RT(200.0),
     )
 
-    condensed: ThermodynamicProperties = ChemicalSpecies.from_component(
+    condensed: ThermodynamicProperties = ChemicalSpecies.from_end_member(
         "liquid", formula="H2O"
     ).thermo
     assert not condensed.extrapolate_below and not condensed.extrapolate_above

@@ -80,7 +80,9 @@ def test_dissolved_species_raise() -> None:
 
     with pytest.raises(ValueError, match="H2O_d needs the gas species H2O_g"):
         BasePlanet.from_species((H2_g,), silicate_melt_species=(H2O_d,))
-    with pytest.raises(ValueError, match=r"metal phase cannot have dissolved species.*H2O_d \(dissolved\)"):
+    with pytest.raises(
+        ValueError, match=r"metal phase cannot have dissolved species.*H2O_d \(dissolved\)"
+    ):
         BasePlanet.from_species((H2O_g,), metal_species=(H2O_d,))
 
 
@@ -89,13 +91,13 @@ def test_duplicate_names_raise() -> None:
     with pytest.raises(ValueError, match="Species names must be unique"):
         BasePlanet.from_species((H2O_g, H2O_g))
     with pytest.raises(ValueError, match="Phase names must be unique"):
-        graphite: PurePhase = PurePhase.from_component("graphite")
+        graphite: PurePhase = PurePhase.from_end_member("graphite")
         BasePlanet.from_species((H2O_g,), condensates=(graphite, graphite))
 
 
 def test_misplaced_species_raise() -> None:
     """A gas outside the gas phase, or a condensed species in it, raises"""
-    C_graphite: ChemicalSpecies = ChemicalSpecies.from_component("graphite")
+    C_graphite: ChemicalSpecies = ChemicalSpecies.from_end_member("graphite")
 
     with pytest.raises(ValueError, match=r"gas species.*C_graphite \(condensed\)"):
         BasePlanet.from_species((H2O_g, C_graphite))

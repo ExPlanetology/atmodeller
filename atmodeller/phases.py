@@ -27,8 +27,8 @@ formula and a suffix (see :class:`~atmodeller.interfaces.ChemicalSpeciesData`):
 
 - ``"g"`` : gas
 - ``"l"`` : liquid
-- the phase component of a mineral, e.g. ``"quartz-alpha"``
-- ``"cd"`` : the condensed phase components of a formula stitched together
+- the end-member of a mineral, e.g. ``"quartz-alpha"``
+- ``"cd"`` : the condensed end-members of a formula stitched together
 
 Quantities are accumulated in log-space throughout for numerical stability. Many methods accept an
 optional background component (e.g., the silicate melt mass) that contributes to phase totals but
@@ -872,7 +872,7 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
         if not_condensed:
             raise ValueError(
                 f"The {name} phase can only have condensed or dissolved species, created with "
-                "ChemicalSpecies.from_component or ReservoirSpecies.create_dissolved, not "
+                "ChemicalSpecies.from_end_member or ReservoirSpecies.create_dissolved, not "
                 f"{not_condensed}"
             )
         if not dissolved:
@@ -909,7 +909,7 @@ class PurePhase(CondensedPhase):
         if not isinstance(species, ChemicalSpecies) or species.is_gas:
             raise ValueError(
                 "A pure phase has a condensed species, created with "
-                f"ChemicalSpecies.from_component, not {_describe(species)}"
+                f"ChemicalSpecies.from_end_member, not {_describe(species)}"
             )
         super().__init__((species,), species.name)
 
@@ -925,10 +925,10 @@ class PurePhase(CondensedPhase):
         extrapolate_below: bool = False,
         extrapolate_above: bool = False,
     ) -> Self:
-        """Creates a pure phase from all the condensed phase components of a formula
+        """Creates a pure phase from all the condensed end-members of a formula
 
-        The condensed phase components that can be stitched together
-        (:meth:`~atmodeller.database.DataBase.stitchable_components`), e.g. quartz to
+        The condensed end-members that can be stitched together
+        (:meth:`~atmodeller.database.DataBase.stitchable_end_members`), e.g. quartz to
         cristobalite to liquid for ``SiO2``, are stitched together in order of temperature
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
         :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``.
@@ -949,16 +949,16 @@ class PurePhase(CondensedPhase):
             A pure phase, which has the name of its species
 
         Raises:
-            KeyError: If the formula has no condensed phase components
-            ValueError: If the phase components cannot be stitched together
+            KeyError: If the formula has no condensed end-members
+            ValueError: If the end-members cannot be stitched together
         """
         database = database or DataBase.default()
-        components: tuple[str, ...] = database.stitchable_components(formula)
-        if not components:
-            raise KeyError(f"{Formula(formula).formula} has no condensed phase components")
+        end_members: tuple[str, ...] = database.stitchable_end_members(formula)
+        if not end_members:
+            raise KeyError(f"{Formula(formula).formula} has no condensed end-members")
 
-        return cls.from_components(
-            components,
+        return cls.from_end_members(
+            end_members,
             name=CONDENSED_SUFFIX,
             formula=formula,
             database=database,
@@ -970,9 +970,9 @@ class PurePhase(CondensedPhase):
         )
 
     @classmethod
-    def from_components(
+    def from_end_members(
         cls,
-        components: Iterable[str],
+        end_members: Iterable[str],
         *,
         name: str,
         formula: str | None = None,
@@ -983,17 +983,17 @@ class PurePhase(CondensedPhase):
         extrapolate_below: bool = False,
         extrapolate_above: bool = False,
     ) -> Self:
-        """Creates a pure phase by stitching phase components together
+        """Creates a pure phase by stitching end-members together
 
-        For example, ``from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
-        ``O2Si_quartz``. The phase components must be of one formula, and are stitched together in
+        For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
+        ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
         order of temperature (:meth:`~atmodeller.database.DataBase.stitch`).
 
         Args:
-            components: Names of the phase components
+            end_members: Names of the end-members
             name: Suffix of the species name
             formula: Formula. Defaults to ``None``, which takes the formula of the minerals, and
-                is only needed when the components are all shared by several formulas, such as
+                is only needed when the end-members are all shared by several formulas, such as
                 ``liquid``.
             database: Database. Defaults to ``None``, which uses the default database.
             activity: Activity. Defaults to unity activity.
@@ -1009,18 +1009,18 @@ class PurePhase(CondensedPhase):
             A pure phase, which has the name of its species
 
         Raises:
-            KeyError: If a phase component is not available for the formula
-            ValueError: If the phase components cannot be stitched together, or no formula is
-                given for phase components that are shared by several formulas
+            KeyError: If an end-member is not available for the formula
+            ValueError: If the end-members cannot be stitched together, or no formula is
+                given for end-members that are shared by several formulas
         """
         database = database or DataBase.default()
-        components = tuple(components)
+        end_members = tuple(end_members)
         if formula is None:
-            formula = database.formula_of(*components)
+            formula = database.formula_of(*end_members)
         species: ChemicalSpecies = ChemicalSpecies._create_condensed(
             formula,
             name,
-            database.stitch(formula, components),
+            database.stitch(formula, end_members),
             activity=activity,
             solve_for_stability=solve_for_stability,
             include_in_phase_mass=include_in_phase_mass,
@@ -1031,9 +1031,9 @@ class PurePhase(CondensedPhase):
         return cls(species)
 
     @classmethod
-    def from_component(
+    def from_end_member(
         cls,
-        component: str,
+        end_member: str,
         *,
         formula: str | None = None,
         database: DataBase | None = None,
@@ -1043,16 +1043,16 @@ class PurePhase(CondensedPhase):
         extrapolate_below: bool = False,
         extrapolate_above: bool = False,
     ) -> Self:
-        """Creates a pure phase from one phase component
+        """Creates a pure phase from one end-member
 
-        For example, ``from_component("cristobalite-beta")`` gives ``O2Si_cristobalite-beta`` and
-        ``from_component("liquid", formula="H2O")`` gives ``H2O_l``. See
-        :meth:`~atmodeller.containers.ChemicalSpecies.from_component`.
+        For example, ``from_end_member("cristobalite-beta")`` gives ``O2Si_cristobalite-beta`` and
+        ``from_end_member("liquid", formula="H2O")`` gives ``H2O_l``. See
+        :meth:`~atmodeller.containers.ChemicalSpecies.from_end_member`.
 
         Args:
-            component: Name of the phase component
+            end_member: Name of the end-member
             formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
-                needed for ``liquid``, which is a phase component of several formulas.
+                needed for ``liquid``, which is an end-member of several formulas.
             database: Database. Defaults to ``None``, which uses the default database.
             activity: Activity. Defaults to unity activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
@@ -1066,8 +1066,8 @@ class PurePhase(CondensedPhase):
         Returns:
             A pure phase, which has the name of its species
         """
-        species: ChemicalSpecies = ChemicalSpecies.from_component(
-            component,
+        species: ChemicalSpecies = ChemicalSpecies.from_end_member(
+            end_member,
             formula=formula,
             database=database,
             activity=activity,

@@ -150,7 +150,7 @@ class PhaseSystem(eqx.Module):
         ]
         if not_phases:
             raise ValueError(
-                'Condensates must be pure phases, e.g. PurePhase.from_component("graphite"), not '
+                'Condensates must be pure phases, e.g. PurePhase.from_end_member("graphite"), not '
                 f"{not_phases}"
             )
         self.phases = (gas,) + other_phases_

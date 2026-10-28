@@ -191,7 +191,7 @@ def trappist1e_with_solubility(request) -> EquilibriumModel:
     )
 
     # Condensates
-    C_graphite: PurePhase = PurePhase.from_component("graphite")
+    C_graphite: PurePhase = PurePhase.from_end_member("graphite")
     condensates_graphite_only: tuple[PurePhase, ...] = (C_graphite,)
 
     magma_ocean_temperature: float = 1800.0
