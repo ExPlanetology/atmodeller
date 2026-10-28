@@ -8,8 +8,8 @@ Terminology
 
 *Atmodeller* follows the terminology of :cite:t:`HP11`:
 
-- A **phase component** is an end-member with its own thermodynamic data, which fixes its formula: the ``gas``, the ``liquid``, or a mineral such as ``quartz-alpha`` or ``graphite``. Each species in *Atmodeller* is a phase component, or several phase components of one formula stitched together.
-- A **phase** is the gas, the silicate melt, the silicate solid, the metal, or a pure phase such as graphite. A phase can be mixed, with several species and an activity model, or pure, with a single species of unity activity.
+- A **phase component** is an end-member with its own thermodynamic data, which fixes its formula: the ``gas``, the ``liquid``, or a mineral such as ``quartz-alpha`` or ``graphite``. Each species created from the thermodynamic data is a phase component, or several phase components of one formula stitched together, whereas a dissolved species follows a solubility law.
+- A **phase** is the gas, the silicate melt, the silicate solid, the metal, or a pure phase such as graphite. A phase can be mixed, with several species and an activity model, or pure, with a single species, of unity activity by default.
 - A **component**, in the sense of the phase rule, is an element. The element balances are computed from the formulas of the species.
 
 Names
@@ -79,13 +79,25 @@ Species are created from the default database, ``DataBase.default()``, unless an
 - **One condensed phase component**: ``ChemicalSpecies.from_component(component, formula=...)``. A mineral fixes its formula, e.g. ``from_component("cristobalite-beta")``, whereas ``liquid`` is a phase component of many formulas, so the formula is given, e.g. ``from_component("liquid", formula="SiO2")``. The species can be an end-member of a mixed phase, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
 - **A pure phase**: the methods of ``PurePhase`` create a phase with a single species, named as the species:
 
-  - ``PurePhase.from_formula("SiO2")`` stitches together all the condensed phase components of the formula that can be stitched together (``stitchable_components``), here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``).
+  - ``PurePhase.from_formula("SiO2")`` stitches together the condensed phase components of the formula given by ``stitchable_components``, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``).
   - ``PurePhase.from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_component("cristobalite-beta")`` selects one phase component.
 
 - **Dissolved species**: ``ReservoirSpecies.create_dissolved("H2O", solubility=...)``, which is ``H2O_d``. Its amount follows from a solubility law and the fugacity of its gas, not from thermodynamic data, so it is not created from a database.
 
 To see what can be selected, with ``db = DataBase.default()``, ``db.stitchable_components("SiO2")`` gives the condensed phase components of a formula that can be stitched together, in order of temperature, and ``db.phase_components(("C", "H", "O"))`` lists the phase components of every formula made of the given elements.
+
+Placing species in phases
+-------------------------
+
+``ThermodynamicState.from_species`` and ``Planet.from_species`` take the species of each phase:
+
+- ``gas_species``: gases only, from ``ChemicalSpecies.create_gas``;
+- ``silicate_melt_species``: condensed species, from ``ChemicalSpecies.from_component``, and dissolved species, since the silicate melt is the solvent of the solubility laws;
+- ``silicate_solid_species`` and ``metal_species``: condensed species only, with an activity model if needed;
+- ``condensates``: pure phases, from the methods of ``PurePhase``.
+
+A species given for the wrong phase raises an error that says how to create the right one, as do two species, or two pure phases, with the same name.
 
 Stitching phase components together
 -----------------------------------
