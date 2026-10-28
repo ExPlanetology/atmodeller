@@ -20,6 +20,7 @@ from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
+from atmodeller.database import get_default_database
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
@@ -27,7 +28,6 @@ from atmodeller.thermodata import (
 )
 from atmodeller.thermodata import holland_powell, vassiliev
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
-from atmodeller.thermodata.defaults import default_properties
 from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
@@ -142,7 +142,10 @@ def test_phase_components_and_stitching() -> None:
             silica[name].standard_gibbs_over_RT(temperature),
         )
     # A single phase component is returned as it is, so graphite keeps its volume
-    graphite_volume = cast(NasaGlennThermodynamicProperties, default_properties["C"]["graphite"])
+    graphite_volume = cast(
+        NasaGlennThermodynamicProperties,
+        get_default_database().get_phase_component("C", "graphite"),
+    )
     assert stitch({"graphite": graphite_volume}) is graphite_volume
 
     hematite: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["Fe2O3"]

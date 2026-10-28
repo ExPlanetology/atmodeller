@@ -93,7 +93,7 @@ The thermodynamic data are at 1 bar, and the temperature ranges of the condensed
 - the phase components are condensed, since a gas differs from a condensate in phase and standard state. To allow evaporation and condensation, include the gas and the condensate as separate species;
 - the phase components are of one formula;
 - their temperature ranges do not overlap or leave a gap;
-- several phase components are all from a data file and have no volume model, since a pressure dependence would move the transitions between them. A single phase component can be from anywhere and keeps any volume model, so ``PurePhase.from_formula("C")`` is graphite with its volume, whereas diamond, which is added to the default database with its own volume, is only selected on its own with ``from_component("diamond")``.
+- several phase components are all ones that the database was created with, such as the packaged data, and have no volume model, since a pressure dependence would move the transitions between them. A single phase component can be from anywhere and keeps any volume model, so ``PurePhase.from_formula("C")`` is graphite with its volume, whereas diamond, which is added to the default database with its own volume, is only selected on its own with ``from_component("diamond")``.
 
 To let different phase components compete at a given temperature and pressure instead, such as graphite and diamond, include each as a separate pure phase.
 

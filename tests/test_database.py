@@ -7,12 +7,11 @@
 
 import importlib.resources
 from pathlib import Path
-from typing import Self, cast
+from typing import cast
 
 import equinox as eqx
 import pytest
 
-from atmodeller import override
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.database import DataBase, GlennDataBase, get_default_database
 from atmodeller.interfaces import species_name
@@ -60,7 +59,7 @@ def test_from_file(tmp_path: Path) -> None:
 
 def test_set_phase_component() -> None:
     """Phase components are added or replaced in this database only, and a replaced phase
-    component from the data file can still be stitched"""
+    component that the database was created with can still be stitched"""
     db: GlennDataBase = GlennDataBase()
     db.set_phase_component("SiO2", "test", diamond_gustafson)
     graphite = db.get_phase_component("C", "graphite").with_volume(GRAPHITE_VOLUME_GUSTAFSON)
@@ -76,15 +75,8 @@ def test_set_phase_component() -> None:
 
 
 def test_custom_database() -> None:
-    """A custom database only needs to provide its data"""
-
-    class MyDataBase(DataBase):
-        @override
-        @classmethod
-        def default(cls) -> Self:
-            return cls({"H2O": {"gas": glenn_properties["H2O"]["gas"]}})
-
-    db: DataBase = MyDataBase.default()
+    """A custom database only needs its data"""
+    db: DataBase = DataBase({"H2O": {"gas": glenn_properties["H2O"]["gas"]}})
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("H2O", database=db), ChemicalSpecies.create_gas("H2O")
@@ -142,7 +134,7 @@ def test_phase_components() -> None:
         PurePhase.from_component("liquid")
     with pytest.raises(ValueError, match="not a condensed phase component"):
         PurePhase.from_components(("gas", "liquid"), name="x", formula="H2O")
-    with pytest.raises(ValueError, match="from a data file"):
+    with pytest.raises(ValueError, match="that the database was created with"):
         PurePhase.from_components(("graphite", "diamond"), name="x")
     with pytest.raises(KeyError, match="ice is not a phase component of O2Si"):
         PurePhase.from_components(("quartz-alpha", "ice"), name="x")

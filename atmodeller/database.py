@@ -22,35 +22,33 @@ database by :meth:`~atmodeller.containers.ChemicalSpecies.create_gas`,
     sio2: PurePhase = PurePhase.from_formula("SiO2", database=db)  # all stitched, O2Si_cd
 """
 
-from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Self, cast
 
 from molmass import Formula
 
-from atmodeller import override
 from atmodeller.constants import GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
 from atmodeller.thermodata.core import ThermodynamicProperties
-from atmodeller.thermodata.defaults import default_properties
 from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
     read_glenn_coefficients,
 )
+from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 
 _SHARED_COMPONENTS: tuple[str, ...] = (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT)
 """Phase components that are shared by all formulas, unlike a mineral"""
 
 
-class DataBase(ABC):
+class DataBase:
     """Thermodynamic database of phase components
 
     The thermodynamic data are keyed by Hill formula and then phase component, e.g.
-    ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``. The phase components that the database is
-    created with are from a data file, and stay so if their data are replaced. Only these can be
-    stitched together, whereas phase components added later, such as diamond, can only be selected
-    on their own.
+    ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``. Only the phase components that the
+    database is created with, which stay so if their data are replaced, can be stitched together,
+    whereas phase components added later, such as diamond, can only be selected on their own.
+    Data from any source can be given, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``.
 
     Args:
         phase_components: Thermodynamic properties of each phase component, keyed by Hill formula
@@ -67,21 +65,11 @@ class DataBase(ABC):
         for formula, components in (phase_components or {}).items():
             for component, properties in components.items():
                 self.set_phase_component(formula, component, properties)
-        self._from_data_file: frozenset[tuple[str, str]] = frozenset(
+        self._created_with: frozenset[tuple[str, str]] = frozenset(
             (hill_formula, component)
             for hill_formula, components in self._phase_components.items()
             for component in components
         )
-
-    @classmethod
-    @abstractmethod
-    def default(cls) -> Self:
-        """Creates the default database.
-
-        Returns:
-            The default database
-        """
-        raise NotImplementedError
 
     def phase_components(
         self, elements: Iterable[str] | None = None
@@ -134,9 +122,9 @@ class DataBase(ABC):
     ) -> None:
         """Sets the thermodynamic properties of a phase component, adding it or replacing it
 
-        A phase component that the database was created with stays a phase component from a data
-        file, and can be stitched together with the others (see :meth:`stitch`). A phase component
-        that is added can only be selected on its own.
+        A phase component that the database was created with stays so, and can be stitched
+        together with the others (see :meth:`stitch`). A phase component that is added can only be
+        selected on its own.
 
         Args:
             formula: Formula
@@ -179,7 +167,7 @@ class DataBase(ABC):
         return formulas[0]
 
     def components_of(self, formula: str) -> tuple[str, ...]:
-        """Condensed phase components of a formula from a data file
+        """Condensed phase components of a formula that the database was created with
 
         Args:
             formula: Formula
@@ -199,7 +187,7 @@ class DataBase(ABC):
                     component
                     for component in components
                     if component != GAS_PHASE_COMPONENT
-                    and (hill_formula, component) in self._from_data_file
+                    and (hill_formula, component) in self._created_with
                 ),
                 key=lambda component: components[component].temperature_range()[0],
             )
@@ -209,9 +197,9 @@ class DataBase(ABC):
         """Stitches condensed phase components of a formula together in order of temperature
 
         A single phase component is returned as it is, with any volume model. Several phase
-        components must all be from a data file, be NASA Glenn polynomials and have no volume
-        model, since the pressure dependence would move the transitions between them, and their
-        temperature ranges must not overlap or leave a gap.
+        components must all be ones that the database was created with, be NASA Glenn polynomials
+        and have no volume model, since the pressure dependence would move the transitions between
+        them, and their temperature ranges must not overlap or leave a gap.
 
         Args:
             formula: Formula
@@ -241,11 +229,12 @@ class DataBase(ABC):
         added: list[str] = [
             component
             for component in components
-            if (hill_formula, component) not in self._from_data_file
+            if (hill_formula, component) not in self._created_with
         ]
         if added:
             raise ValueError(
-                f"Only phase components from a data file can be stitched together, not {added}"
+                "Only phase components that the database was created with can be stitched "
+                f"together, not {added}"
             )
         not_glenn: list[str] = [
             component
@@ -273,62 +262,60 @@ class DataBase(ABC):
 class GlennDataBase(DataBase):
     """Database of NASA Glenn coefficients :cite:p:`MZG02`
 
+    ``GlennDataBase()`` has the packaged coefficients, and :meth:`from_file` those of a file.
+
     Args:
-        path: Path to a file of NASA Glenn coefficients in the same format as the packaged file.
-            Defaults to ``None``, which uses the packaged file.
+        phase_components: Thermodynamic properties of each phase component, keyed by Hill formula
+            and then phase component. Defaults to ``None``, which uses the packaged coefficients
+            (:data:`~atmodeller.thermodata.glenn.glenn_properties`).
     """
 
-    def __init__(self, path: str | Path | None = None):
-        super().__init__(glenn_properties if path is None else read_glenn_coefficients(path))
+    def __init__(
+        self,
+        phase_components: Mapping[str, Mapping[str, NasaGlennThermodynamicProperties]]
+        | None = None,
+    ):
+        super().__init__(glenn_properties if phase_components is None else phase_components)
 
     @classmethod
     def from_file(cls, path: str | Path) -> Self:
         """Creates a database from a file of NASA Glenn coefficients.
 
         Args:
-            path: Path to the file
+            path: Path to a file in the same format as the packaged file
 
         Returns:
             A database
         """
-        return cls(path)
-
-    @override
-    @classmethod
-    def default(cls) -> Self:
-        """Creates the database of the default data.
-
-        This is the packaged NASA Glenn coefficients with graphite and diamond from
-        :data:`~atmodeller.thermodata.defaults.default_properties`.
-
-        Returns:
-            The default database
-        """
-        database = cls()
-        # Graphite stays a phase component from the data file, so it is selected by
-        # PurePhase.from_formula("C"). Diamond is added, so it is only selected on its own.
-        for component in ("graphite", "diamond"):
-            database.set_phase_component("C", component, default_properties["C"][component])
-
-        return database
+        return cls(read_glenn_coefficients(path))
 
 
 def get_default_database() -> GlennDataBase:
     """Gets the default database
 
-    This is the database of packaged NASA Glenn coefficients with the following changes
-    (:data:`~atmodeller.thermodata.defaults.default_properties`):
+    This is the database of packaged NASA Glenn coefficients with the following changes:
 
         - Graphite includes the volume
           :data:`~atmodeller.thermodata.gustafson.GRAPHITE_VOLUME_GUSTAFSON`, so that its Gibbs
-          energy depends on pressure.
+          energy, and hence the equilibrium constant of any reaction involving it, depends on
+          pressure.
         - Diamond (:data:`~atmodeller.thermodata.gustafson.diamond_gustafson`) is added, created
-          with ``ChemicalSpecies.from_component("diamond")``. Its Gibbs energy relative to graphite
-          is from the assessment of :cite:t:`Gustafson1986`, valid to 6000 K.
+          with ``ChemicalSpecies.from_component("diamond")``. Its Gibbs energy is that of graphite
+          plus the Gibbs energy of diamond relative to graphite of :cite:t:`Gustafson1986`, valid
+          to 6000 K, and it has its own volume.
 
-    Further phase components can be added with :meth:`DataBase.set_phase_component`.
+    The volumes change the Gibbs energies of graphite and diamond, not their activities. Gases
+    and other condensates are unchanged. Each call gives a new database, to which further phase
+    components can be added with :meth:`DataBase.set_phase_component`.
 
     Returns:
         The default database
     """
-    return GlennDataBase.default()
+    database = GlennDataBase()
+    graphite = database.get_phase_component("C", "graphite")
+    # Graphite stays a phase component that the database was created with, so it is selected by
+    # PurePhase.from_formula("C"). Diamond is added, so it is only selected on its own.
+    database.set_phase_component("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
+    database.set_phase_component("C", "diamond", diamond_gustafson)
+
+    return database

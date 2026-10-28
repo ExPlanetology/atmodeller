@@ -850,7 +850,7 @@ class PurePhase(CondensedPhase):
     def from_formula(cls, formula: str, *, database: DataBase | None = None, **kwargs) -> Self:
         """Creates a pure phase from all the condensed phase components of a formula
 
-        The condensed phase components from the data file
+        The condensed phase components that the database was created with
         (:meth:`~atmodeller.database.DataBase.components_of`), e.g. quartz to cristobalite to
         liquid for ``SiO2``, are stitched together in order of temperature
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with

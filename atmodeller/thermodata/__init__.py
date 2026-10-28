@@ -21,4 +21,3 @@ from atmodeller.thermodata.glenn import (  # noqa: E402, F401
     NasaGlennThermodynamicProperties,
     glenn_properties,
 )
-from atmodeller.thermodata.defaults import default_properties  # noqa: E402, F401
