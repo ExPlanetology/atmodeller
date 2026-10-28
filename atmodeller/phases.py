@@ -64,10 +64,15 @@ from atmodeller import override
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
 from atmodeller.constants import CONDENSED_SUFFIX
 from atmodeller.database import DataBase
-from atmodeller.interfaces import RedoxBufferProtocol, SpeciesProtocol, TSpecies_co
+from atmodeller.interfaces import (
+    ActivityProtocol,
+    RedoxBufferProtocol,
+    SpeciesProtocol,
+    TSpecies_co,
+)
 from atmodeller.jax_utils import FloatArray, as_j64, masked_logsumexp, safe_exp
 from atmodeller.sci_utils import GAS_CONSTANT_BAR
-from atmodeller.thermodata import ThermodynamicProperties
+from atmodeller.thermodata import ActivityCoefficient
 from atmodeller.thermodata._redox_buffers import IronWustiteBuffer
 
 # Due to a Pyright bug (#4965). See Equinox documentation.
@@ -847,20 +852,36 @@ class PurePhase(CondensedPhase):
         super().__init__((species,), species.name)
 
     @classmethod
-    def from_formula(cls, formula: str, *, database: DataBase | None = None, **kwargs) -> Self:
+    def from_formula(
+        cls,
+        formula: str,
+        *,
+        database: DataBase | None = None,
+        activity: ActivityProtocol = ActivityCoefficient(),
+        solve_for_stability: bool = True,
+        include_in_phase_mass: bool = True,
+        extrapolate_below: bool = False,
+        extrapolate_above: bool = False,
+    ) -> Self:
         """Creates a pure phase from all the condensed phase components of a formula
 
-        The condensed phase components that the database was created with
-        (:meth:`~atmodeller.database.DataBase.stitchable_components`), e.g. quartz to cristobalite to
-        liquid for ``SiO2``, are stitched together in order of temperature
+        The condensed phase components that can be stitched together
+        (:meth:`~atmodeller.database.DataBase.stitchable_components`), e.g. quartz to
+        cristobalite to liquid for ``SiO2``, are stitched together in order of temperature
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
         :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``.
 
         Args:
             formula: Formula
             database: Database. Defaults to ``None``, which uses the default database.
-            **kwargs: Keyword arguments for
-                :meth:`~atmodeller.containers.ChemicalSpecies.from_component`
+            activity: Activity. Defaults to unity activity.
+            solve_for_stability: Solve for stability. Defaults to ``True``.
+            include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
+                fraction aggregations. Defaults to ``True``.
+            extrapolate_below: Whether to extrapolate the thermodynamic data below their
+                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
+            extrapolate_above: Whether to extrapolate the thermodynamic data above their
+                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
 
         Returns:
             A pure phase, which has the name of its species
@@ -875,7 +896,15 @@ class PurePhase(CondensedPhase):
             raise KeyError(f"{Formula(formula).formula} has no condensed phase components")
 
         return cls.from_components(
-            components, name=CONDENSED_SUFFIX, formula=formula, database=database, **kwargs
+            components,
+            name=CONDENSED_SUFFIX,
+            formula=formula,
+            database=database,
+            activity=activity,
+            solve_for_stability=solve_for_stability,
+            include_in_phase_mass=include_in_phase_mass,
+            extrapolate_below=extrapolate_below,
+            extrapolate_above=extrapolate_above,
         )
 
     @classmethod
@@ -886,7 +915,11 @@ class PurePhase(CondensedPhase):
         name: str,
         formula: str | None = None,
         database: DataBase | None = None,
-        **kwargs,
+        activity: ActivityProtocol = ActivityCoefficient(),
+        solve_for_stability: bool = True,
+        include_in_phase_mass: bool = True,
+        extrapolate_below: bool = False,
+        extrapolate_above: bool = False,
     ) -> Self:
         """Creates a pure phase by stitching phase components together
 
@@ -901,8 +934,14 @@ class PurePhase(CondensedPhase):
                 is only needed when the components are all shared by several formulas, such as
                 ``liquid``.
             database: Database. Defaults to ``None``, which uses the default database.
-            **kwargs: Keyword arguments for
-                :meth:`~atmodeller.containers.ChemicalSpecies.from_component`
+            activity: Activity. Defaults to unity activity.
+            solve_for_stability: Solve for stability. Defaults to ``True``.
+            include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
+                fraction aggregations. Defaults to ``True``.
+            extrapolate_below: Whether to extrapolate the thermodynamic data below their
+                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
+            extrapolate_above: Whether to extrapolate the thermodynamic data above their
+                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
 
         Returns:
             A pure phase, which has the name of its species
@@ -916,9 +955,15 @@ class PurePhase(CondensedPhase):
         components = tuple(components)
         if formula is None:
             formula = database.formula_of(*components)
-        thermo: ThermodynamicProperties = database.stitch(formula, components)
-        species: ChemicalSpecies = ChemicalSpecies.from_component(
-            name, formula=formula, thermo=thermo, **kwargs
+        species: ChemicalSpecies = ChemicalSpecies._create_condensed(
+            formula,
+            name,
+            database.stitch(formula, components),
+            activity=activity,
+            solve_for_stability=solve_for_stability,
+            include_in_phase_mass=include_in_phase_mass,
+            extrapolate_below=extrapolate_below,
+            extrapolate_above=extrapolate_above,
         )
 
         return cls(species)
@@ -930,7 +975,11 @@ class PurePhase(CondensedPhase):
         *,
         formula: str | None = None,
         database: DataBase | None = None,
-        **kwargs,
+        activity: ActivityProtocol = ActivityCoefficient(),
+        solve_for_stability: bool = True,
+        include_in_phase_mass: bool = True,
+        extrapolate_below: bool = False,
+        extrapolate_above: bool = False,
     ) -> Self:
         """Creates a pure phase from one phase component
 
@@ -943,14 +992,27 @@ class PurePhase(CondensedPhase):
             formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
                 needed for ``liquid``, which is a phase component of several formulas.
             database: Database. Defaults to ``None``, which uses the default database.
-            **kwargs: Keyword arguments for
-                :meth:`~atmodeller.containers.ChemicalSpecies.from_component`
+            activity: Activity. Defaults to unity activity.
+            solve_for_stability: Solve for stability. Defaults to ``True``.
+            include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
+                fraction aggregations. Defaults to ``True``.
+            extrapolate_below: Whether to extrapolate the thermodynamic data below their
+                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
+            extrapolate_above: Whether to extrapolate the thermodynamic data above their
+                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
 
         Returns:
             A pure phase, which has the name of its species
         """
         species: ChemicalSpecies = ChemicalSpecies.from_component(
-            component, formula=formula, database=database, **kwargs
+            component,
+            formula=formula,
+            database=database,
+            activity=activity,
+            solve_for_stability=solve_for_stability,
+            include_in_phase_mass=include_in_phase_mass,
+            extrapolate_below=extrapolate_below,
+            extrapolate_above=extrapolate_above,
         )
 
         return cls(species)

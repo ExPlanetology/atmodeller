@@ -79,7 +79,7 @@ Species are created from the default database, ``DataBase.default()``, unless an
 - **One condensed phase component**: ``ChemicalSpecies.from_component(component, formula=...)``. A mineral fixes its formula, e.g. ``from_component("cristobalite-beta")``, whereas ``liquid`` is a phase component of many formulas, so the formula is given, e.g. ``from_component("liquid", formula="SiO2")``. The species can be an end-member of a mixed phase, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
 - **A pure phase**: the methods of ``PurePhase`` create a phase with a single species, named as the species:
 
-  - ``PurePhase.from_formula("SiO2")`` stitches together all the condensed phase components of the formula from the data file, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``).
+  - ``PurePhase.from_formula("SiO2")`` stitches together all the condensed phase components of the formula that can be stitched together (``stitchable_components``), here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``).
   - ``PurePhase.from_components(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_component("cristobalite-beta")`` selects one phase component.
 
