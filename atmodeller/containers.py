@@ -57,6 +57,7 @@ class ChemicalSpecies(eqx.Module):
             Gibbs energy, e.g. ``species.thermo.enthalpy(temperature)``
         include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
             fraction aggregations.
+        is_gas: Whether the species is a gas, which can only be in the gas phase
     """
 
     data: ChemicalSpeciesData
@@ -65,6 +66,7 @@ class ChemicalSpecies(eqx.Module):
     number_solution: int
     thermo: ThermodynamicProperties
     include_in_phase_mass: bool
+    is_gas: bool
 
     @classmethod
     def _create(
@@ -76,6 +78,7 @@ class ChemicalSpecies(eqx.Module):
         number_solution: int,
         include_in_phase_mass: bool,
         thermo: ThermodynamicProperties,
+        is_gas: bool,
         extrapolate_below: bool = True,
         extrapolate_above: bool = True,
     ) -> Self:
@@ -90,6 +93,7 @@ class ChemicalSpecies(eqx.Module):
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations.
             thermo: Thermodynamic properties
+            is_gas: Whether the species is a gas
             extrapolate_below: Whether to extrapolate the thermodynamic data below their
                 temperature range, otherwise the species is not stable there. Defaults to
                 ``True``.
@@ -112,6 +116,7 @@ class ChemicalSpecies(eqx.Module):
             number_solution,
             thermo,
             include_in_phase_mass,
+            is_gas,
         )
 
     @classmethod
@@ -216,6 +221,7 @@ class ChemicalSpecies(eqx.Module):
             number_solution,
             include_in_phase_mass,
             thermo,
+            False,
             extrapolate_below,
             extrapolate_above,
         )
@@ -265,6 +271,7 @@ class ChemicalSpecies(eqx.Module):
             number_solution,
             include_in_phase_mass,
             thermo,
+            True,
         )
 
     @property

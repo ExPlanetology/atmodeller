@@ -103,11 +103,23 @@ def _build_reaction_system(
         The reaction system
 
     Raises:
-        ValueError: If a dissolved species is in the silicate solid or the metal
+        ValueError: If a dissolved species is in the silicate solid or the metal, a condensate is
+            not a pure phase, or a species is not of the phase it is given for
     """
     silicate_solid_species = tuple(silicate_solid_species)
     metal_species = tuple(metal_species)
     _validate_dissolved_species(silicate_solid_species, metal_species)
+    condensates = tuple(condensates)
+    not_pure: list[str] = [
+        condensate.name if isinstance(condensate, ChemicalSpecies) else type(condensate).__name__
+        for condensate in condensates
+        if not isinstance(condensate, PurePhase)
+    ]
+    if not_pure:
+        raise ValueError(
+            'condensates can only have pure phases, e.g. PurePhase.from_component("graphite"), '
+            f"not {not_pure}"
+        )
 
     gas: GasPhase = GasPhase(gas_species)
     silicate_melt: CondensedPhase = CondensedPhase(
@@ -326,7 +338,8 @@ class ThermodynamicState(BaseThermodynamicState):
             An instance
 
         Raises:
-            ValueError: If a dissolved species is not in ``silicate_melt_species``
+            ValueError: If a dissolved species is not in ``silicate_melt_species``, a condensate
+                is not a pure phase, or a species is not of the phase it is given for
         """
         reaction_system: ReactionSystem = _build_reaction_system(
             gas_species,
@@ -549,7 +562,8 @@ class BasePlanet(BaseThermodynamicState):
             An instance
 
         Raises:
-            ValueError: If a dissolved species is not in ``silicate_melt_species``
+            ValueError: If a dissolved species is not in ``silicate_melt_species``, a condensate
+                is not a pure phase, or a species is not of the phase it is given for
         """
         if core_mass_fraction is None:
             mantle_mass: ArrayLike = planet_mass

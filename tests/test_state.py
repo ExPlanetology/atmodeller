@@ -91,3 +91,15 @@ def test_duplicate_names_raise() -> None:
     with pytest.raises(ValueError, match="Phase names must be unique"):
         graphite: PurePhase = PurePhase.from_component("graphite")
         BasePlanet.from_species((H2O_g,), condensates=(graphite, graphite))
+
+
+def test_misplaced_species_raise() -> None:
+    """A gas outside the gas phase, or a condensed species in it, raises"""
+    C_graphite: ChemicalSpecies = ChemicalSpecies.from_component("graphite")
+
+    with pytest.raises(ValueError, match=r"gas species.*C_graphite \(condensed\)"):
+        BasePlanet.from_species((H2O_g, C_graphite))
+    with pytest.raises(ValueError, match=r"silicate_melt phase.*H2O_g \(gas\)"):
+        BasePlanet.from_species((H2O_g,), silicate_melt_species=(H2O_g,))
+    with pytest.raises(ValueError, match="A pure phase has a condensed species"):
+        PurePhase(H2O_g)

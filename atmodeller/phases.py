@@ -61,7 +61,12 @@ from jaxtyping import Array, ArrayLike, Bool, Float, Integer
 from molmass import Formula
 
 from atmodeller import override
-from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
+from atmodeller.containers import (
+    ChemicalSpecies,
+    ReservoirSpecies,
+    SpeciesCollection,
+    get_formula_matrix,
+)
 from atmodeller.constants import CONDENSED_SUFFIX
 from atmodeller.database import DataBase
 from atmodeller.interfaces import (
@@ -91,6 +96,16 @@ DUMMY_MOLAR_MASS: float = 1.0
 background mass is non-zero)"""
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+def _describe(item: object) -> str:
+    """Describes a species, or another object given in its place, for an error message"""
+    if isinstance(item, ChemicalSpecies):
+        return f"{item.name} ({'gas' if item.is_gas else 'condensed'})"
+    if isinstance(item, ReservoirSpecies):
+        return f"{item.data.name} (dissolved)"
+
+    return type(item).__name__
 
 
 class BasePhase(eqx.Module, Generic[TSpecies_co]):
@@ -774,6 +789,17 @@ class GasPhase(BasePhase[ChemicalSpecies]):
         background_mass: ArrayLike = DEFAULT_BACKGROUND_MASS,
         background_molar_mass: ArrayLike = DUMMY_MOLAR_MASS,
     ):
+        species = tuple(species)
+        not_gas: list[str] = [
+            _describe(species_)
+            for species_ in species
+            if not (isinstance(species_, ChemicalSpecies) and species_.is_gas)
+        ]
+        if not_gas:
+            raise ValueError(
+                f"The {name} phase can only have gas species, created with "
+                f"ChemicalSpecies.create_gas, not {not_gas}"
+            )
         super().__init__(name, species, background_mass, background_molar_mass)
 
     @property
@@ -830,6 +856,19 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
         background_mass: ArrayLike = DEFAULT_BACKGROUND_MASS,
         background_molar_mass: ArrayLike = DUMMY_MOLAR_MASS,
     ):
+        species = tuple(species)
+        not_condensed: list[str] = [
+            _describe(species_)
+            for species_ in species
+            if not isinstance(species_, (ChemicalSpecies, ReservoirSpecies))
+            or (isinstance(species_, ChemicalSpecies) and species_.is_gas)
+        ]
+        if not_condensed:
+            raise ValueError(
+                f"The {name} phase can only have condensed or dissolved species, created with "
+                "ChemicalSpecies.from_component or ReservoirSpecies.create_dissolved, not "
+                f"{not_condensed}"
+            )
         super().__init__(name, species, background_mass, background_molar_mass)
 
 
@@ -849,6 +888,11 @@ class PurePhase(CondensedPhase):
     # defaults are provided in the base class. This avoids reporting this false-alarm to the user.
     @override
     def __init__(self, species: ChemicalSpecies):
+        if not isinstance(species, ChemicalSpecies) or species.is_gas:
+            raise ValueError(
+                "A pure phase has a condensed species, created with "
+                f"ChemicalSpecies.from_component, not {_describe(species)}"
+            )
         super().__init__((species,), species.name)
 
     @classmethod
