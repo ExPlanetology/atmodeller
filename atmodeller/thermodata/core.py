@@ -8,7 +8,6 @@
 import importlib.resources
 from abc import abstractmethod
 from collections.abc import Callable
-from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
 from importlib.resources.abc import Traversable
 from pathlib import Path
@@ -580,11 +579,8 @@ class CriticalDataSource:
     """Critical data for all species"""
 
     def __init__(self):
-        data: AbstractContextManager[Path] = importlib.resources.as_file(
-            DATA_DIRECTORY.joinpath(CRITICAL_DATA_SOURCE)  # type: ignore
-        )
-        with data as datapath:
-            self.data = pd.read_csv(datapath, comment="#")
+        with DATA_DIRECTORY.joinpath(CRITICAL_DATA_SOURCE).open() as file:
+            self.data = pd.read_csv(file, comment="#")
 
     @property
     def name_column(self) -> str:

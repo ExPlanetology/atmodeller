@@ -13,9 +13,8 @@ capacity polynomial and its analytical integrals for the enthalpy and entropy.
 Coefficients are available at https://ntrs.nasa.gov/citations/20020085330
 """
 
-import importlib.resources
 from collections.abc import Mapping
-from contextlib import AbstractContextManager
+from io import StringIO
 from pathlib import Path
 from typing import Self, cast
 
@@ -303,17 +302,28 @@ class NasaGlennThermodynamicProperties(ThermodynamicProperties):
         )
 
 
-def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
-    """Reads a file of NASA Glenn coefficients, or the packaged file if ``path`` is ``None``"""
-    if path is not None:
-        data: pd.DataFrame = pd.read_csv(path, comment="#")
-    else:
-        packaged: AbstractContextManager[Path] = importlib.resources.as_file(
-            DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE)  # type: ignore
-        )
-        with packaged as datapath:
-            data = pd.read_csv(datapath, comment="#")
+def read_glenn_coefficients(
+    path: str | Path | StringIO,
+) -> dict[str, dict[str, NasaGlennThermodynamicProperties]]:
+    """Reads NASA Glenn coefficients and creates thermodynamic properties for each phase component
 
+    Each row of the file gives the coefficients of one temperature range of a phase component
+    (``gas``, ``liquid`` or a mineral) of a formula, and the rows of a phase component together
+    give its thermodynamic properties. Phase components are stitched together on demand with
+    :meth:`NasaGlennThermodynamicProperties.stitch`.
+
+    Args:
+        path: Path to a file of NASA Glenn coefficients in the same format as the packaged
+            :data:`THERMODYNAMIC_DATA_SOURCE`, or its contents in a :class:`~io.StringIO`
+
+    Returns:
+        Thermodynamic properties of each phase component, keyed by Hill formula and then phase
+        component, e.g. ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``
+
+    Raises:
+        ValueError: If the file does not have the columns of the packaged file
+    """
+    data: pd.DataFrame = pd.read_csv(path, comment="#")
     columns: tuple[str, ...] = (
         "phase_component",
         "hill_formula",
@@ -333,32 +343,6 @@ def _read_glenn_data(path: str | Path | None) -> pd.DataFrame:
     if missing:
         raise ValueError(f"{path} is missing the columns {missing}")
 
-    return data
-
-
-def read_glenn_coefficients(
-    path: str | Path | None = None,
-) -> dict[str, dict[str, NasaGlennThermodynamicProperties]]:
-    """Reads NASA Glenn coefficients and creates thermodynamic properties for each phase component
-
-    Each row of the file gives the coefficients of one temperature range of a phase component
-    (``gas``, ``liquid`` or a mineral) of a formula, and the rows of a phase component together
-    give its thermodynamic properties. Phase components are stitched together on demand with
-    :meth:`NasaGlennThermodynamicProperties.stitch`.
-
-    Args:
-        path: Path to a file of NASA Glenn coefficients in the same format as the packaged
-            :data:`THERMODYNAMIC_DATA_SOURCE`. Defaults to ``None``, which uses the packaged
-            file.
-
-    Returns:
-        Thermodynamic properties of each phase component, keyed by Hill formula and then phase
-        component, e.g. ``["O2Si"]["quartz-alpha"]`` or ``["H2O"]["gas"]``
-
-    Raises:
-        ValueError: If the file does not have the columns of the packaged file
-    """
-    data: pd.DataFrame = _read_glenn_data(path)
     phase_components: dict[str, dict[str, NasaGlennThermodynamicProperties]] = {}
 
     for key, df in data.groupby(["hill_formula", "phase_component"], sort=False):
@@ -379,7 +363,9 @@ def read_glenn_coefficients(
 # Create the default data once, since they are accessed (potentially many times) when creating
 # species. The value is hidden from sphinx (autodoc), which would otherwise print it in full.
 glenn_properties: dict[str, dict[str, NasaGlennThermodynamicProperties]] = (
-    read_glenn_coefficients()
+    read_glenn_coefficients(
+        StringIO(DATA_DIRECTORY.joinpath(THERMODYNAMIC_DATA_SOURCE).read_text())
+    )
 )
 """Thermodynamic properties of each phase component from the packaged NASA Glenn coefficients,
 keyed by Hill formula and then phase component, e.g. ``glenn_properties["H2O"]["gas"]``
