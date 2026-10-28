@@ -21,7 +21,6 @@ from typing import cast
 
 import equinox as eqx
 import jax.numpy as jnp
-import numpy.typing as npt
 import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float, Integer
 
@@ -250,28 +249,6 @@ class NasaGlennThermodynamicProperties(ThermodynamicProperties):
             Minimum and maximum temperature (K)
         """
         return min(self.T_min), max(self.T_max)
-
-
-def nasa_glenn_thermodynamic_properties(
-    b1: npt.ArrayLike,
-    b2: npt.ArrayLike,
-    cp_coeffs: npt.ArrayLike,
-    T_min: npt.ArrayLike,
-    T_max: npt.ArrayLike,
-) -> ThermodynamicProperties:
-    """Creates thermodynamic properties from the NASA Glenn coefficients
-
-    Args:
-        b1: Enthalpy constant(s) of integration
-        b2: Entropy constant(s) of integration
-        cp_coeffs: Heat capacity coefficients
-        T_min: Minimum temperature(s) of the range (K)
-        T_max: Maximum temperature(s) of the range (K)
-
-    Returns:
-        Thermodynamic properties
-    """
-    return NasaGlennThermodynamicProperties(cp_coeffs, b1, b2, T_min, T_max)
 
 
 def stitch_glenn_properties(
