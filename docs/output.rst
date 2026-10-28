@@ -190,8 +190,9 @@ Species
 -------
 
 Species outputs are under ``out[<phase>]["species"][<quantity>][<species>]`` (``named_arrays``) or
-``out[<species>][<phase>][<quantity>]`` (``elements_species``). Species names include a suffix for
-the phase (e.g. ``H2O_g`` for gas, ``H2O_d`` for dissolved in the melt).
+``out[<species>][<phase>][<quantity>]`` (``elements_species``). Species names end in a suffix, e.g.
+``H2O_g`` for gas, ``H2O_d`` for dissolved in the melt or ``C_graphite`` for a mineral (see
+:doc:`species`).
 
 .. list-table:: Outputs for species in each phase
    :widths: 30 20 50
