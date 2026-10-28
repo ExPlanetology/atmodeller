@@ -31,45 +31,12 @@ from atmodeller.constants import (
     SILICATE_MELT_PHASE_INDEX,
     SILICATE_SOLID_PHASE_INDEX,
 )
-from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
+from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import SpeciesProtocol
 from atmodeller.jax_utils import FloatArray, as_j64
 from atmodeller.phases import BasePhase, CondensedPhase, GasPhase, PurePhase
 from atmodeller.reactions import PhaseSystem, ReactionSystem
 from atmodeller.sci_utils import FE_MOLAR_MASS, SIO2_MOLAR_MASS, earth, unit_conversion
-
-
-def _validate_dissolved_species(
-    silicate_solid_species: tuple[SpeciesProtocol, ...], metal_species: tuple[SpeciesProtocol, ...]
-) -> None:
-    """Validates that dissolved species are only in the silicate melt.
-
-    A dissolved species follows a solubility law for a gas dissolving in the silicate melt, and
-    the solvent of the dissolution reactions is the silicate melt. Species in the silicate solid
-    or the metal are instead condensed species, with an activity model if needed.
-
-    Args:
-        silicate_solid_species: Species in the silicate solid phase
-        metal_species: Species in the metal phase
-
-    Raises:
-        ValueError: If a dissolved species is in the silicate solid or the metal
-    """
-    misplaced: list[str] = [
-        f"{species.data.name} in {argument}"
-        for argument, species_ in (
-            ("silicate_solid_species", silicate_solid_species),
-            ("metal_species", metal_species),
-        )
-        for species in species_
-        if isinstance(species, ReservoirSpecies)
-    ]
-    if misplaced:
-        raise ValueError(
-            "Dissolved species can only be in silicate_melt_species, since their solubility law "
-            f"is for the silicate melt, not {misplaced}. Species in the silicate solid or the "
-            "metal are condensed species, with an activity model if needed."
-        )
 
 
 def _build_reaction_system(
@@ -103,27 +70,12 @@ def _build_reaction_system(
         The reaction system
 
     Raises:
-        ValueError: If a dissolved species is in the silicate solid or the metal, a condensate is
-            not a pure phase, or a species is not of the phase it is given for
+        ValueError: If a species is not of the phase it is given for, or a condensate is not a
+            phase
     """
-    silicate_solid_species = tuple(silicate_solid_species)
-    metal_species = tuple(metal_species)
-    _validate_dissolved_species(silicate_solid_species, metal_species)
-    condensates = tuple(condensates)
-    not_pure: list[str] = [
-        condensate.name if isinstance(condensate, ChemicalSpecies) else type(condensate).__name__
-        for condensate in condensates
-        if not isinstance(condensate, PurePhase)
-    ]
-    if not_pure:
-        raise ValueError(
-            'condensates can only have pure phases, e.g. PurePhase.from_component("graphite"), '
-            f"not {not_pure}"
-        )
-
     gas: GasPhase = GasPhase(gas_species)
     silicate_melt: CondensedPhase = CondensedPhase(
-        silicate_melt_species, "silicate_melt", melt_mass, silicate_molar_mass
+        silicate_melt_species, "silicate_melt", melt_mass, silicate_molar_mass, dissolved=True
     )
     silicate_solid: CondensedPhase = CondensedPhase(
         silicate_solid_species, "silicate_solid", solid_mass, silicate_molar_mass
@@ -338,8 +290,8 @@ class ThermodynamicState(BaseThermodynamicState):
             An instance
 
         Raises:
-            ValueError: If a dissolved species is not in ``silicate_melt_species``, a condensate
-                is not a pure phase, or a species is not of the phase it is given for
+            ValueError: If a species is not of the phase it is given for, e.g. a dissolved
+                species not in ``silicate_melt_species``, or a condensate is not a phase
         """
         reaction_system: ReactionSystem = _build_reaction_system(
             gas_species,
@@ -562,8 +514,8 @@ class BasePlanet(BaseThermodynamicState):
             An instance
 
         Raises:
-            ValueError: If a dissolved species is not in ``silicate_melt_species``, a condensate
-                is not a pure phase, or a species is not of the phase it is given for
+            ValueError: If a species is not of the phase it is given for, e.g. a dissolved
+                species not in ``silicate_melt_species``, or a condensate is not a phase
         """
         if core_mass_fraction is None:
             mantle_mass: ArrayLike = planet_mass

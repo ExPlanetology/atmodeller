@@ -841,6 +841,11 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
         background_molar_mass: Molar mass of the background component (kg mol\\ :sup:`-1`).
             Defaults to :data:`DUMMY_MOLAR_MASS`; only meaningful when ``background_mass`` is not
             zero.
+        dissolved: Whether the phase can have dissolved species, which is only the case for the
+            silicate melt, the solvent of their solubility laws. Defaults to ``False``.
+
+    Raises:
+        ValueError: If a species is a gas, or is dissolved and ``dissolved`` is ``False``
     """
 
     output_class: ClassVar[type["PhaseOutput"]] = PhaseOutput[Self]
@@ -855,6 +860,7 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
         name: str = "condensed_phase",
         background_mass: ArrayLike = DEFAULT_BACKGROUND_MASS,
         background_molar_mass: ArrayLike = DUMMY_MOLAR_MASS,
+        dissolved: bool = False,
     ):
         species = tuple(species)
         not_condensed: list[str] = [
@@ -869,6 +875,18 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
                 "ChemicalSpecies.from_component or ReservoirSpecies.create_dissolved, not "
                 f"{not_condensed}"
             )
+        if not dissolved:
+            misplaced: list[str] = [
+                _describe(species_)
+                for species_ in species
+                if isinstance(species_, ReservoirSpecies)
+            ]
+            if misplaced:
+                raise ValueError(
+                    f"The {name} phase cannot have dissolved species, since their solubility laws "
+                    f"are for the silicate melt, not {misplaced}. Use condensed species, with an "
+                    "activity model if needed."
+                )
         super().__init__(name, species, background_mass, background_molar_mass)
 
 

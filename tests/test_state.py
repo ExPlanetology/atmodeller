@@ -80,7 +80,7 @@ def test_dissolved_species_raise() -> None:
 
     with pytest.raises(ValueError, match="H2O_d needs the gas species H2O_g"):
         BasePlanet.from_species((H2_g,), silicate_melt_species=(H2O_d,))
-    with pytest.raises(ValueError, match="H2O_d in metal_species"):
+    with pytest.raises(ValueError, match=r"metal phase cannot have dissolved species.*H2O_d \(dissolved\)"):
         BasePlanet.from_species((H2O_g,), metal_species=(H2O_d,))
 
 

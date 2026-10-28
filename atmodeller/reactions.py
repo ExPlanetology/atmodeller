@@ -132,7 +132,7 @@ class PhaseSystem(eqx.Module):
         other_phases: Tuple of other phases
 
     Raises:
-        ValueError: If two phases have the same name
+        ValueError: If another phase is not a phase, or two phases have the same name
     """
 
     phases: tuple[BasePhase, ...]
@@ -144,6 +144,15 @@ class PhaseSystem(eqx.Module):
 
     def __init__(self, gas: GasPhase, *, other_phases: Optional[tuple[BasePhase, ...]] = None):
         other_phases_ = tuple() if other_phases is None else other_phases
+        # Other than the phases that are created for a state, these are the condensates
+        not_phases: list[str] = [
+            type(phase).__name__ for phase in other_phases_ if not isinstance(phase, BasePhase)
+        ]
+        if not_phases:
+            raise ValueError(
+                'Condensates must be pure phases, e.g. PurePhase.from_component("graphite"), not '
+                f"{not_phases}"
+            )
         self.phases = (gas,) + other_phases_
         names: list[str] = [phase.name for phase in self.phases]
         duplicates: list[str] = sorted({name for name in names if names.count(name) > 1})
