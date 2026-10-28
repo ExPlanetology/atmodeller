@@ -28,7 +28,7 @@ from atmodeller.constants import (
     TAU_MAX,
     TAU_NUM,
 )
-from atmodeller.database import DataBase, _default_database
+from atmodeller.database import DataBase, get_default_database
 from atmodeller.eos.core import IdealGas
 from atmodeller.interfaces import (
     ActivityProtocol,
@@ -175,7 +175,7 @@ class ChemicalSpecies(eqx.Module):
             raise ValueError(
                 "The gas is not a condensed phase component. Create it with create_gas."
             )
-        database = database or _default_database()
+        database = database or get_default_database()
         if formula is None:
             formula = database.formula_of(component)
         if thermo is None:
@@ -230,7 +230,7 @@ class ChemicalSpecies(eqx.Module):
             KeyError: If the gas is not available for the formula
         """
         if thermo is None:
-            thermo = (database or _default_database()).get_phase_component(
+            thermo = (database or get_default_database()).get_phase_component(
                 formula, GAS_PHASE_COMPONENT
             )
 

@@ -24,7 +24,6 @@ database by :meth:`~atmodeller.containers.ChemicalSpecies.create_gas`,
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from functools import cache
 from pathlib import Path
 from typing import Self, cast
 
@@ -43,18 +42,6 @@ from atmodeller.thermodata.janaf import (
 
 _SHARED_COMPONENTS: tuple[str, ...] = (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT)
 """Phase components that are shared by all formulas, unlike a mineral"""
-
-
-@cache
-def _hill(formula: str) -> str:
-    """Hill formula, cached since databases look up formulas many times"""
-    return Formula(formula).formula
-
-
-@cache
-def _elements(formula: str) -> frozenset[str]:
-    """Elements of a formula, cached since listings check every formula"""
-    return frozenset(Formula(formula).composition().keys())
 
 
 class DataBase(ABC):
@@ -115,7 +102,7 @@ class DataBase(ABC):
         return {
             hill_formula: tuple(components)
             for hill_formula, components in self._phase_components.items()
-            if allowed is None or _elements(hill_formula) <= allowed
+            if allowed is None or set(Formula(hill_formula).composition()) <= allowed
         }
 
     def get_phase_component(self, formula: str, component: str) -> ThermodynamicProperties:
@@ -131,7 +118,7 @@ class DataBase(ABC):
         Raises:
             KeyError: If the phase component is not available for the formula
         """
-        hill_formula: str = _hill(formula)
+        hill_formula: str = Formula(formula).formula
         if hill_formula not in self._phase_components:
             raise KeyError(f"{hill_formula} is not available")
         components: dict[str, ThermodynamicProperties] = self._phase_components[hill_formula]
@@ -160,7 +147,7 @@ class DataBase(ABC):
         Raises:
             ValueError: If the phase component is a mineral of another formula
         """
-        hill_formula: str = _hill(formula)
+        hill_formula: str = Formula(formula).formula
         if component not in _SHARED_COMPONENTS:
             other: list[str] = [
                 formula_ for formula_ in self._formulas_of(component) if formula_ != hill_formula
@@ -202,7 +189,7 @@ class DataBase(ABC):
             Names of the condensed phase components, in order of temperature, e.g.
             ``("quartz-alpha", "quartz-beta", "cristobalite-beta", "liquid")`` for ``SiO2``
         """
-        hill_formula: str = _hill(formula)
+        hill_formula: str = Formula(formula).formula
         components: dict[str, ThermodynamicProperties] = self._phase_components.get(
             hill_formula, {}
         )
@@ -251,7 +238,7 @@ class DataBase(ABC):
         if len(found) == 1:
             return next(iter(found.values()))
 
-        hill_formula: str = _hill(formula)
+        hill_formula: str = Formula(formula).formula
         added: list[str] = [
             component
             for component in components
@@ -346,13 +333,6 @@ def get_default_database() -> GlennDataBase:
     return GlennDataBase.default()
 
 
-@cache
-def _default_database() -> GlennDataBase:
-    """The default database shared by the species created without a database, which must not be
-    changed. Use :func:`get_default_database` for a copy to change."""
-    return GlennDataBase.default()
-
-
 def components_of(formula: str, database: DataBase | None = None) -> tuple[str, ...]:
     """Condensed phase components of a formula from a data file
 
@@ -364,4 +344,4 @@ def components_of(formula: str, database: DataBase | None = None) -> tuple[str, 
         Names of the condensed phase components, in order of temperature, e.g.
         ``("quartz-alpha", "quartz-beta", "cristobalite-beta", "liquid")`` for ``SiO2``
     """
-    return (database or _default_database()).components_of(formula)
+    return (database or get_default_database()).components_of(formula)

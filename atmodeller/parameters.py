@@ -69,7 +69,7 @@ def _validate_mass_constraint_keys(keys: Iterable[str], elements: tuple[str, ...
     problems: list[str] = []
     for key in keys:
         try:
-            absent: list[str] = sorted(set(Formula(key).composition().asdict()) - set(elements))
+            absent: list[str] = sorted(set(Formula(key).composition()) - set(elements))
         except FormulaError:
             problems.append(f"{key!r} is not an element or formula")
             continue
