@@ -62,7 +62,7 @@ from molmass import Formula
 
 from atmodeller import override
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection, get_formula_matrix
-from atmodeller.constants import CONDENSED_SUFFIX, GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT
+from atmodeller.constants import CONDENSED_SUFFIX
 from atmodeller.database import DataBase, get_default_database
 from atmodeller.interfaces import RedoxBufferProtocol, SpeciesProtocol, TSpecies_co
 from atmodeller.jax_utils import FloatArray, as_j64, masked_logsumexp, safe_exp
@@ -914,16 +914,8 @@ class PurePhase(CondensedPhase):
         """
         database = database or get_default_database()
         components = tuple(components)
-        if not components:
-            raise ValueError("At least one phase component is needed")
-        # A mineral is a phase component of one formula only, so it gives the formula
         if formula is None:
-            minerals: list[str] = [
-                component
-                for component in components
-                if component not in (GAS_PHASE_COMPONENT, LIQUID_PHASE_COMPONENT)
-            ]
-            formula = database.formula_of(minerals[0] if minerals else components[0])
+            formula = database.formula_of(*components)
         thermo: ThermodynamicProperties = database.stitch(formula, components)
         species: ChemicalSpecies = ChemicalSpecies.from_component(
             name, formula=formula, thermo=thermo, **kwargs

@@ -157,27 +157,38 @@ class DataBase:
                 raise ValueError(f"Phase component {component} is already given for {other}")
         self._phase_components.setdefault(hill_formula, {})[component] = properties
 
-    def formula_of(self, component: str) -> str:
-        """Hill formula of a mineral
+    def formula_of(self, *components: str) -> str:
+        """Hill formula of phase components, from a mineral among them
+
+        A mineral is a phase component of one formula only, so it gives the formula, whereas the
+        gas and liquid are phase components of several formulas.
 
         Args:
-            component: Name of the mineral, e.g. ``quartz-alpha``
+            *components: Names of the phase components, e.g. ``quartz-alpha``, or
+                ``quartz-beta`` and ``liquid``
 
         Returns:
             Hill formula
 
         Raises:
-            ValueError: If the phase component is shared by several formulas, such as ``liquid``
-            KeyError: If the phase component is not available
+            ValueError: If no phase component is given, or all are shared by several formulas,
+                such as ``liquid``
+            KeyError: If the mineral is not available
         """
-        if component in _SHARED_COMPONENTS:
+        if not components:
+            raise ValueError("At least one phase component is needed")
+        minerals: list[str] = [
+            component for component in components if component not in _SHARED_COMPONENTS
+        ]
+        if not minerals:
             raise ValueError(
-                f"{component} is a phase component of several formulas, so give the formula"
+                f"{' and '.join(components)} {'is' if len(components) == 1 else 'are'} shared by "
+                "several formulas, so give the formula"
             )
         try:
-            return self._formula_of_mineral[component]
+            return self._formula_of_mineral[minerals[0]]
         except KeyError:
-            raise KeyError(f"Phase component {component} is not available") from None
+            raise KeyError(f"Phase component {minerals[0]} is not available") from None
 
     def stitchable_components(self, formula: str) -> tuple[str, ...]:
         """Condensed phase components of a formula that can be stitched together
