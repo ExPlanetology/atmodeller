@@ -8,6 +8,8 @@
 This module defines reference thermodynamic conditions and numerical limits.
 """
 
+from typing import Literal
+
 # Thermodynamic standard state
 TEMPERATURE_REFERENCE: float = 298.15
 """Enthalpy reference temperature (K) (:math:`T_r` in the JANAF tables) :cite:p:`MZG02,Cha98`"""
@@ -40,6 +42,19 @@ Numerical floor for dissolved-species solubility in dissolution reactions. This 
 while keeping the floor large enough to avoid excessive solver stiffness in underflow-prone
 regimes.
 """
+
+# Extrapolation of thermodynamic data outside their temperature range, set on each side
+EXTRAPOLATION_OFF: Literal["off"] = "off"
+"""The species is not stable outside the temperature range of its data
+(:data:`NO_DATA_GIBBS_OVER_RT` is added)"""
+EXTRAPOLATION_DATA: Literal["data"] = "data"
+"""The data are evaluated outside their temperature range in their own form, e.g. the nearest
+NASA Glenn polynomial"""
+EXTRAPOLATION_CONSTANT_CP: Literal["constant_cp"] = "constant_cp"
+"""The data are extended outside their temperature range with the heat capacity held at its
+value at the bound, so that the enthalpy and entropy are continuous there"""
+Extrapolation = Literal["off", "data", "constant_cp"]
+"""Extrapolation of thermodynamic data on one side of their temperature range"""
 
 # Penalty for a species outside the temperature range of its thermodynamic data
 NO_DATA_GIBBS_OVER_RT: float = 100.0

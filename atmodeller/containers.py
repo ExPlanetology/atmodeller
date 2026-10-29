@@ -13,9 +13,12 @@ import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
+from molmass import Formula
 
 from atmodeller.constants import (
+    CONDENSED_SUFFIX,
     DISSOLVED_SUFFIX,
+    EXTRAPOLATION_DATA,
     GAS_END_MEMBER,
     GAS_SUFFIX,
     LIQUID_END_MEMBER,
@@ -24,9 +27,11 @@ from atmodeller.constants import (
     LOG_NUMBER_MOLES_UPPER,
     LOG_STABILITY_LOWER,
     LOG_STABILITY_UPPER,
+    SOLID_SUFFIX,
     TAU,
     TAU_MAX,
     TAU_NUM,
+    Extrapolation,
 )
 from atmodeller.database import DataBase
 from atmodeller.eos.core import IdealGas
@@ -79,8 +84,8 @@ class ChemicalSpecies(eqx.Module):
         include_in_phase_mass: bool,
         thermo: ThermodynamicProperties,
         is_gas: bool,
-        extrapolate_below: bool = True,
-        extrapolate_above: bool = True,
+        extrapolate_below: Extrapolation | None = EXTRAPOLATION_DATA,
+        extrapolate_above: Extrapolation | None = EXTRAPOLATION_DATA,
     ) -> Self:
         """Creates an instance.
 
@@ -94,19 +99,17 @@ class ChemicalSpecies(eqx.Module):
                 fraction aggregations.
             thermo: Thermodynamic properties
             is_gas: Whether the species is a gas
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``True``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``True``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range. Defaults to ``"data"``.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``"data"``.
 
         Returns:
             An instance
         """
         species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, suffix)
 
-        if not (extrapolate_below and extrapolate_above):
+        if (extrapolate_below, extrapolate_above) != (EXTRAPOLATION_DATA, EXTRAPOLATION_DATA):
             thermo = thermo.with_extrapolation(extrapolate_below, extrapolate_above)
 
         return cls(
@@ -129,8 +132,8 @@ class ChemicalSpecies(eqx.Module):
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
         database: DataBase | None = None,
-        extrapolate_below: bool = False,
-        extrapolate_above: bool = False,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
     ) -> Self:
         """Creates a condensed species from an end-member
 
@@ -141,10 +144,12 @@ class ChemicalSpecies(eqx.Module):
         :meth:`~atmodeller.phases.PurePhase.from_formula` or
         :meth:`~atmodeller.phases.PurePhase.from_end_members`.
 
-        By default, the thermodynamic data are not extrapolated outside their temperature range,
-        where the species is therefore not stable. A condensed phase is often bounded by a phase
-        boundary, such as a melting point, so the same set of condensates can be used at any
-        temperature.
+        By default, the extrapolation of the thermodynamic data outside their temperature range is
+        decided by the phase of the species: in a pure phase, the species is not stable there
+        (``"off"``), since a pure phase is often bounded by a phase boundary, such as a melting
+        point; in a mixed phase, such as the silicate melt, the data are extended with a constant
+        heat capacity (``"constant_cp"``), since an end-member is needed where it is metastable as
+        a pure phase (see :class:`~atmodeller.thermodata.core.ThermodynamicProperties`).
 
         Args:
             end_member: Name of the end-member, e.g. ``cristobalite-beta`` or ``liquid``
@@ -156,12 +161,11 @@ class ChemicalSpecies(eqx.Module):
                 fraction aggregations. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database
                 (:meth:`~atmodeller.database.DataBase.default`).
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``False``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``False``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is decided by the phase.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is decided by the phase.
 
         Returns:
             A condensed species
@@ -189,6 +193,143 @@ class ChemicalSpecies(eqx.Module):
         )
 
     @classmethod
+    def from_formula(
+        cls,
+        formula: str,
+        *,
+        liquid: bool = True,
+        database: DataBase | None = None,
+        activity: ActivityProtocol = ActivityCoefficient(),
+        solve_for_stability: bool = True,
+        include_in_phase_mass: bool = True,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
+    ) -> Self:
+        """Creates a condensed species from all the condensed end-members of a formula
+
+        The condensed end-members that can be stitched together
+        (:meth:`~atmodeller.database.DataBase.stitchable_end_members`), e.g. quartz to
+        cristobalite to liquid for ``SiO2``, are stitched together in order of temperature
+        (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
+        :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``. Without the liquid,
+        only the solids are stitched together, e.g. quartz to cristobalite for ``SiO2``, and the
+        species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``.
+
+        The species can be the species of a pure phase
+        (:meth:`~atmodeller.phases.PurePhase.from_formula`), or a component of a mixed phase,
+        whose polymorphs replace each other with temperature. By default, the
+        extrapolation is decided by the phase, as in :meth:`from_end_member`.
+
+        Args:
+            formula: Formula
+            liquid: Whether to include the liquid. Defaults to ``True``.
+            database: Database. Defaults to ``None``, which uses the default database.
+            activity: Activity. Defaults to unity activity.
+            solve_for_stability: Solve for stability. Defaults to ``True``.
+            include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
+                fraction aggregations. Defaults to ``True``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is decided by the phase.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is decided by the phase.
+
+        Returns:
+            A condensed species
+
+        Raises:
+            KeyError: If the formula has no condensed end-members, or no solid end-members
+                without the liquid
+            ValueError: If the end-members cannot be stitched together
+        """
+        database = database or DataBase.default()
+        end_members: tuple[str, ...] = database.stitchable_end_members(formula)
+        if not liquid:
+            end_members = tuple(
+                end_member for end_member in end_members if end_member != LIQUID_END_MEMBER
+            )
+        if not end_members:
+            raise KeyError(
+                f"{Formula(formula).formula} has no {'condensed' if liquid else 'solid'} "
+                "end-members"
+            )
+
+        return cls.from_end_members(
+            end_members,
+            name=CONDENSED_SUFFIX if liquid else SOLID_SUFFIX,
+            formula=formula,
+            database=database,
+            activity=activity,
+            solve_for_stability=solve_for_stability,
+            include_in_phase_mass=include_in_phase_mass,
+            extrapolate_below=extrapolate_below,
+            extrapolate_above=extrapolate_above,
+        )
+
+    @classmethod
+    def from_end_members(
+        cls,
+        end_members: Iterable[str],
+        *,
+        name: str,
+        formula: str | None = None,
+        database: DataBase | None = None,
+        activity: ActivityProtocol = ActivityCoefficient(),
+        solve_for_stability: bool = True,
+        include_in_phase_mass: bool = True,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
+    ) -> Self:
+        """Creates a condensed species by stitching end-members together
+
+        For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
+        ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
+        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
+        :meth:`from_formula`, the species can be the species of a pure phase or a component of a
+        mixed phase, and by default the extrapolation is decided by the phase.
+
+        Args:
+            end_members: Names of the end-members
+            name: Suffix of the species name
+            formula: Formula. Defaults to ``None``, which takes the formula of the minerals, and
+                is only needed when the end-members are all shared by several formulas, such as
+                ``liquid``.
+            database: Database. Defaults to ``None``, which uses the default database.
+            activity: Activity. Defaults to unity activity.
+            solve_for_stability: Solve for stability. Defaults to ``True``.
+            include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
+                fraction aggregations. Defaults to ``True``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is decided by the phase.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is decided by the phase.
+
+        Returns:
+            A condensed species
+
+        Raises:
+            KeyError: If an end-member is not available for the formula
+            ValueError: If the end-members cannot be stitched together, or no formula is
+                given for end-members that are shared by several formulas
+        """
+        database = database or DataBase.default()
+        end_members = tuple(end_members)
+        if formula is None:
+            formula = database.formula_of(*end_members)
+
+        return cls._create_condensed(
+            formula,
+            name,
+            database.stitch(formula, end_members),
+            activity=activity,
+            solve_for_stability=solve_for_stability,
+            include_in_phase_mass=include_in_phase_mass,
+            extrapolate_below=extrapolate_below,
+            extrapolate_above=extrapolate_above,
+        )
+
+    @classmethod
     def _create_condensed(
         cls,
         formula: str,
@@ -198,13 +339,13 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol,
         solve_for_stability: bool,
         include_in_phase_mass: bool,
-        extrapolate_below: bool,
-        extrapolate_above: bool,
+        extrapolate_below: Extrapolation | None,
+        extrapolate_above: Extrapolation | None,
     ) -> Self:
         """Creates a condensed species from its thermodynamic properties
 
-        Used by :meth:`from_end_member` and :meth:`~atmodeller.phases.PurePhase.from_end_members`,
-        which take the thermodynamic properties from a database.
+        Used by :meth:`from_end_member` and :meth:`from_end_members`, which take the
+        thermodynamic properties from a database.
         """
         # Either both the number of moles and stability are solved for, or alternatively stability
         # can be enforced in which case the number of moles is irrelevant and there is nothing to

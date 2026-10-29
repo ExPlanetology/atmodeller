@@ -20,7 +20,15 @@ import pandas as pd
 from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller import override
-from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, STANDARD_PRESSURE, TEMPERATURE_REFERENCE
+from atmodeller.constants import (
+    EXTRAPOLATION_CONSTANT_CP,
+    EXTRAPOLATION_DATA,
+    EXTRAPOLATION_OFF,
+    NO_DATA_GIBBS_OVER_RT,
+    STANDARD_PRESSURE,
+    TEMPERATURE_REFERENCE,
+    Extrapolation,
+)
 from atmodeller.interfaces import HeatCapacityProtocol, VolumeProtocol
 from atmodeller.jax_utils import FloatArray, as_j64, elementwise_derivative
 from atmodeller.sci_utils import GAS_CONSTANT
@@ -99,24 +107,36 @@ class ThermodynamicProperties(eqx.Module):
     Gibbs energy (see :meth:`standard_gibbs_over_RT`). Gases do not need one, since their
     pressure dependence enters through the fugacity.
 
-    Outside the temperature range of the data (:meth:`temperature_range`), the data are
-    extrapolated by default. Extrapolation can be turned off separately below and above the
-    range, in which case the standard Gibbs energy is held at its value at the bound and
-    :data:`~atmodeller.constants.NO_DATA_GIBBS_OVER_RT` is added, so that the species is not
-    stable there. The two ends are separate because a bound can be a phase boundary, such as a
-    melting point, where the species should not be stable, or simply the end of the data, where
-    extrapolation is benign. For example, the data for ice end at 200 K and at its melting point
-    of 273.15 K, so ice can be extrapolated below the range but not above it.
+    Outside the temperature range of the data (:meth:`temperature_range`), each side has its own
+    extrapolation (:data:`~atmodeller.constants.Extrapolation`):
+
+    - ``"data"`` (the default): the data are evaluated in their own form, e.g. the nearest NASA
+      Glenn polynomial.
+    - ``"off"``: the standard Gibbs energy is held at its value at the bound and
+      :data:`~atmodeller.constants.NO_DATA_GIBBS_OVER_RT` is added, so that the species is not
+      stable there.
+    - ``"constant_cp"``: the heat capacity is held at its value at the bound :math:`T_b`, so that
+      the enthalpy and entropy are continuous there:
+      :math:`H = H(T_b) + C_p(T_b)(T - T_b)` and :math:`S = S(T_b) + C_p(T_b) \ln(T/T_b)`.
+    - ``None``: decided by the phase of the species (see :class:`~atmodeller.phases.PurePhase`
+      and :class:`~atmodeller.phases.CondensedPhase`), and ``"off"`` if never decided.
+
+    A bound can be a phase boundary, such as a melting point, where a pure phase should not be
+    stable, or simply the end of the data, where extrapolation is benign. For example, the data
+    for ice end at 200 K and at its melting point of 273.15 K, so ice can be extrapolated below
+    the range but not above it. An end-member of a mixed phase, such as liquid SiO2 in the
+    silicate melt, is instead needed where it is metastable as a pure phase, e.g. below its
+    melting point, and the constant heat capacity keeps the extension well behaved for any form
+    of the data. The extension is not calibrated, so its accuracy decreases with the distance
+    from the bound.
     """
 
     volume_model: VolumeProtocol | None = eqx.field(default=None, kw_only=True)
     """Volume model, or ``None`` to ignore the pressure dependence. Keyword only."""
-    extrapolate_below: bool = eqx.field(default=True, kw_only=True)
-    """Whether to extrapolate the data below the temperature range, otherwise the species is not
-    stable there. Keyword only."""
-    extrapolate_above: bool = eqx.field(default=True, kw_only=True)
-    """Whether to extrapolate the data above the temperature range, otherwise the species is not
-    stable there. Keyword only."""
+    extrapolate_below: Extrapolation | None = eqx.field(default=EXTRAPOLATION_DATA, kw_only=True)
+    """Extrapolation below the temperature range. Keyword only."""
+    extrapolate_above: Extrapolation | None = eqx.field(default=EXTRAPOLATION_DATA, kw_only=True)
+    """Extrapolation above the temperature range. Keyword only."""
 
     @abstractmethod
     def cp(self, temperature: ArrayLike) -> FloatArray:
@@ -199,12 +219,12 @@ class ThermodynamicProperties(eqx.Module):
         """
         return replace(self, volume_model=volume_model)
 
-    def with_extrapolation(self, below: bool, above: bool) -> Self:
+    def with_extrapolation(self, below: Extrapolation | None, above: Extrapolation | None) -> Self:
         """Gets a copy of the thermodynamic properties with the extrapolation set.
 
         Args:
-            below: Whether to extrapolate the data below the temperature range
-            above: Whether to extrapolate the data above the temperature range
+            below: Extrapolation below the temperature range
+            above: Extrapolation above the temperature range
 
         Returns:
             Thermodynamic properties with the extrapolation set
@@ -229,10 +249,12 @@ class ThermodynamicProperties(eqx.Module):
         Like :meth:`gibbs_energy`, this is not a Gibbs energy of formation (see the class
         docstring for the convention).
 
-        Outside the temperature range on a side that is not extrapolated
-        (:attr:`extrapolate_below` and :attr:`extrapolate_above`), the standard Gibbs energy is
-        held at its value at the bound and :data:`~atmodeller.constants.NO_DATA_GIBBS_OVER_RT` is
-        added.
+        Outside the temperature range, each side follows its extrapolation
+        (:attr:`extrapolate_below` and :attr:`extrapolate_above`; see the class docstring). With
+        ``"off"``, the standard Gibbs energy is held at its value at the bound and
+        :data:`~atmodeller.constants.NO_DATA_GIBBS_OVER_RT` is added. With ``"constant_cp"``, only
+        the Gibbs energy at 1 bar is extended, and the volume integral is evaluated at the
+        temperature, as with ``"data"``.
 
         Args:
             temperature: Temperature (K)
@@ -246,25 +268,48 @@ class ThermodynamicProperties(eqx.Module):
         pressure = as_j64(pressure)
 
         temperature_min, temperature_max = self.temperature_range()
+        is_below: Array = temperature < temperature_min
+        is_above: Array = temperature > temperature_max
+        # Unset (None) is off, so a species that is not in a phase is not stable outside its range
         below: Array = jnp.logical_and(
-            jnp.logical_not(self.extrapolate_below), temperature < temperature_min
+            self.extrapolate_below in (None, EXTRAPOLATION_OFF), is_below
         )
         above: Array = jnp.logical_and(
-            jnp.logical_not(self.extrapolate_above), temperature > temperature_max
+            self.extrapolate_above in (None, EXTRAPOLATION_OFF), is_above
         )
-        # Outside a range that is not extrapolated, the data are evaluated at the bound, so the
-        # Gibbs energy is held constant. This is simpler than a linear extrapolation, and the
-        # penalty dominates anyway.
-        temperature_data: Array = jnp.where(
+        constant_cp_below: Array = jnp.logical_and(
+            self.extrapolate_below == EXTRAPOLATION_CONSTANT_CP, is_below
+        )
+        constant_cp_above: Array = jnp.logical_and(
+            self.extrapolate_above == EXTRAPOLATION_CONSTANT_CP, is_above
+        )
+        # Outside a range that is off, the data are evaluated at the bound, so the Gibbs energy is
+        # held constant. This keeps it finite, so that the penalty dominates.
+        temperature_held: Array = jnp.where(
             below, temperature_min, jnp.where(above, temperature_max, temperature)
         )
-
-        gibbs_over_RT: FloatArray = self.gibbs_energy(temperature_data) / (
-            GAS_CONSTANT * temperature
+        # With a constant heat capacity, the enthalpy, entropy and heat capacity are evaluated at
+        # the bound and extended from it
+        temperature_data: Array = jnp.where(
+            constant_cp_below,
+            temperature_min,
+            jnp.where(constant_cp_above, temperature_max, temperature_held),
         )
+
+        if EXTRAPOLATION_CONSTANT_CP in (self.extrapolate_below, self.extrapolate_above):
+            cp: FloatArray = self.cp(temperature_data)
+            gibbs_energy: FloatArray = (
+                self.enthalpy(temperature_data)
+                + cp * (temperature - temperature_data)
+                - temperature
+                * (self.entropy(temperature_data) + cp * jnp.log(temperature / temperature_data))
+            )
+        else:
+            gibbs_energy = self.gibbs_energy(temperature_data)
+        gibbs_over_RT: FloatArray = gibbs_energy / (GAS_CONSTANT * temperature)
         if self.volume_model is not None:
             gibbs_over_RT = gibbs_over_RT + self.volume_model.volume_integral(
-                temperature_data, pressure
+                temperature_held, pressure
             ) / (GAS_CONSTANT * temperature)
 
         # A step penalty does not affect the solve, since the temperature is a fixed parameter. A
