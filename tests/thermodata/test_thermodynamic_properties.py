@@ -180,8 +180,9 @@ def test_glenn_extrapolation_uses_nearest_range() -> None:
 
 def test_extrapolation_modes() -> None:
     """Outside the range, "off" holds G at the bound and adds the penalty, "data" evaluates the
-    data and "constant_cp" extends them with the heat capacity at the bound. Unset condensates are
-    off in a pure phase and constant cp in a mixed phase, whereas gases keep the shared data."""
+    data and "constant_cp" extends them with the heat capacity at the bound. Unset condensates,
+    including stitched ones, are off in a pure phase and constant cp in a mixed phase, whereas
+    gases keep the shared data."""
     water: ThermodynamicProperties = glenn_properties["H2O"]["liquid"]
     off: ThermodynamicProperties = water.with_extrapolation("off", "off")
     temperature_min, temperature_max = water.temperature_range()
@@ -236,6 +237,21 @@ def test_extrapolation_modes() -> None:
         rtol=1e-8,
     )
     assert pure.standard_gibbs_over_RT(1500.0) > melt.standard_gibbs_over_RT(1500.0) + 90
+
+    # The stitched solids are one end-member, extrapolated only beyond their outer bounds
+    solid: ChemicalSpecies = ChemicalSpecies.from_formula("SiO2", liquid=False)
+    assert solid.name == "O2Si_s" and solid.thermo.temperature_range() == (200.0, 1996.0)
+    solid_pure: ThermodynamicProperties = cast(ChemicalSpecies, PurePhase(solid).species[0]).thermo
+    solid_mixed: ThermodynamicProperties = cast(
+        ChemicalSpecies, CondensedPhase((solid,), name="solid").species[0]
+    ).thermo
+    assert (solid_pure.extrapolate_below, solid_pure.extrapolate_above) == ("off", "off")
+    assert solid_mixed.extrapolate_above == "constant_cp"
+    np.testing.assert_allclose(
+        solid_mixed.standard_gibbs_over_RT(1996.0 + 1e-6),
+        solid_mixed.standard_gibbs_over_RT(1996.0),
+        rtol=1e-8,
+    )
 
     assert ChemicalSpecies.create_gas("H2O").thermo is glenn_properties["H2O"]["gas"]
 

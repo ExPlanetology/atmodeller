@@ -60,7 +60,6 @@ import equinox as eqx
 import jax.numpy as jnp
 from jax import lax
 from jaxtyping import Array, ArrayLike, Bool, Float, Integer
-from molmass import Formula
 
 from atmodeller import override
 from atmodeller.containers import (
@@ -70,11 +69,8 @@ from atmodeller.containers import (
     get_formula_matrix,
 )
 from atmodeller.constants import (
-    CONDENSED_SUFFIX,
     EXTRAPOLATION_CONSTANT_CP,
     EXTRAPOLATION_OFF,
-    LIQUID_END_MEMBER,
-    SOLID_SUFFIX,
     Extrapolation,
 )
 from atmodeller.database import DataBase
@@ -973,7 +969,8 @@ class PurePhase(CondensedPhase):
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
         :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``. Without the liquid,
         only the solids are stitched together, e.g. quartz to cristobalite for ``SiO2``, and the
-        species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``.
+        species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``. See
+        :meth:`~atmodeller.containers.ChemicalSpecies.from_formula`.
 
         Args:
             formula: Formula
@@ -997,22 +994,9 @@ class PurePhase(CondensedPhase):
                 without the liquid
             ValueError: If the end-members cannot be stitched together
         """
-        database = database or DataBase.default()
-        end_members: tuple[str, ...] = database.stitchable_end_members(formula)
-        if not liquid:
-            end_members = tuple(
-                end_member for end_member in end_members if end_member != LIQUID_END_MEMBER
-            )
-        if not end_members:
-            raise KeyError(
-                f"{Formula(formula).formula} has no {'condensed' if liquid else 'solid'} "
-                "end-members"
-            )
-
-        return cls.from_end_members(
-            end_members,
-            name=CONDENSED_SUFFIX if liquid else SOLID_SUFFIX,
-            formula=formula,
+        species: ChemicalSpecies = ChemicalSpecies.from_formula(
+            formula,
+            liquid=liquid,
             database=database,
             activity=activity,
             solve_for_stability=solve_for_stability,
@@ -1020,6 +1004,8 @@ class PurePhase(CondensedPhase):
             extrapolate_below=extrapolate_below,
             extrapolate_above=extrapolate_above,
         )
+
+        return cls(species)
 
     @classmethod
     def from_end_members(
@@ -1039,7 +1025,8 @@ class PurePhase(CondensedPhase):
 
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
         ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
-        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`).
+        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). See
+        :meth:`~atmodeller.containers.ChemicalSpecies.from_end_members`.
 
         Args:
             end_members: Names of the end-members
@@ -1066,14 +1053,11 @@ class PurePhase(CondensedPhase):
             ValueError: If the end-members cannot be stitched together, or no formula is
                 given for end-members that are shared by several formulas
         """
-        database = database or DataBase.default()
-        end_members = tuple(end_members)
-        if formula is None:
-            formula = database.formula_of(*end_members)
-        species: ChemicalSpecies = ChemicalSpecies._create_condensed(
-            formula,
-            name,
-            database.stitch(formula, end_members),
+        species: ChemicalSpecies = ChemicalSpecies.from_end_members(
+            end_members,
+            name=name,
+            formula=formula,
+            database=database,
             activity=activity,
             solve_for_stability=solve_for_stability,
             include_in_phase_mass=include_in_phase_mass,
