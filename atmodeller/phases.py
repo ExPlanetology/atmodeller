@@ -29,6 +29,7 @@ formula and a suffix (see :class:`~atmodeller.interfaces.ChemicalSpeciesData`):
 - ``"l"`` : liquid
 - the end-member of a mineral, e.g. ``"quartz-alpha"``
 - ``"cd"`` : the condensed end-members of a formula stitched together
+- ``"s"`` : the solid end-members of a formula stitched together, without the liquid
 
 Quantities are accumulated in log-space throughout for numerical stability. Many methods accept an
 optional background component (e.g., the silicate melt mass) that contributes to phase totals but
@@ -67,7 +68,7 @@ from atmodeller.containers import (
     SpeciesCollection,
     get_formula_matrix,
 )
-from atmodeller.constants import CONDENSED_SUFFIX
+from atmodeller.constants import CONDENSED_SUFFIX, LIQUID_END_MEMBER, SOLID_SUFFIX
 from atmodeller.database import DataBase
 from atmodeller.interfaces import (
     ActivityProtocol,
@@ -918,6 +919,7 @@ class PurePhase(CondensedPhase):
         cls,
         formula: str,
         *,
+        liquid: bool = True,
         database: DataBase | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
@@ -931,10 +933,13 @@ class PurePhase(CondensedPhase):
         (:meth:`~atmodeller.database.DataBase.stitchable_end_members`), e.g. quartz to
         cristobalite to liquid for ``SiO2``, are stitched together in order of temperature
         (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
-        :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``.
+        :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``. Without the liquid,
+        only the solids are stitched together, e.g. quartz to cristobalite for ``SiO2``, and the
+        species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``.
 
         Args:
             formula: Formula
+            liquid: Whether to include the liquid. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database.
             activity: Activity. Defaults to unity activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
@@ -949,17 +954,25 @@ class PurePhase(CondensedPhase):
             A pure phase, which has the name of its species
 
         Raises:
-            KeyError: If the formula has no condensed end-members
+            KeyError: If the formula has no condensed end-members, or no solid end-members
+                without the liquid
             ValueError: If the end-members cannot be stitched together
         """
         database = database or DataBase.default()
         end_members: tuple[str, ...] = database.stitchable_end_members(formula)
+        if not liquid:
+            end_members = tuple(
+                end_member for end_member in end_members if end_member != LIQUID_END_MEMBER
+            )
         if not end_members:
-            raise KeyError(f"{Formula(formula).formula} has no condensed end-members")
+            raise KeyError(
+                f"{Formula(formula).formula} has no {'condensed' if liquid else 'solid'} "
+                "end-members"
+            )
 
         return cls.from_end_members(
             end_members,
-            name=CONDENSED_SUFFIX,
+            name=CONDENSED_SUFFIX if liquid else SOLID_SUFFIX,
             formula=formula,
             database=database,
             activity=activity,

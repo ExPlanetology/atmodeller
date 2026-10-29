@@ -88,6 +88,7 @@ def test_custom_database() -> None:
 def test_end_members() -> None:
     """Condensed species from end-members match the end-members, and the rules hold"""
     sio2 = cast(ChemicalSpecies, PurePhase.from_formula("SiO2").species[0])
+    sio2_s = cast(ChemicalSpecies, PurePhase.from_formula("SiO2", liquid=False).species[0])
     carbon = cast(ChemicalSpecies, PurePhase.from_formula("C").species[0])
 
     db: DataBase = DataBase.default()
@@ -100,7 +101,9 @@ def test_end_members() -> None:
     cho: dict[str, tuple[str, ...]] = db.end_members(("C", "H", "O"))
     assert {"H2O", "CO2", "C"} <= set(cho) and "O2Si" not in cho
     assert (species_name("SO2"), species_name("SiO2", "l")) == ("O2S_g", "O2Si_l")
-    assert (sio2.name, carbon.name) == ("O2Si_cd", "C_cd")
+    assert (sio2.name, sio2_s.name, carbon.name) == ("O2Si_cd", "O2Si_s", "C_cd")
+    # Without the liquid, the solids end at the melting point of cristobalite (1996 K)
+    assert sio2_s.thermo.temperature_range() == (200.0, 1996.0)
     # Quartz, then the liquid above the melting point of cristobalite (1996 K)
     for temperature, end_member in ((1000.0, "quartz-beta"), (2500.0, "liquid")):
         expected = ChemicalSpecies.from_end_member(end_member, formula="SiO2")
@@ -127,6 +130,8 @@ def test_end_members() -> None:
     )
     assert (melt_sio2.name, melt_sio2.include_in_phase_mass) == ("O2Si_l", False)
 
+    with pytest.raises(KeyError, match="Fe has no solid end-members"):
+        PurePhase.from_formula("Fe", liquid=False)
     with pytest.raises(ValueError, match="hematite .* overlaps liquid"):
         PurePhase.from_formula("Fe2O3")
     with pytest.raises(ValueError, match="give the formula"):

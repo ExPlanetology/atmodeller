@@ -35,6 +35,9 @@ A species is named from the Hill formula of its formula and a suffix, ``<Hill fo
    * - ``cd``
      - All the condensed end-members of a formula, stitched together
      - ``PurePhase.from_formula("SiO2")`` is ``O2Si_cd``
+   * - ``s``
+     - All the solid end-members of a formula, stitched together without the liquid
+     - ``PurePhase.from_formula("SiO2", liquid=False)`` is ``O2Si_s``
    * - ``<name>``
      - A chosen set of end-members, stitched together
      - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` is ``O2Si_quartz``
@@ -78,7 +81,7 @@ Species are created from the default database, ``DataBase.default()``, unless an
 - **One condensed end-member**: ``ChemicalSpecies.from_end_member(end_member, formula=...)``. A mineral fixes its formula, e.g. ``from_end_member("cristobalite-beta")``, whereas ``liquid`` is an end-member of many formulas, so the formula is given, e.g. ``from_end_member("liquid", formula="SiO2")``. The species can be an end-member of a mixed phase, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
 - **A pure phase**: the methods of ``PurePhase`` create a phase with a single species, named as the species:
 
-  - ``PurePhase.from_formula("SiO2")`` stitches together the condensed end-members of the formula given by ``stitchable_end_members``, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``).
+  - ``PurePhase.from_formula("SiO2")`` stitches together the condensed end-members of the formula given by ``stitchable_end_members``, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``). With ``liquid=False`` only the solids are stitched together (``O2Si_s``), so the condensate is not stable above the melting point, for example when liquid SiO2 is an end-member of the silicate melt instead.
   - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_end_member("cristobalite-beta")`` selects one end-member.
 
