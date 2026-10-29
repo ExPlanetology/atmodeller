@@ -9,6 +9,7 @@ Terminology
 *Atmodeller* follows the terminology of :cite:t:`HP11`:
 
 - An **end-member** has its own thermodynamic data, which fixes its formula, and is named as the ``gas``, the ``liquid``, or a mineral such as ``quartz-alpha`` or ``graphite``. Each species created from the thermodynamic data is an end-member, or several end-members of one formula stitched together, whereas a dissolved species follows a solubility law.
+- A **component** is the chemistry of a species, i.e. its formula, without regard to its phase. A stitched species is a component constructed from its polymorphs, and optionally its liquid, which replace each other with temperature, e.g. the solids of SiO2 from quartz to cristobalite.
 - A **phase** is the gas, the silicate melt, the silicate solid, the metal, or a pure phase such as graphite. A phase can be mixed, with several species and an activity model, or pure, with a single species, of unity activity by default.
 
 Names
@@ -79,7 +80,7 @@ Species are created from the default database, ``DataBase.default()``, unless an
 
 - **Gases**: ``ChemicalSpecies.create_gas("H2O")``. The activity defaults to an ideal gas, and can be a real gas equation of state.
 - **One condensed end-member**: ``ChemicalSpecies.from_end_member(end_member, formula=...)``. A mineral fixes its formula, e.g. ``from_end_member("cristobalite-beta")``, whereas ``liquid`` is an end-member of many formulas, so the formula is given, e.g. ``from_end_member("liquid", formula="SiO2")``. The species can be an end-member of a mixed phase, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
-- **A stitched condensed species**: ``ChemicalSpecies.from_formula(formula, liquid=...)`` and ``ChemicalSpecies.from_end_members(end_members, name=...)`` stitch end-members together, as the ``PurePhase`` methods below do. A stitched species is used as one end-member of a mixed phase, e.g. ``ChemicalSpecies.from_formula("SiO2", liquid=False)`` (``O2Si_s``) as the stable solid SiO2 in a solid solution.
+- **A stitched condensed species**: ``ChemicalSpecies.from_formula(formula, liquid=...)`` and ``ChemicalSpecies.from_end_members(end_members, name=...)`` stitch end-members together, as the ``PurePhase`` methods below do. A stitched species can be a component of a mixed phase, whose polymorphs replace each other with temperature, e.g. iron from its α, γ and δ phases as the Fe component of a solid Fe–Ni metal, given data for them. For example, ``ChemicalSpecies.from_formula("SiO2", liquid=False)`` is ``O2Si_s``, the stable solid SiO2 at each temperature.
 - **A pure phase**: the methods of ``PurePhase`` create a phase with a single species, named as the species:
 
   - ``PurePhase.from_formula("SiO2")`` stitches together the condensed end-members of the formula given by ``stitchable_end_members``, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``). With ``liquid=False`` only the solids are stitched together (``O2Si_s``), so the condensate is not stable above the melting point, for example when liquid SiO2 is an end-member of the silicate melt instead.
@@ -141,7 +142,7 @@ The defaults follow the role of the species:
 
 The default is decided by the phase, so a species created with ``ChemicalSpecies.from_end_member``, ``from_formula`` or ``from_end_members`` and no extrapolation is ``"off"`` in a ``PurePhase`` and ``"constant_cp"`` in a ``CondensedPhase``. An extrapolation that is set explicitly is kept.
 
-Stitched data are extrapolated only beyond their outer bounds, e.g. below 200 K and above 1996 K for the stitched solids of SiO2 (``O2Si_s``), whereas the transitions between the end-members inside the range are unchanged. In a mixed phase, the polymorphs of one formula should therefore be one stitched end-member rather than separate end-members, which would mix with each other instead of replacing each other with temperature.
+Stitched data are extrapolated only beyond their outer bounds, e.g. below 200 K and above 1996 K for the stitched solids of SiO2 (``O2Si_s``), whereas the transitions between the end-members inside the range are unchanged. In a mixed phase, the polymorphs of one formula should therefore be one stitched component rather than separate species, which would mix with each other instead of replacing each other with temperature.
 
 This allows mixtures to be modelled from end-members at any temperature, for example a melt of oxide liquids:
 

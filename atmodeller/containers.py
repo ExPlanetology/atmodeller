@@ -216,8 +216,8 @@ class ChemicalSpecies(eqx.Module):
         species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``.
 
         The species can be the species of a pure phase
-        (:meth:`~atmodeller.phases.PurePhase.from_formula`), or one end-member of a mixed phase,
-        e.g. ``O2Si_s`` as the stable solid SiO2 in a solid solution. By default, the
+        (:meth:`~atmodeller.phases.PurePhase.from_formula`), or a component of a mixed phase,
+        whose polymorphs replace each other with temperature. By default, the
         extrapolation is decided by the phase, as in :meth:`from_end_member`.
 
         Args:
@@ -285,8 +285,8 @@ class ChemicalSpecies(eqx.Module):
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
         ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
         order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
-        :meth:`from_formula`, the species can be the species of a pure phase or one end-member of
-        a mixed phase, and by default the extrapolation is decided by the phase.
+        :meth:`from_formula`, the species can be the species of a pure phase or a component of a
+        mixed phase, and by default the extrapolation is decided by the phase.
 
         Args:
             end_members: Names of the end-members
