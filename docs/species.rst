@@ -8,9 +8,9 @@ Terminology
 
 *Atmodeller* follows the terminology of :cite:t:`HP11`:
 
-- An **end-member** has its own thermodynamic data, which fixes its formula, and is named as the ``gas``, the ``liquid``, or a mineral such as ``quartz-alpha`` or ``graphite``. Each species created from the thermodynamic data is an end-member, or several end-members of one formula stitched together, whereas a dissolved species follows a solubility law.
+- An **end-member** has its own thermodynamic data, which fixes its formula, and is named as the ``gas``, the ``liquid``, or a mineral such as ``quartz-alpha`` or ``graphite``. Each species created from the thermodynamic data is an end-member, or a component stitched together from several end-members of one formula, whereas a dissolved species follows a solubility law.
 - A **component** is the chemistry of a species, i.e. its formula, without regard to its phase. A stitched species is a component constructed from its polymorphs, and optionally its liquid, which replace each other with temperature, e.g. the solids of SiO2 from quartz to cristobalite.
-- A **phase** is the gas, the silicate melt, the silicate solid, the metal, or a pure phase such as graphite. A phase can be mixed, with several species and an activity model, or pure, with a single species, of unity activity by default.
+- A **phase** is the gas, the silicate melt, the silicate solid, the metal, or a pure phase such as graphite. A phase can be mixed, with several species that mix ideally by default or with an activity model, or pure, with a single species, of unity activity by default.
 
 Names
 -----
@@ -97,16 +97,16 @@ Placing species in phases
 ``ThermodynamicState.from_species`` and ``Planet.from_species`` take the species of each phase:
 
 - ``gas_species``: gases only, from ``ChemicalSpecies.create_gas``;
-- ``silicate_melt_species``: condensed species, from ``ChemicalSpecies.from_end_member``, and dissolved species, since the silicate melt is the solvent of the solubility laws;
+- ``silicate_melt_species``: condensed species, from ``ChemicalSpecies.from_end_member`` or, for a stitched component, ``from_formula`` and ``from_end_members``, and dissolved species, since the silicate melt is the solvent of the solubility laws;
 - ``silicate_solid_species`` and ``metal_species``: condensed species only, with an activity model if needed;
 - ``condensates``: pure phases, from the methods of ``PurePhase``.
 
 A species given for the wrong phase raises an error that says how to create the right one, as do two species, or two pure phases, with the same name.
 
-The phase also decides how the data of a condensed species are extrapolated outside their temperature range, unless it is set explicitly: a pure phase is not stable there, whereas an end-member of the silicate melt, silicate solid or metal is extended with a constant heat capacity (see :ref:`species-extrapolation`).
+The phase also decides how the data of a condensed species are extrapolated outside their temperature range, unless it is set explicitly: a pure phase is not stable there, whereas a species of the silicate melt, silicate solid or metal is extended with a constant heat capacity (see :ref:`species-extrapolation`).
 
 Stitching end-members together
------------------------------------
+------------------------------
 
 The thermodynamic data are at 1 bar, and the temperature ranges of the condensed end-members of a formula give their stable sequence at 1 bar, so stitching them together gives the stable end-member at each temperature. Stitching requires that:
 
@@ -138,7 +138,7 @@ The defaults follow the role of the species:
 
 - **Gases** use ``"data"``.
 - **Pure phases** use ``"off"``, because the range of a pure condensate is its stable range at 1 bar. SiO2 is liquid above its melting point and solid below it, so the same condensates can be included at any temperature. To extend a pure phase where the bound is only the end of the data, set the extrapolation on that side, e.g. ``PurePhase.from_end_member("ice", extrapolate_below="data")`` for ice below 200 K.
-- **End-members of a mixed phase**, such as the silicate melt, the metal, or any ``CondensedPhase`` with several species, use ``"constant_cp"``. Unlike a pure phase, a mixture needs its end-members where they are metastable as pure phases: liquid SiO2 is an end-member of a basaltic melt at 1500 K, far below its melting point of 1996 K. Both sides are extended, so a solid end-member of a solid solution is likewise available above its melting point, and a liquid above the end of its data (usually 6000 K). The constant heat capacity keeps the extension well behaved for any form of the data.
+- **Species of a mixed phase**, i.e. the silicate melt, the silicate solid, the metal, or any other ``CondensedPhase`` that is not a ``PurePhase``, use ``"constant_cp"``. Unlike a pure phase, a mixture needs its end-members where they are metastable as pure phases: liquid SiO2 is an end-member of a basaltic melt at 1500 K, far below its melting point of 1996 K. Both sides are extended, so a solid in a mixed solid phase is likewise available above its melting point, and a liquid above the end of its data (usually 6000 K). The constant heat capacity keeps the extension well behaved for any form of the data.
 
 The default is decided by the phase, so a species created with ``ChemicalSpecies.from_end_member``, ``from_formula`` or ``from_end_members`` and no extrapolation is ``"off"`` in a ``PurePhase`` and ``"constant_cp"`` in a ``CondensedPhase``. An extrapolation that is set explicitly is kept.
 
@@ -163,9 +163,9 @@ The extension is not calibrated, so its accuracy decreases with the distance fro
 Activities in a mixed phase
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, a mixed phase is ideal: the activity of each species is its mole fraction, :math:`a_i = x_i`. A non-ideal model is set for each end-member with ``activity``, and receives the mole fractions of the phase, e.g. ``Si_iron_badro15`` for Si in liquid Fe. The interaction parameters of the end-members should be consistent with each other. Ideal mixing of oxide liquids is a poor approximation for silicate melts, whose mixing is strongly non-ideal, so a realistic melt needs an activity model.
+By default, a mixed phase is ideal: the activity of each species is its mole fraction, :math:`a_i = x_i`. A non-ideal model is set for each species with ``activity``, and receives the mole fractions of the phase, e.g. ``Si_iron_badro15`` for Si in liquid Fe. The interaction parameters of the species should be consistent with each other. Ideal mixing of oxide liquids is a poor approximation for silicate melts, whose mixing is strongly non-ideal, so a realistic melt needs an activity model.
 
-The mole fractions, and hence the activities, are taken over the species that are included in the phase total, together with any background moles. Species that are not included in the phase total (``include_in_phase_mass=False``), e.g. dissolved volatiles in the dilute limit, do not dilute the end-members, so they do not change the mole fractions or activities of the end-members.
+The mole fractions, and hence the activities, are taken over the species that are included in the phase total, together with any background moles. Species that are not included in the phase total (``include_in_phase_mass=False``), e.g. dissolved volatiles in the dilute limit, do not dilute the other species, so they do not change their mole fractions or activities.
 
 Mixed phases and solids
 ^^^^^^^^^^^^^^^^^^^^^^^

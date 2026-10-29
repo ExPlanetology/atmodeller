@@ -915,7 +915,7 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
                     f"are for the silicate melt, not {misplaced}. Use condensed species, with an "
                     "activity model if needed."
                 )
-        # An end-member of a mixed phase is needed where it is metastable as a pure phase. A pure
+        # A species of a mixed phase is needed where it is metastable as a pure phase. A pure
         # phase has already set its extrapolation.
         species = tuple(
             _resolve_extrapolation(species_, EXTRAPOLATION_CONSTANT_CP) for species_ in species
