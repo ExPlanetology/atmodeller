@@ -20,6 +20,7 @@ from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
+from atmodeller.database import DataBase
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
@@ -27,16 +28,12 @@ from atmodeller.thermodata import (
 )
 from atmodeller.thermodata import holland_powell, vassiliev
 from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
-from atmodeller.thermodata.defaults import default_properties
-from atmodeller.thermodata.janaf import (
+from atmodeller.thermodata.glenn import (
     NasaGlennThermodynamicProperties,
     glenn_properties,
-    stitch_glenn_properties,
 )
 
-graphite: NasaGlennThermodynamicProperties = cast(
-    NasaGlennThermodynamicProperties, glenn_properties["C_s"]
-)
+graphite: NasaGlennThermodynamicProperties = glenn_properties["C"]["graphite"]
 """Graphite from the NASA Glenn coefficients"""
 
 TEMPERATURE: Array = jnp.linspace(200.0, 6000.0, 2901)
@@ -116,50 +113,48 @@ def test_gustafson_reproduces_sgte_boundary() -> None:
 def test_glenn_formulae_are_hill() -> None:
     """Every formula in the NASA Glenn data is in Hill order, since species are looked up by the
     Hill formula of their input formula"""
-    formulae: set[str] = {name.rsplit("_", 1)[0] for name in glenn_properties}
+    formulae: set[str] = set(glenn_properties)
     not_hill: list[str] = sorted(f for f in formulae if Formula(f).formula != f)
 
     assert not not_hill, f"Not in Hill order: {not_hill}"
     assert ChemicalSpecies.create_gas("NH").name == "HN_g"
 
 
-def test_phase_components_and_stitching() -> None:
-    """Each phase component is an entry, and stitching the condensed ones of a formula in order of
-    temperature gives the same as the solid and liquid entries; overlaps, gaps and volume models
-    cannot be stitched"""
-    glenn = cast(dict[str, NasaGlennThermodynamicProperties], glenn_properties)
-    silica = stitch_glenn_properties(
+def test_end_members_and_stitching() -> None:
+    """Stitching the condensed end-members of a formula in order of temperature gives each
+    end-member in its range; overlaps, gaps and volume models cannot be stitched"""
+    stitch = NasaGlennThermodynamicProperties.stitch
+    silica: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["O2Si"]
+    stitched = stitch(
         {
-            name: glenn[f"O2Si_{name}"]
-            for name in ("quartz-beta", "cristobalite-beta", "quartz-alpha")
+            name: silica[name]
+            for name in ("quartz-beta", "liquid", "cristobalite-beta", "quartz-alpha")
         }
-        | {"liquid": glenn["O2Si_l"]}
     )
-    solid: Array = jnp.array([300.0, 1000.0, 1500.0, 1990.0])
-    liquid: Array = jnp.array([2500.0, 4000.0])
-
-    np.testing.assert_array_equal(
-        silica.standard_gibbs_over_RT(solid), glenn["O2Si_s"].standard_gibbs_over_RT(solid)
-    )
-    np.testing.assert_array_equal(
-        silica.standard_gibbs_over_RT(liquid), glenn["O2Si_l"].standard_gibbs_over_RT(liquid)
-    )
-    # A single phase component is returned as it is, so graphite keeps its volume
-    graphite = cast(NasaGlennThermodynamicProperties, default_properties["C_graphite"])
-    assert stitch_glenn_properties({"graphite": graphite}) is graphite
-    np.testing.assert_array_equal(
-        graphite.standard_gibbs_over_RT(solid, 1e4),
-        default_properties["C_s"].standard_gibbs_over_RT(solid, 1e4),
-    )
-
-    with pytest.raises(ValueError, match="overlaps"):
-        stitch_glenn_properties({"hematite": glenn["Fe2O3_hematite"], "liquid": glenn["Fe2O3_l"]})
-    with pytest.raises(ValueError, match="gap"):
-        stitch_glenn_properties(
-            {"quartz-alpha": glenn["O2Si_quartz-alpha"], "liquid": glenn["O2Si_l"]}
+    for temperature, name in (
+        (300.0, "quartz-alpha"),
+        (1000.0, "quartz-beta"),
+        (1500.0, "cristobalite-beta"),
+        (4000.0, "liquid"),
+    ):
+        np.testing.assert_array_equal(
+            stitched.standard_gibbs_over_RT(temperature),
+            silica[name].standard_gibbs_over_RT(temperature),
         )
+    # A single end-member is returned as it is, so graphite keeps its volume
+    graphite_volume = cast(
+        NasaGlennThermodynamicProperties,
+        DataBase.default().get_end_member("C", "graphite"),
+    )
+    assert stitch({"graphite": graphite_volume}) is graphite_volume
+
+    hematite: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["Fe2O3"]
+    with pytest.raises(ValueError, match="overlaps"):
+        stitch(hematite)
+    with pytest.raises(ValueError, match="gap"):
+        stitch({name: silica[name] for name in ("quartz-alpha", "liquid")})
     with pytest.raises(ValueError, match="volume model"):
-        stitch_glenn_properties({"graphite": graphite, "other": glenn["C_graphite"]})
+        stitch({"graphite": graphite_volume, "other": graphite})
 
 
 def test_ions_can_be_selected() -> None:
@@ -185,7 +180,7 @@ def test_glenn_extrapolation_uses_nearest_range() -> None:
 def test_no_extrapolation_holds_gibbs_and_adds_penalty() -> None:
     """Without extrapolation, G is held at the bound and the penalty is added outside the range.
     Condensates do not extrapolate by default, whereas gases keep the shared default data."""
-    water: ThermodynamicProperties = glenn_properties["H2O_l"]
+    water: ThermodynamicProperties = glenn_properties["H2O"]["liquid"]
     no_extrapolation: ThermodynamicProperties = water.with_extrapolation(False, False)
     temperature_min, temperature_max = water.temperature_range()
 
@@ -209,9 +204,11 @@ def test_no_extrapolation_holds_gibbs_and_adds_penalty() -> None:
         water.standard_gibbs_over_RT(200.0),
     )
 
-    condensed: ThermodynamicProperties = ChemicalSpecies.create_condensed("H2O", state="l").thermo
+    condensed: ThermodynamicProperties = ChemicalSpecies.from_end_member(
+        "liquid", formula="H2O"
+    ).thermo
     assert not condensed.extrapolate_below and not condensed.extrapolate_above
-    assert ChemicalSpecies.create_gas("H2O").thermo is glenn_properties["H2O_g"]
+    assert ChemicalSpecies.create_gas("H2O").thermo is glenn_properties["H2O"]["gas"]
 
 
 def test_vassiliev_heat_capacity() -> None:

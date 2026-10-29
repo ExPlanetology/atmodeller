@@ -15,17 +15,20 @@ import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller.constants import (
-    DISSOLVED_STATE,
-    GAS_STATE,
+    DISSOLVED_SUFFIX,
+    GAS_END_MEMBER,
+    GAS_SUFFIX,
+    LIQUID_END_MEMBER,
+    LIQUID_SUFFIX,
     LOG_NUMBER_MOLES_LOWER,
     LOG_NUMBER_MOLES_UPPER,
     LOG_STABILITY_LOWER,
     LOG_STABILITY_UPPER,
-    SOLID_STATE,
     TAU,
     TAU_MAX,
     TAU_NUM,
 )
+from atmodeller.database import DataBase
 from atmodeller.eos.core import IdealGas
 from atmodeller.interfaces import (
     ActivityProtocol,
@@ -37,11 +40,7 @@ from atmodeller.interfaces import (
 from atmodeller.jax_utils import NpFloat, NpInt, RootFindParameters, as_j64
 from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
-from atmodeller.thermodata import (
-    ActivityCoefficient,
-    ThermodynamicProperties,
-    default_properties,
-)
+from atmodeller.thermodata import ActivityCoefficient, ThermodynamicProperties
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -58,6 +57,7 @@ class ChemicalSpecies(eqx.Module):
             Gibbs energy, e.g. ``species.thermo.enthalpy(temperature)``
         include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
             fraction aggregations.
+        is_gas: Whether the species is a gas, which can only be in the gas phase
     """
 
     data: ChemicalSpeciesData
@@ -66,17 +66,19 @@ class ChemicalSpecies(eqx.Module):
     number_solution: int
     thermo: ThermodynamicProperties
     include_in_phase_mass: bool
+    is_gas: bool
 
     @classmethod
-    def create(
+    def _create(
         cls,
         formula: str,
-        state: str,
+        suffix: str,
         activity: ActivityProtocol,
         solve_for_stability: bool,
         number_solution: int,
         include_in_phase_mass: bool,
-        thermo: ThermodynamicProperties | None = None,
+        thermo: ThermodynamicProperties,
+        is_gas: bool,
         extrapolate_below: bool = True,
         extrapolate_above: bool = True,
     ) -> Self:
@@ -84,14 +86,14 @@ class ChemicalSpecies(eqx.Module):
 
         Args:
             formula: Formula
-            state: State of aggregation, as typically defined by JANAF
+            suffix: Suffix of the name, e.g. ``g`` for ``H2O_g``
             activity: Activity
             solve_for_stability: Solve for stability
             number_solution: Number of solution quantities
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations.
-            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            thermo: Thermodynamic properties
+            is_gas: Whether the species is a gas
             extrapolate_below: Whether to extrapolate the thermodynamic data below their
                 temperature range, otherwise the species is not stable there. Defaults to
                 ``True``.
@@ -102,16 +104,7 @@ class ChemicalSpecies(eqx.Module):
         Returns:
             An instance
         """
-        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state)
-
-        if thermo is None:
-            try:
-                thermo = default_properties[species_data.name]
-            except KeyError:  # pragma: no cover
-                raise KeyError(
-                    f"{species_data.name} not available. "
-                    f"Available species are {tuple(default_properties)}"
-                )
+        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, suffix)
 
         if not (extrapolate_below and extrapolate_above):
             thermo = thermo.with_extrapolation(extrapolate_below, extrapolate_above)
@@ -123,22 +116,30 @@ class ChemicalSpecies(eqx.Module):
             number_solution,
             thermo,
             include_in_phase_mass,
+            is_gas,
         )
 
     @classmethod
-    def create_condensed(
+    def from_end_member(
         cls,
-        formula: str,
+        end_member: str,
         *,
-        state: str = SOLID_STATE,
+        formula: str | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
-        thermo: ThermodynamicProperties | None = None,
+        database: DataBase | None = None,
         extrapolate_below: bool = False,
         extrapolate_above: bool = False,
     ) -> Self:
-        """Creates a condensed species with some default values.
+        """Creates a condensed species from an end-member
+
+        This creates the species of a pure phase, such as a mineral, or an end-member of a mixed
+        phase, such as the silicate melt or metal. The species is named from the end-member, e.g.
+        ``O2Si_cristobalite-beta``, or ``H2O_l`` for the liquid. To stitch several end-members
+        together for a pure phase, use
+        :meth:`~atmodeller.phases.PurePhase.from_formula` or
+        :meth:`~atmodeller.phases.PurePhase.from_end_members`.
 
         By default, the thermodynamic data are not extrapolated outside their temperature range,
         where the species is therefore not stable. A condensed phase is often bounded by a phase
@@ -146,15 +147,15 @@ class ChemicalSpecies(eqx.Module):
         temperature.
 
         Args:
-            formula: Formula
-            state: State of aggregation as defined by JANAF. Defaults to
-                :data:`~atmodeller.constants.SOLID_STATE`.
+            end_member: Name of the end-member, e.g. ``cristobalite-beta`` or ``liquid``
+            formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
+                needed for ``liquid``, which is an end-member of several formulas.
             activity: Activity. Defaults to unity activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            database: Database. Defaults to ``None``, which uses the default database
+                (:meth:`~atmodeller.database.DataBase.default`).
             extrapolate_below: Whether to extrapolate the thermodynamic data below their
                 temperature range, otherwise the species is not stable there. Defaults to
                 ``False``.
@@ -164,20 +165,61 @@ class ChemicalSpecies(eqx.Module):
 
         Returns:
             A condensed species
+
+        Raises:
+            KeyError: If the end-member is not available for the formula
+            ValueError: If the end-member is the gas, or is shared by several formulas and no
+                formula is given
+        """
+        if end_member == GAS_END_MEMBER:
+            raise ValueError("The gas is not a condensed end-member. Create it with create_gas.")
+        database = database or DataBase.default()
+        if formula is None:
+            formula = database.formula_of(end_member)
+
+        return cls._create_condensed(
+            formula,
+            LIQUID_SUFFIX if end_member == LIQUID_END_MEMBER else end_member,
+            database.get_end_member(formula, end_member),
+            activity=activity,
+            solve_for_stability=solve_for_stability,
+            include_in_phase_mass=include_in_phase_mass,
+            extrapolate_below=extrapolate_below,
+            extrapolate_above=extrapolate_above,
+        )
+
+    @classmethod
+    def _create_condensed(
+        cls,
+        formula: str,
+        suffix: str,
+        thermo: ThermodynamicProperties,
+        *,
+        activity: ActivityProtocol,
+        solve_for_stability: bool,
+        include_in_phase_mass: bool,
+        extrapolate_below: bool,
+        extrapolate_above: bool,
+    ) -> Self:
+        """Creates a condensed species from its thermodynamic properties
+
+        Used by :meth:`from_end_member` and :meth:`~atmodeller.phases.PurePhase.from_end_members`,
+        which take the thermodynamic properties from a database.
         """
         # Either both the number of moles and stability are solved for, or alternatively stability
         # can be enforced in which case the number of moles is irrelevant and there is nothing to
         # solve for.
         number_solution: int = 2 if solve_for_stability else 0
 
-        return cls.create(
+        return cls._create(
             formula,
-            state,
+            suffix,
             activity,
             solve_for_stability,
             number_solution,
             include_in_phase_mass,
             thermo,
+            False,
             extrapolate_below,
             extrapolate_above,
         )
@@ -187,42 +229,47 @@ class ChemicalSpecies(eqx.Module):
         cls,
         formula: str,
         *,
-        state: str = GAS_STATE,
         activity: ActivityProtocol = IdealGas(),
         solve_for_stability: bool = False,
         include_in_phase_mass: bool = True,
-        thermo: ThermodynamicProperties | None = None,
+        database: DataBase | None = None,
     ) -> Self:
         """Creates a gas species with some default values.
 
         Args:
             formula: Formula
-            state: State of aggregation as defined by JANAF. Defaults to
-                :data:`~atmodeller.constants.GAS_STATE`.
             activity: Activity. Defaults to an ideal gas.
             solve_for_stability: Solve for stability. Defaults to ``False``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            thermo: Thermodynamic properties. Defaults to ``None``, which looks up the species
-                in the default data (:data:`~atmodeller.thermodata.defaults.default_properties`).
+            database: Database. Defaults to ``None``, which uses the default database
+                (:meth:`~atmodeller.database.DataBase.default`).
 
         Returns:
             A gas species
+
+        Raises:
+            KeyError: If the gas is not available for the formula
         """
+        thermo: ThermodynamicProperties = (database or DataBase.default()).get_end_member(
+            formula, GAS_END_MEMBER
+        )
+
         # The number of moles is always solved for, and stability can be if desired, although
         # this is not typically done for gas species because they are usually stable over the range
         # of conditions considered and truncating the abundance can severely distort the results,
         # notably for O2.
         number_solution: int = 2 if solve_for_stability else 1
 
-        return cls.create(
+        return cls._create(
             formula,
-            state,
+            GAS_SUFFIX,
             activity,
             solve_for_stability,
             number_solution,
             include_in_phase_mass,
             thermo,
+            True,
         )
 
     @property
@@ -254,6 +301,11 @@ class ReservoirSpecies(eqx.Module):
     A species that is not part of the reaction network but can exchange with it. For example, this
     can represent a volatile species dissolved in a melt that can exchange with the gas phase but
     is not explicitly included in the reaction network.
+
+    This is separate from :class:`ChemicalSpecies` because dissolution is given by empirically
+    calibrated solubility laws, which relate the concentration of the dissolved species to the
+    fugacity of its gas, rather than by the Gibbs energy of a reaction. A reservoir species
+    therefore has a solubility law instead of thermodynamic data, and only enters the mass balance.
 
     Args:
         data: Chemical species data
@@ -291,7 +343,7 @@ class ReservoirSpecies(eqx.Module):
         Returns:
             A dissolved species
         """
-        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, state=DISSOLVED_STATE)
+        species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, DISSOLVED_SUFFIX)
 
         if solubility is None:  # pragma: no cover
             solubility = NoSolubility()

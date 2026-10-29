@@ -41,9 +41,9 @@ CHN_g: ChemicalSpecies = ChemicalSpecies.create_gas("CHN")
 H_g: ChemicalSpecies = ChemicalSpecies.create_gas("H")
 
 # Condensates
-graphite: PurePhase = PurePhase.from_component("graphite")
-diamond: PurePhase = PurePhase.from_component("diamond")
-water: PurePhase = PurePhase.from_component("liquid", formula="H2O")
+graphite: PurePhase = PurePhase.from_end_member("graphite")
+diamond: PurePhase = PurePhase.from_end_member("diamond")
+water: PurePhase = PurePhase.from_end_member("liquid", formula="H2O")
 
 
 def test_water_stable() -> None:
@@ -161,7 +161,7 @@ def test_impose_stable() -> None:
     # Since in this example we do not provide carbon in the injected gas stream, we cannot solve
     # for the stability of any carbon-bearing products because in order to do so requires
     # specification of the mass of carbon in the system.
-    imposed_graphite: PurePhase = PurePhase.from_component("graphite", solve_for_stability=False)
+    imposed_graphite: PurePhase = PurePhase.from_end_member("graphite", solve_for_stability=False)
     condensates: tuple[PurePhase, ...] = (imposed_graphite,)
 
     state: ThermodynamicState = ThermodynamicState.from_species(

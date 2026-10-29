@@ -47,10 +47,12 @@ Phases
 Each phase that contains at least one species has its own output. The phase keys are:
 
 - ``gas``: the gas phase (atmosphere)
-- ``silicate_melt``: species dissolved in the silicate melt
+- ``silicate_melt``: species in the silicate melt, both dissolved volatiles (e.g. ``H2O_d``) and
+  end-members of the melt (e.g. ``O2Si_l``)
 - ``silicate_solid``: species in the silicate solid
-- ``metal``: species in the metal phase
-- condensates: each condensed (pure) phase, keyed by its species name (e.g. ``C_graphite``, ``H2O_l``)
+- ``metal``: species in the metal, e.g. ``Fe_l`` and ``Si_l``
+- condensates: each pure phase, keyed by the name of its species (e.g. ``C_graphite``, ``H2O_l``;
+  see :doc:`species`)
 
 Phase-level outputs
 ~~~~~~~~~~~~~~~~~~~
@@ -188,8 +190,9 @@ Species
 -------
 
 Species outputs are under ``out[<phase>]["species"][<quantity>][<species>]`` (``named_arrays``) or
-``out[<species>][<phase>][<quantity>]`` (``elements_species``). Species names include a suffix for
-the phase (e.g. ``H2O_g`` for gas, ``H2O_d`` for dissolved in the melt).
+``out[<species>][<phase>][<quantity>]`` (``elements_species``). Species names end in a suffix, e.g.
+``H2O_g`` for gas, ``H2O_d`` for dissolved in the melt or ``C_graphite`` for a mineral (see
+:doc:`species`).
 
 .. list-table:: Outputs for species in each phase
    :widths: 30 20 50

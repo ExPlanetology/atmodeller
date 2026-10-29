@@ -34,7 +34,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike, Bool, Float
 
-from atmodeller.constants import DISSOLUTION_PPMW_FLOOR, GAS_STATE, SILICATE_MELT_PHASE_INDEX
+from atmodeller.constants import DISSOLUTION_PPMW_FLOOR, GAS_SUFFIX, SILICATE_MELT_PHASE_INDEX
 from atmodeller.containers import SpeciesCollection, get_formula_matrix
 from atmodeller.interfaces import SpeciesProtocol
 from atmodeller.jax_utils import (
@@ -48,7 +48,6 @@ from atmodeller.jax_utils import (
     safe_exp,
 )
 from atmodeller.phases import BasePhase, GasPhase
-from atmodeller.thermodata import default_properties
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -133,7 +132,7 @@ class PhaseSystem(eqx.Module):
         other_phases: Tuple of other phases
 
     Raises:
-        ValueError: If two phases have the same name
+        ValueError: If another phase is not a phase, or two phases have the same name
     """
 
     phases: tuple[BasePhase, ...]
@@ -145,6 +144,15 @@ class PhaseSystem(eqx.Module):
 
     def __init__(self, gas: GasPhase, *, other_phases: Optional[tuple[BasePhase, ...]] = None):
         other_phases_ = tuple() if other_phases is None else other_phases
+        # Other than the phases that are created for a state, these are the condensates
+        not_phases: list[str] = [
+            type(phase).__name__ for phase in other_phases_ if not isinstance(phase, BasePhase)
+        ]
+        if not_phases:
+            raise ValueError(
+                'Condensates must be pure phases, e.g. PurePhase.from_end_member("graphite"), not '
+                f"{not_phases}"
+            )
         self.phases = (gas,) + other_phases_
         names: list[str] = [phase.name for phase in self.phases]
         duplicates: list[str] = sorted({name for name in names if names.count(name) > 1})
@@ -302,10 +310,6 @@ class ReactionNetwork(BaseReactionBlock):
             np.floor(temperature_max),
         )
 
-    @classmethod
-    def available_species(cls) -> tuple[str, ...]:  # pragma: no cover
-        return tuple(default_properties)
-
     @property
     def number_reactions(self) -> int:
         """Number of core reactions"""
@@ -431,7 +435,7 @@ class DissolutionNetwork(BaseReactionBlock):
                 dtype=bool,
             )
             # Gas species index
-            name: str = f"{dissolution_species_.data.hill_formula}_{GAS_STATE}"
+            name: str = f"{dissolution_species_.data.hill_formula}_{GAS_SUFFIX}"
             if name not in self.species.species_names:
                 raise ValueError(
                     f"Dissolved species {dissolution_species_.data.name} needs the gas species "

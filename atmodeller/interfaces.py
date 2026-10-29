@@ -20,6 +20,7 @@ import equinox as eqx
 from jaxtyping import Array, ArrayLike, Bool
 from molmass import Formula
 
+from atmodeller.constants import GAS_SUFFIX
 from atmodeller.jax_utils import FloatArray
 from atmodeller.sci_utils import unit_conversion
 
@@ -34,14 +35,16 @@ class ChemicalSpeciesData(eqx.Module):
 
     Args:
         formula: Formula
-        state: State of aggregation, typically follows JANAF convention: 'g' for gas, 'l' for
-            liquid, 's' for solid.
+        suffix: Suffix of the name: ``g`` for a gas, ``l`` for a liquid, ``d`` for a dissolved
+            species, the end-member for a mineral (e.g. ``quartz-alpha``), ``cd`` for
+            stitched end-members, ``s`` for stitched solid end-members, or another name for a
+            chosen stitch
     """
 
     formula: str
     """Formula"""
-    state: str
-    """State of aggregation. Defaults to an empty string."""
+    suffix: str
+    """Suffix of the name"""
     composition: dict[str, tuple[int, float, float]]
     """Composition"""
     hill_formula: str
@@ -49,9 +52,9 @@ class ChemicalSpeciesData(eqx.Module):
     molar_mass: float = eqx.field(converter=float)
     """Molar mass"""
 
-    def __init__(self, formula: str, state: str = ""):
+    def __init__(self, formula: str, suffix: str):
         self.formula = formula
-        self.state = state
+        self.suffix = suffix
         mformula: Formula = Formula(self.formula)
         self.composition = mformula.composition().asdict()
         self.hill_formula = mformula.formula
@@ -64,8 +67,25 @@ class ChemicalSpeciesData(eqx.Module):
 
     @property
     def name(self) -> str:
-        """Unique name by combining Hill notation and state of aggregation"""
-        return f"{self.hill_formula}_{self.state}"
+        """Unique name from the Hill formula and the suffix, e.g. ``H2O_g``"""
+        return f"{self.hill_formula}_{self.suffix}"
+
+
+def species_name(formula: str, suffix: str = GAS_SUFFIX) -> str:
+    """Name of a species, from the Hill formula of its formula and a suffix
+
+    This gives the names used for constraints and in the output, e.g. ``species_name("SO2")`` is
+    ``O2S_g`` and ``species_name("SiO2", "l")`` is ``O2Si_l``.
+
+    Args:
+        formula: Formula
+        suffix: Suffix of the name (see :class:`ChemicalSpeciesData`). Defaults to
+            :data:`~atmodeller.constants.GAS_SUFFIX`.
+
+    Returns:
+        Name of the species
+    """
+    return ChemicalSpeciesData(formula, suffix).name
 
 
 @runtime_checkable

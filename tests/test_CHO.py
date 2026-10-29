@@ -289,7 +289,7 @@ CHO_CASES: dict[str, tuple[float, float, float, float, float, list[dict[str, Any
 def CHO_solution() -> Output:
     """Solution of the C-H-O model with graphite, solved for all cases in one batch"""
     gas_species: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_g)
-    condensates: tuple[PurePhase, ...] = (PurePhase.from_component("graphite"),)
+    condensates: tuple[PurePhase, ...] = (PurePhase.from_end_member("graphite"),)
 
     def column(index: int) -> ArrayLike:
         return np.array([case[index] for case in CHO_CASES.values()], dtype=float)

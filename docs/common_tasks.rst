@@ -10,44 +10,48 @@ If you extend the capabilities of *Atmodeller*, you are encouraged to contribute
 
     *Atmodeller* is designed to be highly modular, enabling each sub-package to be developed and tested independently. This modular architecture makes it easier to focus on specific functionality without needing to modify or execute the entire codebase.
 
+.. _CommonTasksThermodynamicData:
+
 Add thermodynamic data
 ----------------------
 
 Thermodynamic data are stored in the file ``nasa_glenn_coefficients.txt``, located within the ``thermodata`` sub-package under the ``data`` directory. These data follow the formulation of :cite:t:`MZG02` (https://ntrs.nasa.gov/citations/20020085330), in which thermodynamic properties---heat capacity, enthalpy, and entropy---are expressed using polynomial coefficients. You can extend the range of available species in *Atmodeller* by adding data from :cite:t:`MZG02`. For consistency, *Atmodeller* adopts Hill notation when representing chemical formulae.
 
-In some cases, :cite:t:`MZG02` may not include the species of interest, or it may lack coefficients for the required temperature range. In such situations, you must fit the thermodynamic data yourself for the species and temperature range in question, ensuring consistency with the standard state (1 bar), the reference temperature (298.15 K) and the definition of reference enthalpy, as discussed in the introduction of :cite:t:`MZG02`. Additional guidance is provided through the methods and docstrings in the ``thermodata.core`` and ``thermodata.janaf`` modules, including how to relate these data to JANAF tables :cite:p:`Cha98`.
+In some cases, :cite:t:`MZG02` may not include the species of interest, or it may lack coefficients for the required temperature range. In such situations, you must fit the thermodynamic data yourself for the species and temperature range in question, ensuring consistency with the standard state (1 bar), the reference temperature (298.15 K) and the definition of reference enthalpy, as discussed in the introduction of :cite:t:`MZG02`. Additional guidance is provided through the methods and docstrings in the ``thermodata.core`` and ``thermodata.glenn`` modules, including how to relate these data to JANAF tables :cite:p:`Cha98`.
 
-Rather than editing the packaged file, you can also load your own file of coefficients in the same format and create species from it:
-
-.. code-block:: python
-
-    from atmodeller import GlennDataBase
-
-    db = GlennDataBase.from_file("my_glenn_coefficients.txt")
-    h2o_g = db.create_gas("H2O")
-    h2o_l = db.condensed_from_component("liquid", formula="H2O")
-
-``GlennDataBase()`` uses the packaged data unchanged. ``ChemicalSpecies.create_gas`` and ``ChemicalSpecies.create_condensed`` instead use the default data (``default_properties`` in ``atmodeller.thermodata``), which are the packaged data with graphite (``C_graphite``) given the volume of :cite:t:`Gustafson1986` and diamond (``C_diamond``) added from the same assessment. The volumes make the Gibbs energies of graphite and diamond, and hence the equilibrium constant of any reaction involving them, depend on pressure; their activities are unchanged, as are gases and other condensates. ``get_default_database()`` returns a database of the default data. To provide data from another source, inherit from ``DataBase`` in the ``database`` module and implement its abstract methods.
-
-You can add a species to a database, or replace an existing one, with ``add_species``. For example, diamond from the assessment of :cite:t:`Gustafson1986` can be added alongside graphite (``C_graphite``) in a database of the packaged data. Diamond has a volume model, so graphite must be given the volume model of the same assessment, replacing the packaged graphite, which has none. Otherwise only diamond depends on pressure and the graphite-diamond transition is wrong above about 1 bar:
+Each row of the file gives the coefficients of one temperature range of an end-member, with the columns ``end_member,hill_formula,T_min,T_max,a1,...,a7,b1,b2``. The end-member is ``gas``, ``liquid`` or the name of a mineral, such as ``quartz-alpha``, which must refer to one formula only. Rather than editing the packaged file, you can also load your own file in the same format and create species from it by passing the database:
 
 .. code-block:: python
 
-    from atmodeller import GlennDataBase
+    from atmodeller import ChemicalSpecies, DataBase, PurePhase
+
+    db = DataBase.from_glenn_file("my_glenn_coefficients.txt")
+    h2o_g = ChemicalSpecies.create_gas("H2O", database=db)
+    h2o_l = ChemicalSpecies.from_end_member("liquid", formula="H2O", database=db)
+    sio2 = PurePhase.from_formula("SiO2", database=db)
+
+Without a database, species are created from the default database, ``DataBase.default()``, which is the packaged data with graphite given the volume of :cite:t:`Gustafson1986` and diamond added from the same assessment. The volumes make the Gibbs energies of graphite and diamond, and hence the equilibrium constant of any reaction involving them, depend on pressure; their activities are unchanged, as are gases and other condensates. To provide data from another source, create a ``DataBase`` (in the ``database`` module) with the data keyed by Hill formula and then end-member, e.g. ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``. The packaged data without these changes are ``DataBase(glenn_properties)``, with ``glenn_properties`` from ``atmodeller.thermodata``.
+
+You can add an end-member to a database, or replace an existing one, with ``set_end_member``. For example, diamond from the assessment of :cite:t:`Gustafson1986` can be added alongside graphite in a database of the packaged data. Diamond has a volume model, so graphite must be given the volume model of the same assessment, replacing the packaged graphite, which has none. Otherwise only diamond depends on pressure and the graphite-diamond transition is wrong above about 1 bar:
+
+.. code-block:: python
+
+    from atmodeller import ChemicalSpecies, DataBase
+    from atmodeller.thermodata import glenn_properties
     from atmodeller.thermodata.gustafson import GRAPHITE_VOLUME_GUSTAFSON, diamond_gustafson
 
-    db = GlennDataBase()
-    graphite = db.get_thermodynamic_properties("C_graphite")
-    db.add_species("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
-    db.add_species("C", "diamond", diamond_gustafson)  # named "C_diamond"
-    c_graphite = db.condensed_from_component("graphite")
-    c_diamond = db.condensed_from_component("diamond")
+    db = DataBase(glenn_properties)
+    graphite = db.get_end_member("C", "graphite")
+    db.set_end_member("C", "graphite", graphite.with_volume(GRAPHITE_VOLUME_GUSTAFSON))
+    db.set_end_member("C", "diamond", diamond_gustafson)
+    c_graphite = ChemicalSpecies.from_end_member("graphite", database=db)  # named "C_graphite"
+    c_diamond = ChemicalSpecies.from_end_member("diamond", database=db)  # named "C_diamond"
 
-This is what ``get_default_database()`` returns and what ``ChemicalSpecies`` uses by default, so you can start from it and add further species. Diamond (``diamond_gustafson`` in ``atmodeller.thermodata.gustafson``) has the Gibbs energy of graphite plus the Gibbs energy of diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, which is valid to 6000 K, and graphite and diamond take the volumes of the same assessment.
+This is the default database, so you can start from ``DataBase.default()`` and add further end-members. Diamond (``diamond_gustafson`` in ``atmodeller.thermodata.gustafson``) has the Gibbs energy of graphite plus the Gibbs energy of diamond relative to graphite from the assessment of :cite:t:`Gustafson1986`, which is valid to 6000 K, and graphite and diamond take the volumes of the same assessment. An end-member that is replaced, such as graphite, is still stitched together with the other end-members of its formula by ``PurePhase.from_formula``, whereas an end-member that is added, such as diamond, can only be selected on its own.
 
-Species with only a heat capacity model can be added with ``IntegratedThermodynamicProperties`` in ``atmodeller.thermodata``, which integrates the heat capacity from the enthalpy and entropy at the reference temperature.
+Data with only a heat capacity model can be created with ``IntegratedThermodynamicProperties`` in ``atmodeller.thermodata``, which integrates the heat capacity from the enthalpy and entropy at the reference temperature, and added to a database with ``set_end_member``.
 
-The temperature range of the data you add matters for condensates. By default, a condensate is not stable outside the temperature range of its data (``temperature_range()``): its Gibbs energy is held at its value at the bound, and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added. This is because the range of a condensed phase is often bounded by a phase boundary, such as a melting point. Gas data are extrapolated instead. To extrapolate the data of a condensate below or above its range, pass ``extrapolate_below=True`` or ``extrapolate_above=True`` to ``create_condensed`` (or the ``PurePhase`` methods, such as ``PurePhase.from_component``), or call ``with_extrapolation`` on the thermodynamic properties.
+The temperature range of the data you add matters for condensates. By default, a condensate is not stable outside the temperature range of its data (``temperature_range()``): its Gibbs energy is held at its value at the bound, and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added. This is because the range of a condensed phase is often bounded by a phase boundary, such as a melting point. Gas data are extrapolated instead. To extrapolate the data of a condensate below or above its range, pass ``extrapolate_below=True`` or ``extrapolate_above=True`` to ``ChemicalSpecies.from_end_member`` or the ``PurePhase`` methods.
 
 Add solubility laws
 -------------------
