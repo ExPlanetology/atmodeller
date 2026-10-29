@@ -16,6 +16,7 @@ from jaxtyping import Array, ArrayLike, Bool, Float
 
 from atmodeller.constants import (
     DISSOLVED_SUFFIX,
+    EXTRAPOLATION_DATA,
     GAS_END_MEMBER,
     GAS_SUFFIX,
     LIQUID_END_MEMBER,
@@ -27,6 +28,7 @@ from atmodeller.constants import (
     TAU,
     TAU_MAX,
     TAU_NUM,
+    Extrapolation,
 )
 from atmodeller.database import DataBase
 from atmodeller.eos.core import IdealGas
@@ -79,8 +81,8 @@ class ChemicalSpecies(eqx.Module):
         include_in_phase_mass: bool,
         thermo: ThermodynamicProperties,
         is_gas: bool,
-        extrapolate_below: bool = True,
-        extrapolate_above: bool = True,
+        extrapolate_below: Extrapolation | None = EXTRAPOLATION_DATA,
+        extrapolate_above: Extrapolation | None = EXTRAPOLATION_DATA,
     ) -> Self:
         """Creates an instance.
 
@@ -94,19 +96,17 @@ class ChemicalSpecies(eqx.Module):
                 fraction aggregations.
             thermo: Thermodynamic properties
             is_gas: Whether the species is a gas
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``True``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``True``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range. Defaults to ``"data"``.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``"data"``.
 
         Returns:
             An instance
         """
         species_data: ChemicalSpeciesData = ChemicalSpeciesData(formula, suffix)
 
-        if not (extrapolate_below and extrapolate_above):
+        if (extrapolate_below, extrapolate_above) != (EXTRAPOLATION_DATA, EXTRAPOLATION_DATA):
             thermo = thermo.with_extrapolation(extrapolate_below, extrapolate_above)
 
         return cls(
@@ -129,8 +129,8 @@ class ChemicalSpecies(eqx.Module):
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
         database: DataBase | None = None,
-        extrapolate_below: bool = False,
-        extrapolate_above: bool = False,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
     ) -> Self:
         """Creates a condensed species from an end-member
 
@@ -141,10 +141,12 @@ class ChemicalSpecies(eqx.Module):
         :meth:`~atmodeller.phases.PurePhase.from_formula` or
         :meth:`~atmodeller.phases.PurePhase.from_end_members`.
 
-        By default, the thermodynamic data are not extrapolated outside their temperature range,
-        where the species is therefore not stable. A condensed phase is often bounded by a phase
-        boundary, such as a melting point, so the same set of condensates can be used at any
-        temperature.
+        By default, the extrapolation of the thermodynamic data outside their temperature range is
+        decided by the phase of the species: in a pure phase, the species is not stable there
+        (``"off"``), since a pure phase is often bounded by a phase boundary, such as a melting
+        point; in a mixed phase, such as the silicate melt, the data are extended with a constant
+        heat capacity (``"constant_cp"``), since an end-member is needed where it is metastable as
+        a pure phase (see :class:`~atmodeller.thermodata.core.ThermodynamicProperties`).
 
         Args:
             end_member: Name of the end-member, e.g. ``cristobalite-beta`` or ``liquid``
@@ -156,12 +158,11 @@ class ChemicalSpecies(eqx.Module):
                 fraction aggregations. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database
                 (:meth:`~atmodeller.database.DataBase.default`).
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``False``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the species is not stable there. Defaults to
-                ``False``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is decided by the phase.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is decided by the phase.
 
         Returns:
             A condensed species
@@ -198,8 +199,8 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol,
         solve_for_stability: bool,
         include_in_phase_mass: bool,
-        extrapolate_below: bool,
-        extrapolate_above: bool,
+        extrapolate_below: Extrapolation | None,
+        extrapolate_above: Extrapolation | None,
     ) -> Self:
         """Creates a condensed species from its thermodynamic properties
 

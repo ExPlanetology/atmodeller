@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Tests the integrated thermodynamic properties, the diamond of Gustafson (1986), the Hill
-formulae of the NASA Glenn data and the data outside their temperature ranges with and without
+formulae of the NASA Glenn data and the data outside their temperature ranges with each
 extrapolation, and the alternative carbon and silicon models of Vassiliev (2021) and Holland and
 Powell"""
 
@@ -21,6 +21,7 @@ from scipy.optimize import brentq
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
 from atmodeller.database import DataBase
+from atmodeller.phases import CondensedPhase, PurePhase
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
     IntegratedThermodynamicProperties,
@@ -177,37 +178,65 @@ def test_glenn_extrapolation_uses_nearest_range() -> None:
     )
 
 
-def test_no_extrapolation_holds_gibbs_and_adds_penalty() -> None:
-    """Without extrapolation, G is held at the bound and the penalty is added outside the range.
-    Condensates do not extrapolate by default, whereas gases keep the shared default data."""
+def test_extrapolation_modes() -> None:
+    """Outside the range, "off" holds G at the bound and adds the penalty, "data" evaluates the
+    data and "constant_cp" extends them with the heat capacity at the bound. Unset condensates are
+    off in a pure phase and constant cp in a mixed phase, whereas gases keep the shared data."""
     water: ThermodynamicProperties = glenn_properties["H2O"]["liquid"]
-    no_extrapolation: ThermodynamicProperties = water.with_extrapolation(False, False)
+    off: ThermodynamicProperties = water.with_extrapolation("off", "off")
     temperature_min, temperature_max = water.temperature_range()
 
     def held(temperature_bound: float, temperature: float) -> Array:
         return water.gibbs_energy(temperature_bound) / (GAS_CONSTANT * temperature)
 
     np.testing.assert_array_equal(
-        no_extrapolation.standard_gibbs_over_RT(500.0), water.standard_gibbs_over_RT(500.0)
+        off.standard_gibbs_over_RT(500.0), water.standard_gibbs_over_RT(500.0)
     )
     np.testing.assert_allclose(
-        no_extrapolation.standard_gibbs_over_RT(jnp.array([200.0, 1000.0])),
+        off.standard_gibbs_over_RT(jnp.array([200.0, 1000.0])),
         [
             held(temperature_min, 200.0) + NO_DATA_GIBBS_OVER_RT,
             held(temperature_max, 1000.0) + NO_DATA_GIBBS_OVER_RT,
         ],
         rtol=1e-12,
     )
-    # Extrapolating below only
+    # Data below only
     np.testing.assert_array_equal(
-        water.with_extrapolation(True, False).standard_gibbs_over_RT(200.0),
+        water.with_extrapolation("data", "off").standard_gibbs_over_RT(200.0),
         water.standard_gibbs_over_RT(200.0),
     )
 
-    condensed: ThermodynamicProperties = ChemicalSpecies.from_end_member(
-        "liquid", formula="H2O"
+    # Liquid SiO2 is off in a pure phase, and extended with a constant heat capacity in a melt
+    silica: ChemicalSpecies = ChemicalSpecies.from_end_member("liquid", formula="SiO2")
+    assert silica.thermo.extrapolate_below is None and silica.thermo.extrapolate_above is None
+    pure: ThermodynamicProperties = cast(ChemicalSpecies, PurePhase(silica).species[0]).thermo
+    melt: ThermodynamicProperties = cast(
+        ChemicalSpecies, CondensedPhase((silica,), name="melt").species[0]
     ).thermo
-    assert not condensed.extrapolate_below and not condensed.extrapolate_above
+    assert (pure.extrapolate_below, pure.extrapolate_above) == ("off", "off")
+    assert (melt.extrapolate_below, melt.extrapolate_above) == ("constant_cp", "constant_cp")
+
+    temperature_bound: float = melt.temperature_range()[0]
+    enthalpy, entropy, cp = (
+        float(f(temperature_bound)) for f in (melt.enthalpy, melt.entropy, melt.cp)
+    )
+    temperature: float = 1500.0
+    gibbs: float = (
+        enthalpy
+        + cp * (temperature - temperature_bound)
+        - temperature * (entropy + cp * np.log(temperature / temperature_bound))
+    )
+    np.testing.assert_allclose(
+        melt.standard_gibbs_over_RT(temperature), gibbs / (GAS_CONSTANT * temperature), rtol=1e-12
+    )
+    np.testing.assert_allclose(melt.standard_gibbs_over_RT(1500.0), -83.85908250145815, rtol=1e-10)
+    np.testing.assert_allclose(
+        melt.standard_gibbs_over_RT(temperature_bound - 1e-6),
+        melt.standard_gibbs_over_RT(temperature_bound),
+        rtol=1e-8,
+    )
+    assert pure.standard_gibbs_over_RT(1500.0) > melt.standard_gibbs_over_RT(1500.0) + 90
+
     assert ChemicalSpecies.create_gas("H2O").thermo is glenn_properties["H2O"]["gas"]
 
 

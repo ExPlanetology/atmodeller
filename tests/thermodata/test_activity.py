@@ -111,9 +111,8 @@ def test_subNeptune_melt_phase_with_si_activity() -> None:
     # Since Si_index=1 above, it must appear in the correct order in metal_species
     metal_species: tuple[SpeciesProtocol, ...] = (Fe_l, Si_l)
 
-    # Temperature must be compatible with the choice of species, i.e. chemically-reactive species
-    # must have thermodynamic data available at the specified temperature. Here, we are limited by
-    # O2Si(l).
+    # The melt and metal end-members are extended with a constant heat capacity outside their
+    # data, so any temperature works. At this temperature all are inside their data.
     surface_temperature = 3400  # K
     planet_mass = 4.6 * earth.mass  # kg
     surface_radius = 1.5 * earth.radius  # m

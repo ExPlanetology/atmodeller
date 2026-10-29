@@ -113,10 +113,65 @@ The thermodynamic data are at 1 bar, and the temperature ranges of the condensed
 
 To let different end-members compete at a given temperature and pressure instead, such as graphite and diamond, include each as a separate pure phase.
 
-Temperature range
------------------
+.. _species-extrapolation:
 
-Outside the temperature range of their data, gases are extrapolated, whereas condensates are not stable by default, because the range of a condensed phase is often bounded by a phase boundary, such as a melting point. The same condensates can therefore be included at any temperature. To extrapolate the data of a condensate, pass ``extrapolate_below=True`` or ``extrapolate_above=True`` when creating it, e.g. ``PurePhase.from_end_member("ice", extrapolate_below=True)`` for ice below 200 K.
+Temperature range and extrapolation
+-----------------------------------
+
+The thermodynamic data of each end-member cover a temperature range (``temperature_range()``), which for a condensate is often bounded by a phase boundary, such as a melting point. Outside the range, each side of the data has its own extrapolation, set with ``extrapolate_below`` and ``extrapolate_above``:
+
+- ``"off"``: the species is not stable there. Its Gibbs energy is held at its value at the bound and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added.
+- ``"data"``: the data are evaluated in their own form, e.g. the nearest NASA Glenn polynomial.
+- ``"constant_cp"``: the heat capacity is held at its value at the bound :math:`T_b`, so that the enthalpy and entropy are continuous there:
+
+  .. math::
+
+     H(T) = H(T_b) + C_p(T_b)\,(T - T_b), \qquad S(T) = S(T_b) + C_p(T_b) \ln\frac{T}{T_b}
+
+The data files are unchanged: the extension is computed from the data at the bound. Only the Gibbs energy at 1 bar is extended, and the pressure dependence of a volume model, :math:`\int V\,dP`, is evaluated at the temperature, as within the range.
+
+The defaults follow the role of the species:
+
+- **Gases** use ``"data"``.
+- **Pure phases** use ``"off"``, because the range of a pure condensate is its stable range at 1 bar. SiO2 is liquid above its melting point and solid below it, so the same condensates can be included at any temperature. To extend a pure phase where the bound is only the end of the data, set the extrapolation on that side, e.g. ``PurePhase.from_end_member("ice", extrapolate_below="data")`` for ice below 200 K.
+- **End-members of a mixed phase**, such as the silicate melt, the metal, or any ``CondensedPhase`` with several species, use ``"constant_cp"``. Unlike a pure phase, a mixture needs its end-members where they are metastable as pure phases: liquid SiO2 is an end-member of a basaltic melt at 1500 K, far below its melting point of 1996 K. Both sides are extended, so a solid end-member of a solid solution is likewise available above its melting point, and a liquid above the end of its data (usually 6000 K). The constant heat capacity keeps the extension well behaved for any form of the data.
+
+The default is decided by the phase, so a species created with ``ChemicalSpecies.from_end_member`` and no extrapolation is ``"off"`` in a ``PurePhase`` and ``"constant_cp"`` in a ``CondensedPhase``. An extrapolation that is set explicitly is kept.
+
+This allows mixtures to be modelled from end-members at any temperature, for example a melt of oxide liquids:
+
+.. code-block:: python
+
+    from atmodeller import ChemicalSpecies, Planet
+
+    # Liquid end-members, whose data start at their melting points (1996, 3100 and 1652 K)
+    melt_species = tuple(
+        ChemicalSpecies.from_end_member("liquid", formula=formula)
+        for formula in ("SiO2", "MgO", "FeO")
+    )
+    # In the silicate melt, they are extended to lower temperatures with a constant heat capacity
+    planet = Planet.from_species(gas_species, silicate_melt_species=melt_species, temperature=1500)
+
+The extension is not calibrated, so its accuracy decreases with the distance from the bound. An error :math:`\delta S` in the entropy of fusion gives an error of about :math:`\delta S\,(T_b - T)` in the Gibbs energy, which is significant for MgO and CaO at the temperatures of basaltic melts. Below the Kauzmann temperature of a liquid (about 1250 K for SiO2 and MgO), its extended entropy falls below that of the solid.
+
+Activities in a mixed phase
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, a mixed phase is ideal: the activity of each species is its mole fraction, :math:`a_i = x_i`. A non-ideal model is set for each end-member with ``activity``, and receives the mole fractions of the phase, e.g. ``Si_iron_badro15`` for Si in liquid Fe. The interaction parameters of the end-members should be consistent with each other. Ideal mixing of oxide liquids is a poor approximation for silicate melts, whose mixing is strongly non-ideal, so a realistic melt needs an activity model.
+
+The mole fractions, and hence the activities, are taken over the species that are included in the phase total, together with any background moles. Species that are not included in the phase total (``include_in_phase_mass=False``), e.g. dissolved volatiles in the dilute limit, do not dilute the end-members, so they do not change the mole fractions or activities of the end-members.
+
+Mixed phases and solids
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The silicate melt, silicate solid and metal are prescribed: they exist with the background mass that is given, and *Atmodeller* does not test whether a phase as a whole is stable, e.g. whether a melt should crystallise or not exist at all. The solution is the equilibrium given that these phases exist.
+
+A solid can compete with the end-members of a mixed phase if it is included as a pure phase. For example, with liquid SiO2 in the melt and cristobalite as a pure phase, the reaction :math:`\mathrm{SiO_2(melt)} \rightleftharpoons \mathrm{SiO_2(cristobalite)}` divides SiO2 between them:
+
+- If the melt is undersaturated, all the SiO2 is in the melt and cristobalite is absent.
+- If the melt is saturated, cristobalite takes the excess and the activity of SiO2 in the melt is held at saturation, :math:`\ln a_\mathrm{SiO_2} = -\Delta G_\mathrm{fus}(T)/RT`, where :math:`\Delta G_\mathrm{fus}` is the Gibbs energy of the liquid end-member relative to the solid. For ideal mixing, this gives the mole fraction of SiO2 at the liquidus, :math:`x_\mathrm{SiO_2} = \exp(-\Delta G_\mathrm{fus}/RT)`. Below the melting point, the liquid is extended with a constant heat capacity, so the extension sets where the solid saturates.
+
+The stability :math:`\sigma` of an absent solid measures how undersaturated the melt is in it, :math:`\sigma = (\mu^\circ_\mathrm{solid} - \mu_\mathrm{melt})/RT`, so a small value means that the solid is close to saturating. Its natural logarithm is ``<species>_stability`` in the solution output (see :doc:`output`). Only the solids that are included can saturate, and the existence and mass of the melt remain inputs.
 
 Output
 ------

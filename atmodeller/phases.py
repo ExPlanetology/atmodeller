@@ -53,7 +53,8 @@ outputs.
 
 import logging
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, ClassVar, Generic, Self, TypeVar
+from dataclasses import replace
+from typing import TYPE_CHECKING, ClassVar, Generic, Self, TypeVar, cast
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -68,7 +69,14 @@ from atmodeller.containers import (
     SpeciesCollection,
     get_formula_matrix,
 )
-from atmodeller.constants import CONDENSED_SUFFIX, LIQUID_END_MEMBER, SOLID_SUFFIX
+from atmodeller.constants import (
+    CONDENSED_SUFFIX,
+    EXTRAPOLATION_CONSTANT_CP,
+    EXTRAPOLATION_OFF,
+    LIQUID_END_MEMBER,
+    SOLID_SUFFIX,
+    Extrapolation,
+)
 from atmodeller.database import DataBase
 from atmodeller.interfaces import (
     ActivityProtocol,
@@ -107,6 +115,29 @@ def _describe(item: object) -> str:
         return f"{item.data.name} (dissolved)"
 
     return type(item).__name__
+
+
+def _resolve_extrapolation(species: TSpecies_co, extrapolation: Extrapolation) -> TSpecies_co:
+    """Sets the extrapolation of a condensed species where it is decided by its phase (``None``)
+
+    Args:
+        species: Species
+        extrapolation: Extrapolation decided by the phase
+
+    Returns:
+        The species with its extrapolation set
+    """
+    if not isinstance(species, ChemicalSpecies):
+        return species
+    thermo = species.thermo
+    if None not in (thermo.extrapolate_below, thermo.extrapolate_above):
+        return species
+    thermo = thermo.with_extrapolation(
+        extrapolation if thermo.extrapolate_below is None else thermo.extrapolate_below,
+        extrapolation if thermo.extrapolate_above is None else thermo.extrapolate_above,
+    )
+
+    return cast(TSpecies_co, replace(species, thermo=thermo))
 
 
 class BasePhase(eqx.Module, Generic[TSpecies_co]):
@@ -888,6 +919,11 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
                     f"are for the silicate melt, not {misplaced}. Use condensed species, with an "
                     "activity model if needed."
                 )
+        # An end-member of a mixed phase is needed where it is metastable as a pure phase. A pure
+        # phase has already set its extrapolation.
+        species = tuple(
+            _resolve_extrapolation(species_, EXTRAPOLATION_CONSTANT_CP) for species_ in species
+        )
         super().__init__(name, species, background_mass, background_molar_mass)
 
 
@@ -912,7 +948,9 @@ class PurePhase(CondensedPhase):
                 "A pure phase has a condensed species, created with "
                 f"ChemicalSpecies.from_end_member, not {_describe(species)}"
             )
-        super().__init__((species,), species.name)
+        # A pure phase is not stable outside the temperature range of its data, which is often
+        # bounded by a phase boundary, such as a melting point
+        super().__init__((_resolve_extrapolation(species, EXTRAPOLATION_OFF),), species.name)
 
     @classmethod
     def from_formula(
@@ -924,8 +962,8 @@ class PurePhase(CondensedPhase):
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
-        extrapolate_below: bool = False,
-        extrapolate_above: bool = False,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
     ) -> Self:
         """Creates a pure phase from all the condensed end-members of a formula
 
@@ -945,10 +983,11 @@ class PurePhase(CondensedPhase):
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is ``"off"``, so the phase is not stable there.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is ``"off"``.
 
         Returns:
             A pure phase, which has the name of its species
@@ -993,8 +1032,8 @@ class PurePhase(CondensedPhase):
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
-        extrapolate_below: bool = False,
-        extrapolate_above: bool = False,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
     ) -> Self:
         """Creates a pure phase by stitching end-members together
 
@@ -1013,10 +1052,11 @@ class PurePhase(CondensedPhase):
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is ``"off"``, so the phase is not stable there.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is ``"off"``.
 
         Returns:
             A pure phase, which has the name of its species
@@ -1053,8 +1093,8 @@ class PurePhase(CondensedPhase):
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
-        extrapolate_below: bool = False,
-        extrapolate_above: bool = False,
+        extrapolate_below: Extrapolation | None = None,
+        extrapolate_above: Extrapolation | None = None,
     ) -> Self:
         """Creates a pure phase from one end-member
 
@@ -1071,10 +1111,11 @@ class PurePhase(CondensedPhase):
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
-            extrapolate_below: Whether to extrapolate the thermodynamic data below their
-                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
-            extrapolate_above: Whether to extrapolate the thermodynamic data above their
-                temperature range, otherwise the phase is not stable there. Defaults to ``False``.
+            extrapolate_below: Extrapolation of the thermodynamic data below their temperature
+                range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
+                is ``"off"``, so the phase is not stable there.
+            extrapolate_above: Extrapolation of the thermodynamic data above their temperature
+                range. Defaults to ``None``, which is ``"off"``.
 
         Returns:
             A pure phase, which has the name of its species
