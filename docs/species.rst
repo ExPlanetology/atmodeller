@@ -134,13 +134,32 @@ The thermodynamic data of each end-member cover a temperature range (``temperatu
 
 The data files are unchanged: the extension is computed from the data at the bound. Only the Gibbs energy at 1 bar is extended, and the pressure dependence of a volume model, :math:`\int V\,dP`, is evaluated at the temperature, as within the range.
 
-The defaults follow the role of the species:
+The default extrapolation of a species follows its role, i.e. whether it is a gas, the species of a pure phase, or a species of a mixed phase:
 
-- **Gases** use ``"data"``.
+.. list-table:: Default extrapolation
+   :widths: 50 25 25
+   :header-rows: 1
+
+   * - Species
+     - Below the data range
+     - Above the data range
+   * - Gas
+     - ``"data"``
+     - ``"data"``
+   * - Pure phase (``PurePhase``)
+     - ``"off"``
+     - ``"off"``
+   * - Mixed phase (silicate melt, silicate solid, metal, or another ``CondensedPhase``)
+     - ``"constant_cp"``
+     - ``"constant_cp"``
+
+An extrapolation that is set explicitly when the species is created takes precedence over the default. The defaults are chosen as follows:
+
+- **Gases** use ``"data"``, because the range of a gas is not bounded by a phase boundary, so its data are continued in their own form, and the range is usually wide (typically 200 to 6000 K).
 - **Pure phases** use ``"off"``, because the range of a pure condensate is its stable range at 1 bar. SiO2 is liquid above its melting point and solid below it, so the same condensates can be included at any temperature. To extend a pure phase where the bound is only the end of the data, set the extrapolation on that side, e.g. ``PurePhase.from_end_member("ice", extrapolate_below="data")`` for ice below 200 K.
 - **Species of a mixed phase**, i.e. the silicate melt, the silicate solid, the metal, or any other ``CondensedPhase`` that is not a ``PurePhase``, use ``"constant_cp"``. Unlike a pure phase, a mixture needs its end-members where they are metastable as pure phases: liquid SiO2 is an end-member of a basaltic melt at 1500 K, far below its melting point of 1996 K. Both sides are extended, so a solid in a mixed solid phase is likewise available above its melting point, and a liquid above the end of its data (usually 6000 K). The constant heat capacity keeps the extension well behaved for any form of the data.
 
-The default is decided by the phase, so a species created with ``ChemicalSpecies.from_end_member``, ``from_formula`` or ``from_end_members`` and no extrapolation is ``"off"`` in a ``PurePhase`` and ``"constant_cp"`` in a ``CondensedPhase``. An extrapolation that is set explicitly is kept.
+The default is decided by the phase, so a species created with ``ChemicalSpecies.from_end_member``, ``from_formula`` or ``from_end_members`` and no extrapolation is ``"off"`` in a ``PurePhase`` and ``"constant_cp"`` in a ``CondensedPhase``.
 
 Stitched data are extrapolated only beyond their outer bounds, e.g. below 200 K and above 1996 K for the stitched solids of SiO2 (``O2Si_s``), whereas the transitions between the end-members inside the range are unchanged. In a mixed phase, the polymorphs of one formula should therefore be one stitched component rather than separate species, which would mix with each other instead of replacing each other with temperature.
 
