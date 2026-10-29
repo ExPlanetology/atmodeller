@@ -305,7 +305,8 @@ class ReactionNetwork(BaseReactionBlock):
 
         temperature_min, temperature_max = self.get_temperature_range()
         logger.info(
-            "Thermodynamic data requires temperatures between %d K and %d K",
+            "Thermodynamic data of all species cover %d K to %d K, outside which each species "
+            "follows its extrapolation",
             np.ceil(temperature_min),
             np.floor(temperature_max),
         )

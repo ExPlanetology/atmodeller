@@ -101,6 +101,8 @@ Placing species in phases
 
 A species given for the wrong phase raises an error that says how to create the right one, as do two species, or two pure phases, with the same name.
 
+The phase also decides how the data of a condensed species are extrapolated outside their temperature range, unless it is set explicitly: a pure phase is not stable there, whereas an end-member of the silicate melt, silicate solid or metal is extended with a constant heat capacity (see :ref:`species-extrapolation`).
+
 Stitching end-members together
 -----------------------------------
 
