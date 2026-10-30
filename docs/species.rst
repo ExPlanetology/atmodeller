@@ -34,13 +34,13 @@ A species is named from the Hill formula of its formula and a suffix, ``<Hill fo
      - One mineral
      - ``ChemicalSpecies.from_end_member("graphite")`` is ``C_graphite``
    * - ``cd``
-     - All the condensed end-members of a formula, stitched together
+     - All the condensed end-members of a formula, stitched together (a pseudo end-member)
      - ``PurePhase.from_formula("SiO2")`` is ``O2Si_cd``
    * - ``s``
-     - All the solid end-members of a formula, stitched together without the liquid
+     - All the solid end-members of a formula, stitched together without the liquid (a pseudo end-member)
      - ``PurePhase.from_formula("SiO2", liquid=False)`` is ``O2Si_s``
    * - ``<name>``
-     - A chosen set of end-members, stitched together
+     - A chosen set of end-members, stitched together (a pseudo end-member)
      - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` is ``O2Si_quartz``
    * - ``d``
      - Dissolved in the silicate melt
@@ -80,8 +80,8 @@ Species are created from the default database, ``DataBase.default()``, unless an
 
 - **Gases**: ``ChemicalSpecies.create_gas("H2O")``. The activity defaults to an ideal gas, and can be a real gas equation of state.
 - **One condensed end-member**: ``ChemicalSpecies.from_end_member(end_member, formula=...)``. A mineral fixes its formula, e.g. ``from_end_member("cristobalite-beta")``, whereas ``liquid`` is an end-member of many formulas, so the formula is given, e.g. ``from_end_member("liquid", formula="SiO2")``. The species can be an end-member of a solution, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
-- **A pseudo end-member**: ``ChemicalSpecies.from_formula(formula, liquid=...)`` and ``ChemicalSpecies.from_end_members(end_members, name=...)`` stitch end-members together, as the ``PurePhase`` methods below do. The result is a pseudo end-member, which can be an end-member of a solution, whose polymorphs replace each other with temperature. For example, ``ChemicalSpecies.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` is ``O2Si_quartz``, which is alpha quartz below 848 K and beta quartz above, and ``ChemicalSpecies.from_formula("SiO2", liquid=False)`` is ``O2Si_s``, the stable solid SiO2 at each temperature.
-- **A pure phase**: the methods of ``PurePhase`` create a phase with a single species, named as the species:
+- **A pseudo end-member**: ``ChemicalSpecies.from_formula(formula, liquid=...)`` and ``ChemicalSpecies.from_end_members(end_members, name=...)`` stitch end-members together, as the ``PurePhase`` methods below do. The result is a pseudo end-member, whose end-members replace each other with temperature, and which can be the species of a pure phase or an end-member of a solution. For example, ``ChemicalSpecies.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` is ``O2Si_quartz``, which is alpha quartz below 848 K and beta quartz above, and ``ChemicalSpecies.from_formula("SiO2", liquid=False)`` is ``O2Si_s``, the stable solid SiO2 at each temperature.
+- **A pure phase**: the methods of ``PurePhase`` create a phase with a single end-member or pseudo end-member, named as it:
 
   - ``PurePhase.from_formula("SiO2")`` stitches together the condensed end-members of the formula given by ``stitchable_end_members``, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``). With ``liquid=False`` only the solids are stitched together (``O2Si_s``), so the condensate is not stable above the melting point, for example when liquid SiO2 is an end-member of the silicate melt instead.
   - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
@@ -196,7 +196,7 @@ A solid can compete with the end-members of a solution if it is included as a pu
 - If the melt is undersaturated, all the SiO2 is in the melt and cristobalite is absent.
 - If the melt is saturated, cristobalite takes the excess and the activity of SiO2 in the melt is held at saturation, :math:`\ln a_\mathrm{SiO_2} = -\Delta G_\mathrm{fus}(T)/RT`, where :math:`\Delta G_\mathrm{fus}` is the Gibbs energy of the liquid end-member relative to the solid. For ideal mixing, this gives the mole fraction of SiO2 at the liquidus, :math:`x_\mathrm{SiO_2} = \exp(-\Delta G_\mathrm{fus}/RT)`. Below the melting point, the liquid is extended with a constant heat capacity, so the extension sets where the solid saturates.
 
-The stability :math:`\sigma` of an absent solid measures how undersaturated the melt is in it, :math:`\sigma = (\mu^\circ_\mathrm{solid} - \mu_\mathrm{melt})/RT`, so a small value means that the solid is close to saturating. Its natural logarithm is ``<species>_stability`` in the ``solution`` output (see :doc:`output`). Only the solids that are included can saturate, and the existence and mass of the melt remain inputs.
+The stability :math:`\sigma` of an absent solid measures how undersaturated the melt is in it, :math:`\sigma = (\mu^\circ_\mathrm{solid} - \mu_\mathrm{melt})/RT`, so a small value means that the solid is close to saturating. Its natural logarithm is ``<species>_stability`` in the solver's ``solution`` output (see :doc:`output`). Only the solids that are included can saturate, and the existence and mass of the melt remain inputs.
 
 Output
 ------
