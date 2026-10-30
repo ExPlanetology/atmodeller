@@ -137,8 +137,8 @@ class ChemicalSpecies(eqx.Module):
     ) -> Self:
         """Creates a condensed species from an end-member
 
-        This creates the species of a pure phase, such as a mineral, or an end-member of a mixed
-        phase, such as the silicate melt or metal. The species is named from the end-member, e.g.
+        This creates the species of a pure phase, such as a mineral, or an end-member of a
+        solution, such as the silicate melt or metal. The species is named from the end-member, e.g.
         ``O2Si_cristobalite-beta``, or ``H2O_l`` for the liquid. To stitch several end-members
         together for a pure phase, use
         :meth:`~atmodeller.phases.PurePhase.from_formula` or
@@ -147,7 +147,7 @@ class ChemicalSpecies(eqx.Module):
         By default, the extrapolation of the thermodynamic data outside their temperature range is
         decided by the phase of the species: in a pure phase, the species is not stable there
         (``"off"``), since a pure phase is often bounded by a phase boundary, such as a melting
-        point; in a mixed phase, such as the silicate melt, the data are extended with a constant
+        point; in a solution, such as the silicate melt, the data are extended with a constant
         heat capacity (``"constant_cp"``), since an end-member is needed where it is metastable as
         a pure phase (see :class:`~atmodeller.thermodata.core.ThermodynamicProperties`).
 
