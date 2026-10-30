@@ -1015,7 +1015,7 @@ class PurePhase(CondensedPhase):
         cls,
         end_members: Iterable[str],
         *,
-        name: str,
+        suffix: str,
         formula: str | None = None,
         database: DataBase | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
@@ -1026,14 +1026,14 @@ class PurePhase(CondensedPhase):
     ) -> Self:
         """Creates a pure phase by stitching end-members together
 
-        For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
+        For example, ``from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` gives
         ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
         order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). See
         :meth:`~atmodeller.containers.ChemicalSpecies.from_end_members`.
 
         Args:
             end_members: Names of the end-members
-            name: Suffix of the species name
+            suffix: Suffix of the species name, e.g. ``quartz`` for ``O2Si_quartz``
             formula: Formula. Defaults to ``None``, which takes the formula of the minerals, and
                 is only needed when the end-members are all shared by several formulas, such as
                 ``liquid``.
@@ -1058,7 +1058,7 @@ class PurePhase(CondensedPhase):
         """
         species: ChemicalSpecies = ChemicalSpecies.from_end_members(
             end_members,
-            name=name,
+            suffix=suffix,
             formula=formula,
             database=database,
             activity=activity,

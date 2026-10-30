@@ -41,7 +41,7 @@ A species is named from the Hill formula of its formula and a suffix, ``<Hill fo
      - ``PurePhase.from_formula("SiO2", liquid=False)`` is ``O2Si_s``
    * - ``<name>``
      - A chosen set of end-members, stitched together (a pseudo end-member)
-     - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` is ``O2Si_quartz``
+     - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` is ``O2Si_quartz``
    * - ``d``
      - Dissolved in the silicate melt
      - ``ReservoirSpecies.create_dissolved("H2O", ...)`` is ``H2O_d``
@@ -80,11 +80,11 @@ Species are created from the default database, ``DataBase.default()``, unless an
 
 - **Gases**: ``ChemicalSpecies.create_gas("H2O")``. The activity defaults to an ideal gas, and can be a real gas equation of state.
 - **One condensed end-member**: ``ChemicalSpecies.from_end_member(end_member, formula=...)``. A mineral fixes its formula, e.g. ``from_end_member("cristobalite-beta")``, whereas ``liquid`` is an end-member of many formulas, so the formula is given, e.g. ``from_end_member("liquid", formula="SiO2")``. The species can be an end-member of a solution, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
-- **A pseudo end-member**: ``ChemicalSpecies.from_formula(formula, liquid=...)`` and ``ChemicalSpecies.from_end_members(end_members, name=...)`` stitch end-members together, as the ``PurePhase`` methods below do. The result is a pseudo end-member, whose end-members replace each other with temperature, and which can be the species of a pure phase or an end-member of a solution. For example, ``ChemicalSpecies.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` is ``O2Si_quartz``, which is alpha quartz below 848 K and beta quartz above, and ``ChemicalSpecies.from_formula("SiO2", liquid=False)`` is ``O2Si_s``, the stable solid SiO2 at each temperature.
+- **A pseudo end-member**: ``ChemicalSpecies.from_formula(formula, liquid=...)`` and ``ChemicalSpecies.from_end_members(end_members, suffix=...)`` stitch end-members together, as the ``PurePhase`` methods below do. The result is a pseudo end-member, whose end-members replace each other with temperature, and which can be the species of a pure phase or an end-member of a solution. For example, ``ChemicalSpecies.from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` is ``O2Si_quartz``, which is alpha quartz below 848 K and beta quartz above, and ``ChemicalSpecies.from_formula("SiO2", liquid=False)`` is ``O2Si_s``, the stable solid SiO2 at each temperature.
 - **A pure phase**: the methods of ``PurePhase`` create a phase with a single end-member or pseudo end-member, named as it:
 
   - ``PurePhase.from_formula("SiO2")`` stitches together the condensed end-members of the formula given by ``stitchable_end_members``, here quartz to cristobalite to liquid, in order of temperature (``O2Si_cd``). With ``liquid=False`` only the solids are stitched together (``O2Si_s``), so the condensate is not stable above the melting point, for example when liquid SiO2 is an end-member of the silicate melt instead.
-  - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` stitches together a chosen set (``O2Si_quartz``).
+  - ``PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` stitches together a chosen set (``O2Si_quartz``).
   - ``PurePhase.from_end_member("cristobalite-beta")`` selects one end-member.
 
 - **Dissolved species**: ``ReservoirSpecies.create_dissolved("H2O", solubility=...)``, which is ``H2O_d``. Its amount follows from a solubility law and the fugacity of its gas, not from thermodynamic data, so it is not created from a database.

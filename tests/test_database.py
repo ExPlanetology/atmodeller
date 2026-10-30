@@ -124,7 +124,7 @@ def test_end_members() -> None:
     assert PurePhase.from_end_member("liquid", formula="H2O").name == "H2O_l"
     assert PurePhase.from_end_member("diamond").name == "C_diamond"
     assert PurePhase(ChemicalSpecies.from_end_member("graphite")).name == "C_graphite"
-    assert PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), name="qz").name == "O2Si_qz"
+    assert PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), suffix="qz").name == "O2Si_qz"
     melt_sio2 = ChemicalSpecies.from_end_member(
         "liquid", formula="SiO2", include_in_phase_mass=False
     )
@@ -137,8 +137,8 @@ def test_end_members() -> None:
     with pytest.raises(ValueError, match="give the formula"):
         PurePhase.from_end_member("liquid")
     with pytest.raises(ValueError, match="not a condensed end-member"):
-        PurePhase.from_end_members(("gas", "liquid"), name="x", formula="H2O")
+        PurePhase.from_end_members(("gas", "liquid"), suffix="x", formula="H2O")
     with pytest.raises(ValueError, match="that the database was created with"):
-        PurePhase.from_end_members(("graphite", "diamond"), name="x")
+        PurePhase.from_end_members(("graphite", "diamond"), suffix="x")
     with pytest.raises(KeyError, match="ice is not an end-member of O2Si"):
-        PurePhase.from_end_members(("quartz-alpha", "ice"), name="x")
+        PurePhase.from_end_members(("quartz-alpha", "ice"), suffix="x")
