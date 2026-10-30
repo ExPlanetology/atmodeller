@@ -53,6 +53,9 @@ logger: logging.Logger = logging.getLogger(__name__)
 class ChemicalSpecies(eqx.Module):
     """Chemical species that participate in reactions
 
+    An end-member or a pseudo end-member, with thermodynamic data. A dissolved species is a
+    :class:`ReservoirSpecies` instead.
+
     Args:
         data: Chemical species data
         activity: Activity
@@ -137,8 +140,8 @@ class ChemicalSpecies(eqx.Module):
     ) -> Self:
         """Creates a condensed species from an end-member
 
-        This creates the species of a pure phase, such as a mineral, or an end-member of a mixed
-        phase, such as the silicate melt or metal. The species is named from the end-member, e.g.
+        This creates the species of a pure phase, such as a mineral, or an end-member of a
+        solution, such as the silicate melt or metal. The species is named from the end-member, e.g.
         ``O2Si_cristobalite-beta``, or ``H2O_l`` for the liquid. To stitch several end-members
         together for a pure phase, use
         :meth:`~atmodeller.phases.PurePhase.from_formula` or
@@ -147,7 +150,7 @@ class ChemicalSpecies(eqx.Module):
         By default, the extrapolation of the thermodynamic data outside their temperature range is
         decided by the phase of the species: in a pure phase, the species is not stable there
         (``"off"``), since a pure phase is often bounded by a phase boundary, such as a melting
-        point; in a mixed phase, such as the silicate melt, the data are extended with a constant
+        point; in a solution, such as the silicate melt, the data are extended with a constant
         heat capacity (``"constant_cp"``), since an end-member is needed where it is metastable as
         a pure phase (see :class:`~atmodeller.thermodata.core.ThermodynamicProperties`).
 
@@ -155,7 +158,7 @@ class ChemicalSpecies(eqx.Module):
             end_member: Name of the end-member, e.g. ``cristobalite-beta`` or ``liquid``
             formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
                 needed for ``liquid``, which is an end-member of several formulas.
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
@@ -215,16 +218,16 @@ class ChemicalSpecies(eqx.Module):
         only the solids are stitched together, e.g. quartz to cristobalite for ``SiO2``, and the
         species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``.
 
-        The species can be the species of a pure phase
-        (:meth:`~atmodeller.phases.PurePhase.from_formula`), or a component of a mixed phase,
-        whose polymorphs replace each other with temperature. By default, the
-        extrapolation is decided by the phase, as in :meth:`from_end_member`.
+        The species is a pseudo end-member, whose end-members replace each other with
+        temperature, and which can be the species of a pure phase
+        (:meth:`~atmodeller.phases.PurePhase.from_formula`) or an end-member of a solution. By
+        default, the extrapolation is decided by the phase, as in :meth:`from_end_member`.
 
         Args:
             formula: Formula
             liquid: Whether to include the liquid. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database.
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
@@ -285,8 +288,9 @@ class ChemicalSpecies(eqx.Module):
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
         ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
         order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
-        :meth:`from_formula`, the species can be the species of a pure phase or a component of a
-        mixed phase, and by default the extrapolation is decided by the phase.
+        :meth:`from_formula`, the species is a pseudo end-member, which can be the species of a
+        pure phase or an end-member of a solution, and by default the extrapolation is decided by
+        the phase.
 
         Args:
             end_members: Names of the end-members
@@ -295,7 +299,7 @@ class ChemicalSpecies(eqx.Module):
                 is only needed when the end-members are all shared by several formulas, such as
                 ``liquid``.
             database: Database. Defaults to ``None``, which uses the default database.
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
@@ -476,7 +480,7 @@ class ReservoirSpecies(eqx.Module):
 
         Args:
             formula: Formula
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solubility: Solubility. Defaults to no solubility.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.

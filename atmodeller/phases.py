@@ -10,16 +10,16 @@ equilibrium solver.
 
 The available phase types are:
 
-- :class:`GasPhase`: Multicomponent gas mixture, supporting both ideal and non-ideal (real gas)
-  behaviour. Tracks the O2 index for redox calculations and provides gas-specific outputs (e.g.,
-  partial pressures, volume).
-- :class:`CondensedPhase`: Multicomponent condensed phase, used for the silicate melt, the
-  silicate solid and the metal, optionally with dissolved volatiles and/or condensed species
+- :class:`GasPhase`: Gas phase, a solution of gas end-members, supporting both ideal and
+  non-ideal (real gas) behaviour. Tracks the O2 index for redox calculations and provides
+  gas-specific outputs (e.g., partial pressures, volume).
+- :class:`CondensedPhase`: Condensed solution, used for the silicate melt, the silicate solid and
+  the metal, optionally with dissolved volatiles and/or condensed species
   treated as additional to the solvent. Phase-level properties (mass, moles, molar mass, and
   derived fractions) can be computed relative to just the solvent mass, while per-species
   properties such as activity are always computed from raw species amounts.
-- :class:`PurePhase`: Single-species, unity-activity phase (e.g., a pure mineral, ice, or
-  liquid). Only one species is permitted, and its activity is fixed at unity.
+- :class:`PurePhase`: Phase of a single end-member or pseudo end-member (e.g., a pure mineral,
+  ice, or liquid), of unit activity by default.
 
 All phases are JAX-compatible :class:`equinox.Module` subclasses and wrap a
 :class:`~atmodeller.containers.SpeciesCollection` of thermodynamic species, each named from its Hill
@@ -28,8 +28,9 @@ formula and a suffix (see :class:`~atmodeller.interfaces.ChemicalSpeciesData`):
 - ``"g"`` : gas
 - ``"l"`` : liquid
 - the end-member of a mineral, e.g. ``"quartz-alpha"``
-- ``"cd"`` : the condensed end-members of a formula stitched together
-- ``"s"`` : the solid end-members of a formula stitched together, without the liquid
+- ``"cd"`` : the condensed end-members of a formula stitched together (a pseudo end-member)
+- ``"s"`` : the solid end-members of a formula stitched together, without the liquid (a
+  pseudo end-member)
 
 Quantities are accumulated in log-space throughout for numerical stability. Many methods accept an
 optional background component (e.g., the silicate melt mass) that contributes to phase totals but
@@ -789,7 +790,7 @@ class GasPhaseOutput(PhaseOutput["GasPhase"]):
 
 
 class GasPhase(BasePhase[ChemicalSpecies]):
-    """Multicomponent gas mixture
+    """Gas phase, a solution of gas end-members
 
     Models gas species as an ideal mixture of (potentially) non-ideal pure gases, where each pure
     species contributes an activity based on its own (potentially real gas) equation of state.
@@ -849,7 +850,7 @@ class GasPhase(BasePhase[ChemicalSpecies]):
 
 
 class CondensedPhase(BasePhase[SpeciesProtocol]):
-    """Multicomponent condensed phase (e.g., silicate melt or solid)
+    """Condensed solution (e.g., silicate melt or solid)
 
     A condensed phase can optionally treat dissolved and/or condensed species as additional to the
     solvent (the bulk melt mass that species dissolve into). When enabled, these species are
@@ -900,7 +901,8 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
         if not_condensed:
             raise ValueError(
                 f"The {name} phase can only have condensed or dissolved species, created with "
-                "ChemicalSpecies.from_end_member or ReservoirSpecies.create_dissolved, not "
+                "ChemicalSpecies.from_end_member, from_formula or from_end_members, or "
+                "ReservoirSpecies.create_dissolved, not "
                 f"{not_condensed}"
             )
         if not dissolved:
@@ -915,7 +917,7 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
                     f"are for the silicate melt, not {misplaced}. Use condensed species, with an "
                     "activity model if needed."
                 )
-        # A species of a mixed phase is needed where it is metastable as a pure phase. A pure
+        # A species of a solution is needed where it is metastable as a pure phase. A pure
         # phase has already set its extrapolation.
         species = tuple(
             _resolve_extrapolation(species_, EXTRAPOLATION_CONSTANT_CP) for species_ in species
@@ -924,12 +926,12 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
 
 
 class PurePhase(CondensedPhase):
-    """Single-species phase (e.g., a pure mineral, ice, or liquid)
+    """Phase of a single end-member or pseudo end-member (e.g., a pure mineral, ice, or liquid)
 
     A pure phase has the name of its species, under which it appears in the output, and no
     background. Its activity is that of its species, which is unity by default
     (:class:`~atmodeller.thermodata.core.ActivityCoefficient`). A species with an activity model
-    for a mixture belongs in a :class:`CondensedPhase` instead.
+    for a solution belongs in a :class:`CondensedPhase` instead.
 
     Args:
         species: Species of the phase
@@ -942,7 +944,8 @@ class PurePhase(CondensedPhase):
         if not isinstance(species, ChemicalSpecies) or species.is_gas:
             raise ValueError(
                 "A pure phase has a condensed species, created with "
-                f"ChemicalSpecies.from_end_member, not {_describe(species)}"
+                "ChemicalSpecies.from_end_member, from_formula or from_end_members, not "
+                f"{_describe(species)}"
             )
         # A pure phase is not stable outside the temperature range of its data, which is often
         # bounded by a phase boundary, such as a melting point
@@ -976,7 +979,7 @@ class PurePhase(CondensedPhase):
             formula: Formula
             liquid: Whether to include the liquid. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database.
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
@@ -1035,7 +1038,7 @@ class PurePhase(CondensedPhase):
                 is only needed when the end-members are all shared by several formulas, such as
                 ``liquid``.
             database: Database. Defaults to ``None``, which uses the default database.
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
@@ -1091,7 +1094,7 @@ class PurePhase(CondensedPhase):
             formula: Formula. Defaults to ``None``, which takes the formula of a mineral, and is
                 needed for ``liquid``, which is an end-member of several formulas.
             database: Database. Defaults to ``None``, which uses the default database.
-            activity: Activity. Defaults to unity activity.
+            activity: Activity. Defaults to unit activity.
             solve_for_stability: Solve for stability. Defaults to ``True``.
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.

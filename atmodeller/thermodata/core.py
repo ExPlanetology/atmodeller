@@ -124,7 +124,7 @@ class ThermodynamicProperties(eqx.Module):
     A bound can be a phase boundary, such as a melting point, where a pure phase should not be
     stable, or simply the end of the data, where extrapolation is benign. For example, the data
     for ice end at 200 K and at its melting point of 273.15 K, so ice can be extrapolated below
-    the range but not above it. An end-member of a mixed phase, such as liquid SiO2 in the
+    the range but not above it. An end-member of a solution, such as liquid SiO2 in the
     silicate melt, is instead needed where it is metastable as a pure phase, e.g. below its
     melting point, and the constant heat capacity keeps the extension well behaved for any form
     of the data. The extension is not calibrated, so its accuracy decreases with the distance

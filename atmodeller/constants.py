@@ -23,10 +23,10 @@ LIQUID_SUFFIX: str = "l"
 """Suffix of the name of a liquid species"""
 CONDENSED_SUFFIX: str = "cd"
 """Suffix of the name of a condensed species whose end-members (solids and liquid) are
-stitched together in order of temperature"""
+stitched together in order of temperature, a pseudo end-member"""
 SOLID_SUFFIX: str = "s"
 """Suffix of the name of a solid species whose solid end-members, without the liquid, are
-stitched together in order of temperature"""
+stitched together in order of temperature, a pseudo end-member"""
 GAS_END_MEMBER: str = "gas"
 """End-member of the thermodynamic data of a gas"""
 LIQUID_END_MEMBER: str = "liquid"

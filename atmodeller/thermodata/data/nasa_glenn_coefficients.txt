@@ -1,7 +1,7 @@
 # Data from McBride et al. (2002), NASA Glenn Coefficients for Calculating Thermodynamic Properties of Individual Species, No. 2002-211556 NASA
 # https://ntrs.nasa.gov/citations/20020085330
 # end_member is the gas, liquid or mineral to which the data refer, an end-member in the sense of
-# Holland and Powell (2011). It can be an end-member of a mixed phase or of a pure phase.
+# Holland and Powell (2011). It can be an end-member of a solution or of a pure phase.
 # A mineral name refers to one formula only, whereas gas and liquid are shared by all formulas.
 # hill_formula is the formula in the Hill system
 # Temperature ranges should be in ascending order
