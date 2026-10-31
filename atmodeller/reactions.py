@@ -43,8 +43,8 @@ from atmodeller.jax_utils import (
     NpBool,
     NpFloat,
     NpInt,
+    left_null_space,
     masked_logsumexp,
-    partial_rref,
     safe_exp,
 )
 from atmodeller.phases import BasePhase, GasPhase
@@ -285,7 +285,12 @@ class ReactionNetwork(BaseReactionBlock):
 
         # Reaction matrix of linearly independent reactions
         transpose_formula_matrix: NpInt = get_formula_matrix(self.species.reaction_species).T
-        self.reaction_matrix: NpFloat = partial_rref(transpose_formula_matrix)
+        self.reaction_matrix: NpFloat = left_null_space(transpose_formula_matrix)
+        if self.reaction_matrix.shape[0] != self.number_reactions:
+            raise ValueError(
+                f"The reaction matrix has {self.reaction_matrix.shape[0]} reactions, but "
+                f"{self.number_reactions} are expected from the number of components"
+            )
 
         # Reaction matrix expanded to full species space
         self.reaction_matrix_full: NpFloat = np.zeros(
@@ -313,12 +318,11 @@ class ReactionNetwork(BaseReactionBlock):
 
     @property
     def number_reactions(self) -> int:
-        """Number of core reactions"""
-        return max(
-            0,
-            self.species.reaction_species.number_species
-            - len(self.species.reaction_species.unique_elements),
-        )
+        """Number of core reactions, which is the number of reaction species minus the number of
+        components"""
+        reaction_species: SpeciesCollection = self.species.reaction_species
+
+        return reaction_species.number_species - reaction_species.number_components
 
     def standard_gibbs_over_RT(
         self, temperature: FloatArray, pressure: FloatArray

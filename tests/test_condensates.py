@@ -11,7 +11,9 @@ C-H-O gas with graphite is tested with the C-H-O comparisons in ``test_CHO.py``.
 import logging
 from typing import Any
 
+import equinox as eqx
 import numpy as np
+import pytest
 from jaxtyping import ArrayLike
 
 from atmodeller import debug_logger
@@ -223,3 +225,37 @@ def test_graphite_diamond() -> None:
         assert stable_species["number_moles"][stable][row] > 0.1
         assert unstable_species["activity"][unstable][row] < 1.0
         assert unstable_species["number_moles"][unstable][row] < 1.0e-20
+
+
+def test_water_one_component() -> None:
+    """Water vapour and liquid water have one component, so H alone is constrained, at the
+    saturation pressure. Constraining H and O as well raises, as do H and O alongside N2, which
+    are the right number but not independent."""
+
+    def model(
+        gas_species: tuple[ChemicalSpecies, ...], mass: dict[str, ArrayLike]
+    ) -> EquilibriumModel:
+        planet: Planet = Planet.from_species(
+            gas_species, condensates=(water,), temperature=300, mantle_melt_fraction=0
+        )
+        return EquilibriumModel(Parameters(planet, mass_constraints=mass))
+
+    h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(1)
+    output: Output = model((H2O_g,), {"H": h_kg}).solve_with_default()
+    np.testing.assert_allclose(output.to_dict()["gas"]["phase"]["pressure"], 0.0353362, rtol=1e-5)
+
+    with pytest.raises(ValueError, match="2 constraints"):
+        model((H2O_g,), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
+    with pytest.raises(ValueError, match="not independent"):
+        model((H2O_g, N2_g), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
+
+    # Inside JIT the constraints are traced, so the check is skipped, and the model fails instead
+    @eqx.filter_jit
+    def solve(model_: EquilibriumModel, o_kg: ArrayLike) -> Output:
+        return model_.update_constraints(
+            mass_constraints={"H": h_kg, "O": o_kg}
+        ).solve_with_default()
+
+    water_model: EquilibriumModel = model((H2O_g,), {"H": h_kg, "O": np.nan})
+    for o_kg, success in ((np.nan, True), (8 * h_kg, False)):
+        assert bool(solve(water_model, o_kg).to_dict()["solver"]["success"].item()) is success

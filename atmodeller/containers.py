@@ -581,6 +581,15 @@ class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
         return jnp.array([species_.data.molar_mass for species_ in self], dtype=float)
 
     @property
+    def number_components(self) -> int:
+        """Number of components, the rank of the formula matrix
+
+        This is the number of elements, unless elements occur in fixed ratios in every species,
+        e.g. H and O in a collection of only ``H2O_g`` and ``H2O_l``, which has one component.
+        """
+        return int(np.linalg.matrix_rank(get_formula_matrix(self)))
+
+    @property
     def number_elements(self) -> int:
         """Number of unique elements in the species"""
         return len(self.unique_elements)

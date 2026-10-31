@@ -318,4 +318,9 @@ def objective_function(
     )
     # jax.debug.print("residual = {out}", out=residual)
 
+    # A model whose active constraints do not match the unknowns would be solved with rows dropped
+    # or duplicated, so its residual is NaN and it fails instead. EquilibriumModel.solve raises for
+    # this before solving, unless the constraints are traced.
+    residual = jnp.where(jnp.sum(active_mask) == size, residual, jnp.nan)
+
     return residual

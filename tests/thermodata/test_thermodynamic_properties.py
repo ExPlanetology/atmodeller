@@ -20,6 +20,7 @@ from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
+from atmodeller.reactions import ReactionNetwork
 from atmodeller.database import DataBase
 from atmodeller.phases import CondensedPhase, PurePhase
 from atmodeller.sci_utils import GAS_CONSTANT
@@ -164,6 +165,24 @@ def test_ions_can_be_selected() -> None:
 
     assert ions.unique_elements == ("2H", "e-")
     np.testing.assert_allclose(ions.element_molar_masses, [2.01410177812e-3, 5.48579909065e-7])
+
+
+def test_number_components() -> None:
+    """The number of components is fewer than the number of elements when elements occur in
+    fixed ratios in every species"""
+    h2o_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O")
+    h2o_l: ChemicalSpecies = ChemicalSpecies.from_end_member("liquid", formula="H2O")
+    gases: tuple[ChemicalSpecies, ...] = tuple(
+        ChemicalSpecies.create_gas(formula) for formula in ("H2", "O2", "CO2")
+    )
+
+    assert SpeciesCollection([h2o_g, h2o_l]).number_components == 1
+    assert SpeciesCollection([h2o_g, h2o_l, gases[2]]).number_components == 2
+    assert SpeciesCollection([h2o_g, h2o_l, *gases]).number_components == 3
+    assert SpeciesCollection([]).number_components == 0
+    assert ReactionNetwork([h2o_g, h2o_l]).get_reaction_dictionary() == {
+        0: "1.0 H2O_g = 1.0 H2O_l"
+    }
 
 
 def test_glenn_extrapolation_uses_nearest_range() -> None:
