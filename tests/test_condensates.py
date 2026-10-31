@@ -12,6 +12,7 @@ import logging
 from typing import Any
 
 import numpy as np
+import pytest
 from jaxtyping import ArrayLike
 
 from atmodeller import debug_logger
@@ -223,3 +224,26 @@ def test_graphite_diamond() -> None:
         assert stable_species["number_moles"][stable][row] > 0.1
         assert unstable_species["activity"][unstable][row] < 1.0
         assert unstable_species["number_moles"][unstable][row] < 1.0e-20
+
+
+def test_water_one_component() -> None:
+    """Water vapour and liquid water have one component, so H alone is constrained, at the
+    saturation pressure. Constraining H and O as well raises, as do H and O alongside N2, which
+    are the right number but not independent."""
+
+    def model(
+        gas_species: tuple[ChemicalSpecies, ...], mass: dict[str, float]
+    ) -> EquilibriumModel:
+        planet: Planet = Planet.from_species(
+            gas_species, condensates=(water,), temperature=300, mantle_melt_fraction=0
+        )
+        return EquilibriumModel(Parameters(planet, mass_constraints=mass))
+
+    h_kg: float = earth.oceans_to_hydrogen_mass(1)
+    output: Output = model((H2O_g,), {"H": h_kg}).solve_with_default()
+    np.testing.assert_allclose(output.to_dict()["gas"]["phase"]["pressure"], 0.0353362, rtol=1e-5)
+
+    with pytest.raises(ValueError, match="2 constraints"):
+        model((H2O_g,), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
+    with pytest.raises(ValueError, match="not independent"):
+        model((H2O_g, N2_g), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()

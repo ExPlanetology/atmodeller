@@ -208,7 +208,10 @@ def test_H_fO2() -> None:
         "O2_g": IronWustiteBuffer(column(1)),
         "H2_g": FixedActivityConstraint(column(3)),
     }
-    h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(column(2))
+    # Where the H2 fugacity is imposed, it replaces the H mass constraint
+    h_kg: ArrayLike = np.where(
+        np.isnan(column(3)), earth.oceans_to_hydrogen_mass(column(2)), np.nan
+    )
     mass_constraints: dict[str, ArrayLike] = {"H": h_kg}
 
     parameters: Parameters = Parameters(
