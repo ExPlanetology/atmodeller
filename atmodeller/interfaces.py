@@ -6,7 +6,7 @@
 """Interfaces for thermodynamic models and constraints.
 
 This module defines formal protocol classes (via :class:`typing.Protocol`) that specify the
-expected interfaces for different thermodynamic components.
+expected interfaces for the parts of the thermodynamic model.
 
 It also contains :class:`ChemicalSpeciesData`, a concrete :class:`equinox.Module` that holds
 per-species formula and composition data. It lives here rather than in :mod:`atmodeller.containers`

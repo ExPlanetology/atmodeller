@@ -68,13 +68,13 @@ Phase-level outputs are under ``out[<phase>]["phase"]`` in all formats.
      - Description
    * - background_mass
      - kg
-     - Mass of the background (untracked, chemically inert) component of the phase
+     - Mass of the untracked, chemically inert background material of the phase
    * - background_molar_mass
      - kg mol\ :math:`^{-1}`
-     - Molar mass of the background component
+     - Molar mass of the background material
    * - background_number_moles
      - mol
-     - Number of moles of the background component
+     - Number of moles of the background material
    * - elements_number_moles
      - mol
      - Total number of moles of elements (atoms) in the tracked species, excluding the background
