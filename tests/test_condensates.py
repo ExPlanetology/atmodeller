@@ -11,6 +11,7 @@ C-H-O gas with graphite is tested with the C-H-O comparisons in ``test_CHO.py``.
 import logging
 from typing import Any
 
+import equinox as eqx
 import numpy as np
 import pytest
 from jaxtyping import ArrayLike
@@ -247,3 +248,14 @@ def test_water_one_component() -> None:
         model((H2O_g,), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
     with pytest.raises(ValueError, match="not independent"):
         model((H2O_g, N2_g), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
+
+    # Inside JIT the constraints are traced, so the check is skipped, and the model fails instead
+    @eqx.filter_jit
+    def solve(model_: EquilibriumModel, o_kg: ArrayLike) -> Output:
+        return model_.update_constraints(
+            mass_constraints={"H": h_kg, "O": o_kg}
+        ).solve_with_default()
+
+    water_model: EquilibriumModel = model((H2O_g,), {"H": h_kg, "O": np.nan})
+    for o_kg, success in ((np.nan, True), (8 * h_kg, False)):
+        assert bool(solve(water_model, o_kg).to_dict()["solver"]["success"].item()) is success
