@@ -182,7 +182,7 @@ The extension is not calibrated, so its accuracy decreases with the distance fro
 Activities in a condensed solution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, a condensed solution is ideal: the activity of each end-member is its mole fraction, :math:`a_i = x_i`. A non-ideal model is set for each species with ``activity``, and receives the mole fractions of the phase, e.g. ``Si_iron_badro15`` for Si in liquid Fe. The interaction parameters of the species should be consistent with each other. Ideal mixing of oxide liquids is a poor approximation for silicate melts, whose mixing is strongly non-ideal, so a realistic melt needs an activity model.
+By default, a condensed solution is ideal: the activity of each end-member is its mole fraction, :math:`a_i = x_i`. A non-ideal model is set for each species with ``activity``, and receives the mole fractions of the phase, e.g. ``Si_iron_badro15`` for Si in liquid Fe. The interaction parameters of the species should be consistent with each other.
 
 The mole fractions, and hence the activities, are taken over the species that are included in the phase total, together with any background moles. Species that are not included in the phase total (``include_in_phase_mass=False``), e.g. dissolved volatiles in the dilute limit, do not dilute the other species, so they do not change their mole fractions or activities.
 
