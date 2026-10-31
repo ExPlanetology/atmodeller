@@ -259,7 +259,7 @@ class ChemicalSpecies(eqx.Module):
 
         return cls.from_end_members(
             end_members,
-            name=CONDENSED_SUFFIX if liquid else SOLID_SUFFIX,
+            suffix=CONDENSED_SUFFIX if liquid else SOLID_SUFFIX,
             formula=formula,
             database=database,
             activity=activity,
@@ -274,7 +274,7 @@ class ChemicalSpecies(eqx.Module):
         cls,
         end_members: Iterable[str],
         *,
-        name: str,
+        suffix: str,
         formula: str | None = None,
         database: DataBase | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
@@ -285,16 +285,16 @@ class ChemicalSpecies(eqx.Module):
     ) -> Self:
         """Creates a condensed species by stitching end-members together
 
-        For example, ``from_end_members(("quartz-alpha", "quartz-beta"), name="quartz")`` gives
-        ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
-        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
+        For example, ``from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` gives
+        ``O2Si_quartz``. The end-members must be of one chemical formula, and are stitched together
+        in order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
         :meth:`from_formula`, the species is a pseudo end-member, which can be the species of a
         pure phase or an end-member of a solution, and by default the extrapolation is decided by
         the phase.
 
         Args:
             end_members: Names of the end-members
-            name: Suffix of the species name
+            suffix: Suffix of the species name, e.g. ``quartz`` for ``O2Si_quartz``
             formula: Formula. Defaults to ``None``, which takes the formula of the minerals, and
                 is only needed when the end-members are all shared by several formulas, such as
                 ``liquid``.
@@ -324,7 +324,7 @@ class ChemicalSpecies(eqx.Module):
 
         return cls._create_condensed(
             formula,
-            name,
+            suffix,
             database.stitch(formula, end_members),
             activity=activity,
             solve_for_stability=solve_for_stability,

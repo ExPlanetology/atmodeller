@@ -37,8 +37,8 @@ class ChemicalSpeciesData(eqx.Module):
         formula: Formula
         suffix: Suffix of the name: ``g`` for a gas, ``l`` for a liquid, ``d`` for a dissolved
             species, the end-member for a mineral (e.g. ``quartz-alpha``), ``cd`` for
-            stitched end-members, ``s`` for stitched solid end-members, or another name for a
-            chosen stitch, each of which is a pseudo end-member
+            stitched end-members, ``s`` for stitched solid end-members, or a chosen suffix for
+            other stitched end-members, each of which is a pseudo end-member
     """
 
     formula: str
