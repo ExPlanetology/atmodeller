@@ -233,14 +233,14 @@ def test_water_one_component() -> None:
     are the right number but not independent."""
 
     def model(
-        gas_species: tuple[ChemicalSpecies, ...], mass: dict[str, float]
+        gas_species: tuple[ChemicalSpecies, ...], mass: dict[str, ArrayLike]
     ) -> EquilibriumModel:
         planet: Planet = Planet.from_species(
             gas_species, condensates=(water,), temperature=300, mantle_melt_fraction=0
         )
         return EquilibriumModel(Parameters(planet, mass_constraints=mass))
 
-    h_kg: float = earth.oceans_to_hydrogen_mass(1)
+    h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(1)
     output: Output = model((H2O_g,), {"H": h_kg}).solve_with_default()
     np.testing.assert_allclose(output.to_dict()["gas"]["phase"]["pressure"], 0.0353362, rtol=1e-5)
 
