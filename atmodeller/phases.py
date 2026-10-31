@@ -1027,8 +1027,8 @@ class PurePhase(CondensedPhase):
         """Creates a pure phase by stitching end-members together
 
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` gives
-        ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
-        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). See
+        ``O2Si_quartz``. The end-members must be of one chemical formula, and are stitched together
+        in order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). See
         :meth:`~atmodeller.containers.ChemicalSpecies.from_end_members`.
 
         Args:

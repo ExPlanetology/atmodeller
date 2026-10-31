@@ -195,8 +195,8 @@ class DataBase:
     def formula_of(self, *end_members: str) -> str:
         """Hill formula of end-members, from a mineral among them
 
-        A mineral is an end-member of one formula only, so it gives the formula, whereas the
-        gas and liquid are end-members of several formulas.
+        A mineral is an end-member of one chemical formula only, so it gives the formula, whereas
+        the gas and liquid are end-members of several formulas.
 
         Args:
             *end_members: Names of the end-members, e.g. ``quartz-alpha``, or

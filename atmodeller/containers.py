@@ -286,8 +286,8 @@ class ChemicalSpecies(eqx.Module):
         """Creates a condensed species by stitching end-members together
 
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` gives
-        ``O2Si_quartz``. The end-members must be of one formula, and are stitched together in
-        order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
+        ``O2Si_quartz``. The end-members must be of one chemical formula, and are stitched together
+        in order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
         :meth:`from_formula`, the species is a pseudo end-member, which can be the species of a
         pure phase or an end-member of a solution, and by default the extrapolation is decided by
         the phase.
