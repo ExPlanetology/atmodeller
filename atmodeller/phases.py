@@ -33,7 +33,7 @@ formula and a suffix (see :class:`~atmodeller.interfaces.ChemicalSpeciesData`):
   pseudo end-member)
 
 Quantities are accumulated in log-space throughout for numerical stability. Many methods accept an
-optional background component (e.g., the silicate melt mass) that contributes to phase totals but
+optional background material (e.g., the silicate melt mass) that contributes to phase totals but
 is not tracked as an explicit species in the solver. This background mass is treated as chemically
 inert bulk material: it has no thermodynamic activity of its own, but it still contributes to
 physical, mass-dependent quantities, most notably (1) sizing the solvent reservoir that dissolved
@@ -98,7 +98,7 @@ DEFAULT_BACKGROUND_MASS: float = 0.0
 See :attr:`BasePhase.background_mass` for what "background" mass means (the portion of a phase's
 mass that is not modelled by explicit chemical species)."""
 DUMMY_MOLAR_MASS: float = 1.0
-"""Default molar mass of the background component (kg mol\\ :sup:`-1`) (only meaningful when
+"""Default molar mass of the background material (kg mol\\ :sup:`-1`) (only meaningful when
 background mass is non-zero)"""
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -180,10 +180,10 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
     Args:
         name: Phase name
         species: An iterable of species in the phase
-        background_mass: Mass of the background component (kg), i.e. the untracked portion of the
+        background_mass: Mass of the background material (kg), i.e. the untracked portion of the
             phase's mass described above. Should be a scalar or a 1-D array matching the batch
             dimension if batching is used. Defaults to :data:`DEFAULT_BACKGROUND_MASS`.
-        background_molar_mass: Molar mass of the background component (kg mol\\ :sup:`-1`). Should
+        background_molar_mass: Molar mass of the background material (kg mol\\ :sup:`-1`). Should
             be a scalar or a 1-D array matching the batch dimension if batching is used. Defaults
             to :data:`DUMMY_MOLAR_MASS`; only meaningful when ``background_mass`` is not zero.
     """
@@ -193,10 +193,10 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
     species: SpeciesCollection[TSpecies_co]
     """Collection of species in the phase"""
     background_mass: FloatArray
-    """Mass of the background (untracked) component; see the class docstring for how this relates
+    """Mass of the untracked background material; see the class docstring for how this relates
     to the phase's actual total mass"""
     background_molar_mass: FloatArray
-    """Molar mass of the background (untracked) component"""
+    """Molar mass of the untracked background material"""
     output_class: AbstractClassVar[type["PhaseOutput"]]
     """Output class for the phase"""
 
@@ -225,7 +225,7 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
 
     @property
     def log_background_mass(self) -> FloatArray:
-        """Log mass of the background (untracked) component (kg)
+        """Log mass of the untracked background material (kg)
 
         See the class docstring: this is only part of the phase's total mass, not the whole of
         it, whenever any species has ``include_in_phase_mass=True``.
@@ -234,12 +234,12 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
 
     @property
     def log_background_moles(self) -> FloatArray:
-        """Log moles of the background (untracked) component (mol)"""
+        """Log moles of the untracked background material (mol)"""
         return self.log_background_mass - self.log_background_molar_mass
 
     @property
     def log_background_molar_mass(self) -> FloatArray:
-        r"""Log molar mass of the background (untracked) component (kg mol\ :sup:`-1`)"""
+        r"""Log molar mass of the untracked background material (kg mol\ :sup:`-1`)"""
         return jnp.log(self.background_molar_mass)
 
     @property
@@ -372,7 +372,7 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         """Gets the log mass of the phase.
 
         This is the self-consistent total mass of the phase: ``background_mass`` (the untracked
-        component, fixed at construction) plus the mass of every species with
+        background material, fixed at construction) plus the mass of every species with
         ``include_in_phase_mass=True`` (solved for). See :class:`BasePhase`'s docstring.
 
         Args:
@@ -401,8 +401,8 @@ class BasePhase(eqx.Module, Generic[TSpecies_co]):
         """Gets the log mass fraction of the species in the phase.
 
         The denominator is the phase total from :meth:`get_log_phase_mass`, which includes the
-        untracked ``background_mass`` component, so these fractions sum to less than 1 whenever
-        ``background_mass`` is non-zero.
+        untracked background material (``background_mass``), so these fractions sum to less than 1
+        whenever ``background_mass`` is non-zero.
 
         Args:
             log_number_moles: Log number of moles of each species in the phase
@@ -535,11 +535,11 @@ class PhaseOutput(eqx.Module, Generic[TPhase_co]):
         log_stability: Log stability for each species in the phase
         temperature: Temperature (K)
         pressure: Pressure (bar)
-        background_mass: Mass of the background (untracked) component (kg); see
+        background_mass: Mass of the untracked background material (kg); see
             :class:`BasePhase`'s docstring for how this relates to the phase's actual total mass
             (``phase_mass``), which also includes the mass of any species with
             ``include_in_phase_mass=True``
-        background_molar_mass: Molar mass of the background component (kg mol\ :sup:`-1`)
+        background_molar_mass: Molar mass of the background material (kg mol\ :sup:`-1`)
     """
 
     phase: TPhase_co
@@ -578,7 +578,7 @@ class PhaseOutput(eqx.Module, Generic[TPhase_co]):
 
     @property
     def background_mass(self) -> Float[Array, "... 1"]:
-        """Mass of the background (untracked) component; not the phase's total mass on its own
+        """Mass of the untracked background material; not the phase's total mass on its own
         (see :attr:`phase_mass` and :class:`BasePhase`'s docstring)"""
         return jnp.atleast_1d(self._background_mass)[..., None]
 
@@ -650,7 +650,7 @@ class PhaseOutput(eqx.Module, Generic[TPhase_co]):
 
     @property
     def phase_element_number_moles(self) -> Float[Array, "#n_batch 1"]:
-        """TODO: This ignores the background component, because without specifying its Hill
+        """TODO: This ignores the background material, because without specifying its Hill
         formula we cannot determine its elemental composition. This is a limitation of the current
         design, and we may want to revisit this in the future. Currently, however, this property is
         only used for a metallicity calculation for the gas phase, where the background is almost
@@ -798,9 +798,9 @@ class GasPhase(BasePhase[ChemicalSpecies]):
     Args:
         species: An iterable of species in the phase
         name: Name of the phase. Defaults to ``gas``.
-        background_mass: Mass of the background (untracked) component (kg); see
+        background_mass: Mass of the untracked background material (kg); see
             :class:`BasePhase`'s docstring. Defaults to :data:`DEFAULT_BACKGROUND_MASS` (zero).
-        background_molar_mass: Molar mass of the background component (kg mol\\ :sup:`-1`).
+        background_molar_mass: Molar mass of the background material (kg mol\\ :sup:`-1`).
             Defaults to :data:`DUMMY_MOLAR_MASS`; only meaningful when ``background_mass`` is not
             zero.
     """
@@ -856,7 +856,7 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
     solvent (the bulk melt mass that species dissolve into). When enabled, these species are
     included on top of the solvent when computing phase-level totals (mass, moles, molar mass,
     and derived fractions). This is useful in the dilute limit, where their contribution to the
-    total phase mass is negligible, or when the background component already accounts for them.
+    total phase mass is negligible, or when the background material already accounts for them.
 
     Note that this only affects phase-level aggregations — per-species thermodynamic properties
     (e.g., activity) are always computed from the raw species amounts and are unaffected. Total
@@ -865,9 +865,9 @@ class CondensedPhase(BasePhase[SpeciesProtocol]):
     Args:
         species: An iterable of species in the phase
         name: Name of the phase. Defaults to ``condensed_phase``.
-        background_mass: Mass of the background (untracked) component (kg); see
+        background_mass: Mass of the untracked background material (kg); see
             :class:`BasePhase`'s docstring. Defaults to :data:`DEFAULT_BACKGROUND_MASS` (zero).
-        background_molar_mass: Molar mass of the background component (kg mol\\ :sup:`-1`).
+        background_molar_mass: Molar mass of the background material (kg mol\\ :sup:`-1`).
             Defaults to :data:`DUMMY_MOLAR_MASS`; only meaningful when ``background_mass`` is not
             zero.
         dissolved: Whether the phase can have dissolved species, which is only the case for the

@@ -368,17 +368,18 @@ def vmap_axes_spec(x: PyTree) -> PyTree[Literal[0, None]]:
 
 
 def partial_rref(matrix: NpArray) -> NpArray:
-    """Computes a partial reduced row echelon form (RREF) to determine linear components.
+    """Computes a partial reduced row echelon form (RREF) to find a basis of the left null space
 
     This function performs the computation using NumPy in-place operations and is therefore not
-    compatible with JAX transformations. The returned matrix represents the linear components of
-    the input, extracted from the augmented RREF procedure.
+    compatible with JAX transformations. The returned matrix is a basis of the left null space of
+    the input, i.e. the coefficients of linearly independent combinations of its rows that vanish,
+    extracted from the augmented RREF procedure.
 
     Args:
         matrix: A 2-D NumPy array of shape (nrows, ncols).
 
     Returns:
-        A matrix containing the linear components.
+        A basis of the left null space, one combination per row.
     """
     nrows, ncols = matrix.shape
 
@@ -427,12 +428,12 @@ def partial_rref(matrix: NpArray) -> NpArray:
     # logger.debug("augmented_matrix after backward substitution = \n%s", augmented_matrix)
 
     # reduced_matrix: NpArray = augmented_matrix[:, :ncols]
-    component_matrix: NpArray = augmented_matrix[min(ncols, nrows) :, ncols:]
+    null_space_matrix: NpArray = augmented_matrix[min(ncols, nrows) :, ncols:]
     # logger.debug("reduced_matrix = \n%s", reduced_matrix)
-    # logger.debug("component_matrix = \n%s", component_matrix)
+    # logger.debug("null_space_matrix = \n%s", null_space_matrix)
     # logger.debug("permutation_matrix = \n%s", P)
 
-    return component_matrix
+    return null_space_matrix
 
 
 def max_norm(
@@ -441,7 +442,7 @@ def max_norm(
     """Computes the L-infinity norm of batched objective residuals.
 
     Evaluates the objective function for each model in the batch and returns the maximum absolute
-    residual across all components of each system. This is a vectorised variant of
+    residual across all entries of each system. This is a vectorised variant of
     :func:`optimistix.max_norm`, producing one scalar L-infinity norm per system in the batch.
 
     See: https://docs.kidger.site/optimistix/api/norms/

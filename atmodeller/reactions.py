@@ -5,7 +5,7 @@
 
 """Reaction network API.
 
-Defines reaction network components used to assemble the full thermodynamic equilibrium system.
+Defines the reaction networks used to assemble the full thermodynamic equilibrium system.
 
 This module provides:
 
