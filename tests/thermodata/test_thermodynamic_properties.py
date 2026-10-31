@@ -166,6 +166,21 @@ def test_ions_can_be_selected() -> None:
     np.testing.assert_allclose(ions.element_molar_masses, [2.01410177812e-3, 5.48579909065e-7])
 
 
+def test_number_components() -> None:
+    """The number of components is fewer than the number of elements when elements occur in
+    fixed ratios in every species"""
+    h2o_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O")
+    h2o_l: ChemicalSpecies = ChemicalSpecies.from_end_member("liquid", formula="H2O")
+    gases: tuple[ChemicalSpecies, ...] = tuple(
+        ChemicalSpecies.create_gas(formula) for formula in ("H2", "O2", "CO2")
+    )
+
+    assert SpeciesCollection([h2o_g, h2o_l]).number_components == 1
+    assert SpeciesCollection([h2o_g, h2o_l, gases[2]]).number_components == 2
+    assert SpeciesCollection([h2o_g, h2o_l, *gases]).number_components == 3
+    assert SpeciesCollection([]).number_components == 0
+
+
 def test_glenn_extrapolation_uses_nearest_range() -> None:
     """Outside its ranges, the NASA Glenn data use the nearest range, so G is continuous"""
     temperature: Array = jnp.array([199.0, 200.0, 6000.0, 6001.0, 7000.0])
