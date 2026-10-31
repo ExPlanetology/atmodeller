@@ -286,6 +286,16 @@ class ReactionNetwork(BaseReactionBlock):
         # Reaction matrix of linearly independent reactions
         transpose_formula_matrix: NpInt = get_formula_matrix(self.species.reaction_species).T
         self.reaction_matrix: NpFloat = partial_rref(transpose_formula_matrix)
+        if self.reaction_matrix.shape[0] != self.number_reactions:
+            reaction_species: SpeciesCollection = self.species.reaction_species
+            number_components: int = reaction_species.number_components
+            raise ValueError(
+                f"The reaction species have {reaction_species.number_elements} elements "
+                f"{reaction_species.unique_elements} but {number_components} "
+                f"component{'' if number_components == 1 else 's'}, since some elements occur in "
+                "fixed ratios in every species, which is not supported yet. Add species in which "
+                "these elements occur in other ratios, e.g. H2 or O2 alongside H2O."
+            )
 
         # Reaction matrix expanded to full species space
         self.reaction_matrix_full: NpFloat = np.zeros(
@@ -313,12 +323,11 @@ class ReactionNetwork(BaseReactionBlock):
 
     @property
     def number_reactions(self) -> int:
-        """Number of core reactions"""
-        return max(
-            0,
-            self.species.reaction_species.number_species
-            - len(self.species.reaction_species.unique_elements),
-        )
+        """Number of core reactions, which is the number of reaction species minus the number of
+        components"""
+        reaction_species: SpeciesCollection = self.species.reaction_species
+
+        return reaction_species.number_species - reaction_species.number_components
 
     def standard_gibbs_over_RT(
         self, temperature: FloatArray, pressure: FloatArray

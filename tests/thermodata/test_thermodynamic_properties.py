@@ -20,6 +20,7 @@ from scipy.optimize import brentq
 
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
+from atmodeller.reactions import ReactionNetwork
 from atmodeller.database import DataBase
 from atmodeller.phases import CondensedPhase, PurePhase
 from atmodeller.sci_utils import GAS_CONSTANT
@@ -179,6 +180,8 @@ def test_number_components() -> None:
     assert SpeciesCollection([h2o_g, h2o_l, gases[2]]).number_components == 2
     assert SpeciesCollection([h2o_g, h2o_l, *gases]).number_components == 3
     assert SpeciesCollection([]).number_components == 0
+    with pytest.raises(ValueError, match="but 1 component,"):
+        ReactionNetwork([h2o_g, h2o_l])
 
 
 def test_glenn_extrapolation_uses_nearest_range() -> None:
