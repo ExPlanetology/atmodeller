@@ -367,73 +367,49 @@ def vmap_axes_spec(x: PyTree) -> PyTree[Literal[0, None]]:
     return tree_map(get_batch_axis, x)
 
 
-def partial_rref(matrix: NpArray) -> NpArray:
-    """Computes a partial reduced row echelon form (RREF) to find a basis of the left null space
+def left_null_space(matrix: NpArray, tolerance: float = 1e-10) -> NpArray:
+    """Computes a basis of the left null space by forward elimination
 
-    This function performs the computation using NumPy in-place operations and is therefore not
-    compatible with JAX transformations. The returned matrix is a basis of the left null space of
-    the input, i.e. the coefficients of linearly independent combinations of its rows that vanish,
-    extracted from the augmented RREF procedure.
+    The matrix is augmented with the identity and reduced to row echelon form with partial
+    pivoting. A pivot is the non-zero entry that eliminates the entries below it in its column,
+    and the pivot row only advances when a column has a pivot, so it ends at the rank. The rows
+    below the last pivot vanish, and their identity part records the linearly independent
+    combinations of the rows of the input that vanish. This uses NumPy in-place operations and is
+    therefore not compatible with JAX transformations.
 
     Args:
-        matrix: A 2-D NumPy array of shape (nrows, ncols).
+        matrix: A 2-D NumPy array of shape (nrows, ncols)
+        tolerance: Tolerance, relative to the largest entry, below which an entry is zero.
+            Defaults to 1e-10.
 
     Returns:
-        A basis of the left null space, one combination per row.
+        A basis of the left null space, one combination per row, of which there are nrows minus
+        the rank of the matrix
     """
     nrows, ncols = matrix.shape
-
     augmented_matrix: NpArray = np.hstack((matrix, np.eye(nrows)))
-    # logger.debug("augmented_matrix = \n%s", augmented_matrix)
-    # Permutation matrix
-    # P: NpArray = np.eye(nrows)
+    threshold: float = tolerance * max(np.max(np.abs(matrix), initial=0.0), 1.0)
 
-    # Forward elimination with partial pivoting
-    for i in range(min(nrows, ncols)):
-        # Pivot selection with check
-        nonzero: NpInt = np.flatnonzero(augmented_matrix[i:, i])
-        # logger.debug("nonzero = %s", nonzero)
+    pivot_row: int = 0
+    for column in range(ncols):
+        if pivot_row == nrows:
+            break
+        nonzero: NpInt = np.flatnonzero(np.abs(augmented_matrix[pivot_row:, column]) > threshold)
         if nonzero.size == 0:
-            # logger.debug("i: %d. No pivot in this column.", i)
-            continue  # no pivot in this column
-        # Absolute row index of first non-zero index
-        pivot_row: np.int_ = nonzero[0] + i
-        # Swap if pivot row is not already in place
-        if pivot_row != i:
-            augmented_matrix[[i, pivot_row], :] = augmented_matrix[[pivot_row, i], :]
-            # P[[i, nonzero_row], :] = P[[nonzero_row, i], :]
+            continue  # the column depends on earlier ones, so it has no pivot
+        # Swap the first row with a non-zero entry into the pivot row
+        swap_row: int = pivot_row + int(nonzero[0])
+        if swap_row != pivot_row:
+            augmented_matrix[[pivot_row, swap_row]] = augmented_matrix[[swap_row, pivot_row]]
+        # Eliminate the entries below the pivot
+        factors: NpArray = (
+            augmented_matrix[pivot_row + 1 :, column : column + 1]
+            / augmented_matrix[pivot_row, column]
+        )
+        augmented_matrix[pivot_row + 1 :] -= factors * augmented_matrix[pivot_row]
+        pivot_row += 1
 
-        # Perform row operations to eliminate values below the pivot.
-        pivot_value: np.float64 = augmented_matrix[i, i]
-        if i + 1 < nrows:
-            factors = augmented_matrix[i + 1 :, i : i + 1] / pivot_value  # shape (nrows-i-1, 1)
-            augmented_matrix[i + 1 :] -= factors * augmented_matrix[i]
-
-    # logger.debug("augmented_matrix after forward elimination = \n%s", augmented_matrix)
-
-    # Backward substitution
-    for i in range(min(nrows, ncols) - 1, -1, -1):
-        pivot_value = augmented_matrix[i, i]
-        if pivot_value == 0:
-            # logger.debug("i: %d. Pivot is zero, skipping backward elimination.", i)
-            continue  # skip columns with no pivot
-        # Normalise the pivot row.
-        augmented_matrix[i] /= augmented_matrix[i, i]
-
-        # Eliminate entries above the pivot
-        if i > 0:
-            factors = augmented_matrix[:i, i : i + 1] / pivot_value  # shape (i, 1)
-            augmented_matrix[:i] -= factors * augmented_matrix[i]
-
-    # logger.debug("augmented_matrix after backward substitution = \n%s", augmented_matrix)
-
-    # reduced_matrix: NpArray = augmented_matrix[:, :ncols]
-    null_space_matrix: NpArray = augmented_matrix[min(ncols, nrows) :, ncols:]
-    # logger.debug("reduced_matrix = \n%s", reduced_matrix)
-    # logger.debug("null_space_matrix = \n%s", null_space_matrix)
-    # logger.debug("permutation_matrix = \n%s", P)
-
-    return null_space_matrix
+    return augmented_matrix[pivot_row:, ncols:]
 
 
 def max_norm(

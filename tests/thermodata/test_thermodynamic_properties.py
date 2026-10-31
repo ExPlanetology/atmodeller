@@ -180,8 +180,9 @@ def test_number_components() -> None:
     assert SpeciesCollection([h2o_g, h2o_l, gases[2]]).number_components == 2
     assert SpeciesCollection([h2o_g, h2o_l, *gases]).number_components == 3
     assert SpeciesCollection([]).number_components == 0
-    with pytest.raises(ValueError, match="but 1 component,"):
-        ReactionNetwork([h2o_g, h2o_l])
+    assert ReactionNetwork([h2o_g, h2o_l]).get_reaction_dictionary() == {
+        0: "1.0 H2O_g = 1.0 H2O_l"
+    }
 
 
 def test_glenn_extrapolation_uses_nearest_range() -> None:
