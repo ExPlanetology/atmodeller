@@ -124,7 +124,9 @@ def test_end_members() -> None:
     assert PurePhase.from_end_member("liquid", formula="H2O").name == "H2O_l"
     assert PurePhase.from_end_member("diamond").name == "C_diamond"
     assert PurePhase(ChemicalSpecies.from_end_member("graphite")).name == "C_graphite"
-    assert PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), suffix="qz").name == "O2Si_qz"
+    assert (
+        PurePhase.from_end_members(("quartz-alpha", "quartz-beta"), suffix="qz").name == "O2Si_qz"
+    )
     melt_sio2 = ChemicalSpecies.from_end_member(
         "liquid", formula="SiO2", include_in_phase_mass=False
     )
