@@ -31,7 +31,7 @@ from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 from atmodeller import debug_logger
 from atmodeller.containers import ChemicalSpecies, SolverParameters
 from atmodeller.interfaces import ActivityConstraintProtocol
-from atmodeller.jax_utils import MultiAttemptSolution
+from atmodeller.jax_utils import RESULTS, MultiAttemptSolution
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.phases import PurePhase
@@ -109,6 +109,8 @@ def _assert_valid_output(output: Output, parameters: Parameters) -> None:
         parameters.reaction_system.species.number_species * 2,
     )
     assert jnp.all(jnp.isfinite(solution))
+    multi_sol: MultiAttemptSolution = output.multi_attempt_solution
+    np.testing.assert_array_equal(multi_sol.result == RESULTS.successful, multi_sol.success)
 
 
 def test_make_solver() -> None:
@@ -176,8 +178,9 @@ def test_make_solver_with_jit_batch_only() -> None:
 def _stub_solution(
     value: Float[Array, "batch solution"], converged: Bool[Array, " batch"], larger_tau: ArrayLike
 ) -> MultiAttemptSolution:
-    """Stub solution that reports more steps and attempts for a solve at a larger tau and, as the
-    batch retry solver, zero steps and attempts for a model that did not converge"""
+    """Stub solution that reports more steps and a later successful attempt for a solve at a larger
+    tau and, as the batch retry solver, zero steps and no successful attempt for a model that did
+    not converge"""
     result_value: Array = jnp.full(
         converged.shape,
         optx.RESULTS.successful._value,  # pyright: ignore
@@ -187,10 +190,18 @@ def _stub_solution(
         EnumerationItem(result_value, optx.RESULTS),  # pyright: ignore
     )
     num_steps: Array = jnp.where(converged, jnp.where(larger_tau, 5, 3), 0)
-    attempts: Array = jnp.where(converged, jnp.where(larger_tau, 2, 1), 0)
+    successful_attempt: Array = jnp.where(converged, jnp.where(larger_tau, 2, 1), 0)
+    status_value: Array = jnp.where(
+        converged,
+        RESULTS.successful._value,  # pyright: ignore
+        RESULTS.objective_check_failed._value,  # pyright: ignore
+    )
+    status: RESULTS = cast(RESULTS, EnumerationItem(status_value, RESULTS))  # pyright: ignore
 
     return MultiAttemptSolution(
-        optx.Solution(value, result, None, {"num_steps": num_steps}, None), attempts
+        optx.Solution(value, result, None, {"num_steps": num_steps}, None),
+        status,
+        {"successful_attempt": successful_attempt, "num_steps": num_steps},
     )
 
 
@@ -200,7 +211,7 @@ def _stub_solution(
     ids=["default_tau", "custom_tau"],
 )
 @pytest.mark.parametrize(
-    "warm_start_converges, expected_steps, expected_attempts",
+    "warm_start_converges, expected_steps, expected_successful_attempt",
     [(True, [3, 3], [1, 1]), (False, [3, 0], [1, 0])],
     ids=["converged_at_final_tau", "failed_at_final_tau"],
 )
@@ -208,7 +219,7 @@ def test_tau_sweep_reports_final_tau(
     solver_parameters: SolverParameters,
     warm_start_converges: bool,
     expected_steps: list[int],
-    expected_attempts: list[int],
+    expected_successful_attempt: list[int],
 ) -> None:
     """The tau sweep reports the solve at the final tau when one of two models fails the first
     solve, with the tau settings of ``SolverParameters``.
@@ -252,4 +263,4 @@ def test_tau_sweep_reports_final_tau(
     sweep_steps: int = solver_parameters.tau_num - (0 if warm_start_converges else 1)
     np.testing.assert_array_equal(multi_sol.value[:, 0], [1.0, sweep_steps])
     np.testing.assert_array_equal(multi_sol.num_steps, expected_steps)
-    np.testing.assert_array_equal(multi_sol.attempts, expected_attempts)
+    np.testing.assert_array_equal(multi_sol.successful_attempt, expected_successful_attempt)

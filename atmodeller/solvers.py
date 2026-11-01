@@ -48,7 +48,6 @@ from collections.abc import Callable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import optimistix as optx
 from jax import lax
 from jaxtyping import Array, Bool, Float, Integer, PRNGKeyArray
 
@@ -57,8 +56,8 @@ from atmodeller.initializer import ElementPotentialInitializer, InitializerProto
 from atmodeller.jax_utils import (
     FloatArray,
     MultiAttemptSolution,
+    checked_root_find,
     implicit_polish,
-    max_norm,
     perturb_around_converged,
     vmap_axes_spec,
 )
@@ -70,32 +69,34 @@ LOG_NUMBER_MOLES_VMAP_AXES: int = 0
 """Axis index for the solution array in the vmapped batch solver"""
 
 
-def solve_single(initial_guess: FloatArray, parameters: Parameters) -> optx.Solution:
-    """Solves a single (unbatched) system using :func:`optimistix.root_find`.
+def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAttemptSolution:
+    """Solves a single (unbatched) system, and checks it.
 
-    Intended to be wrapped with :func:`equinox.filter_vmap` by :func:`make_batch_solver`
-    rather than called directly. All solver configuration is read from
-    ``parameters.solver_parameters``.
+    Supplies Atmodeller's objective function and solver configuration, read from
+    ``parameters.solver_parameters``, to :func:`~atmodeller.jax_utils.checked_root_find`. The
+    system is solved if the solver converged and the residual of the objective function is within
+    ``solver_parameters.atol``. Intended to be wrapped with :func:`equinox.filter_vmap` by
+    :func:`make_batch_solver` rather than called directly.
 
     Args:
         initial_guess: Initial guess for the solution vector
         parameters: Parameters providing the solver instance, step limit, and options
 
     Returns:
-        :class:`optimistix.Solution` object
+        Checked :class:`~atmodeller.jax_utils.MultiAttemptSolution` of this single attempt
     """
-    sol: optx.Solution = optx.root_find(
-        objective_function,
-        parameters.solver_parameters.get_solver_instance(),
-        initial_guess,
-        args=parameters,
-        throw=parameters.solver_parameters.throw,
-        max_steps=parameters.solver_parameters.max_steps,
-        options=parameters.solver_parameters.get_options(parameters.species.number_species),
-    )
-    # jax.debug.print("solution = {out}", out=sol.value)
+    solver_parameters = parameters.solver_parameters
 
-    return sol
+    return checked_root_find(
+        objective_function,
+        solver_parameters.get_solver_instance(),
+        initial_guess,
+        parameters,
+        atol=solver_parameters.atol,
+        throw=solver_parameters.throw,
+        max_steps=solver_parameters.max_steps,
+        options=solver_parameters.get_options(parameters.species.number_species),
+    )
 
 
 def make_initial_guess_function(
@@ -190,8 +191,8 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         parameters: Parameters used to derive the vmapping axes at construction time
 
     Returns:
-        Callable that returns a :class:`~atmodeller.jax_utils.MultiAttemptSolution` with
-        ``attempts=1``
+        Callable that returns a checked :class:`~atmodeller.jax_utils.MultiAttemptSolution` of a
+        single attempt
     """
     solver_function_vmapped: Callable = eqx.filter_vmap(
         solve_single, in_axes=(LOG_NUMBER_MOLES_VMAP_AXES, vmap_axes_spec(parameters))
@@ -200,27 +201,22 @@ def make_batch_solver(parameters: Parameters) -> Callable:
     def batch_single_pass_solver(solution: Array, parameters: Parameters) -> MultiAttemptSolution:
         """Runs the vmapped single-pass batch solve.
 
-        ``_attempts`` is set to ``1`` unconditionally; objective-based per-element convergence
-        checking is delegated to the retry wrapper in ``batch_retry_solver``.
-
         Args:
             solution: Batched initial guess with shape ``(batch, solution)``
             parameters: Parameters passed through to each vmapped :func:`solve_single` call
 
         Returns:
-            :class:`~atmodeller.jax_utils.MultiAttemptSolution` with ``attempts=1`` for all batch elements
+            Checked :class:`~atmodeller.jax_utils.MultiAttemptSolution` of a single attempt
         """
         # jax.debug.print("Running batch single-pass solver with vmapped single solve")
         # jax.debug.print("solution = {out}", out=solution)
         # jax.debug.print("tau = {out}", out=parameters.solver_parameters.tau)
-        sol: optx.Solution = solver_function_vmapped(solution, parameters)
-
-        return MultiAttemptSolution(sol, _attempts=1)
+        return solver_function_vmapped(solution, parameters)
 
     return batch_single_pass_solver
 
 
-def make_batch_retry_solver(solver_function: Callable, objective_fn: Callable) -> Callable:
+def make_batch_retry_solver(solver_function: Callable) -> Callable:
     """Makes a batch retry solver.
 
     A thin, atmodeller-specific wrapper around the generic
@@ -228,18 +224,18 @@ def make_batch_retry_solver(solver_function: Callable, objective_fn: Callable) -
     the solution into ``log_number_moles``/``log_stability``, perturbs only the former around its
     already-converged rows (via :func:`~atmodeller.jax_utils.perturb_around_converged`), and
     re-derives the latter via :func:`~atmodeller.engine.compute_implied_log_stability`. The
-    retry-loop mechanics themselves (perturb failed rows, re-solve, check objective-based
-    convergence, keep newly-successful rows, repeat) live in the generic factory, shared with
-    downstream packages (e.g. mcmodeller) that have a different solution-vector layout.
+    retry-loop mechanics themselves (perturb failed rows, re-solve, keep newly-successful rows,
+    repeat) live in the generic factory, shared with downstream packages (e.g. mcmodeller) that
+    have a different solution-vector layout. Each attempt is checked by ``solver_function``.
 
-    ``solver_function`` and ``objective_fn`` must be pure JAX-callable functions compatible
-    with :func:`equinox.filter_jit`. They must not close over non-JAX state or produce Python side
+    ``solver_function`` must be a pure JAX-callable function compatible with
+    :func:`equinox.filter_jit`. It must not close over non-JAX state or produce Python side
     effects.
 
     Args:
-        solver_function: Callable that performs a single solve. Must accept arguments of an initial
-            guess and a pytree of parameters.
-        objective_fn: Callable for the objective function
+        solver_function: Callable that performs a single solve, e.g. from
+            :func:`make_batch_solver`. Must accept arguments of an initial guess and a pytree of
+            parameters, and return a checked :class:`~atmodeller.jax_utils.MultiAttemptSolution`.
 
     Returns:
         Callable that returns a :class:`~atmodeller.jax_utils.MultiAttemptSolution` object
@@ -267,16 +263,16 @@ def make_batch_retry_solver(solver_function: Callable, objective_fn: Callable) -
 
         return jnp.concatenate([perturbed_log_number_moles, new_log_stability], axis=-1)
 
-    return generic_make_batch_retry_solver(solver_function, objective_fn, perturb_fn)
+    return generic_make_batch_retry_solver(solver_function, perturb_fn)
 
 
 def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:
-    """Gets a batch retry solver, constructing the vmapped batch solver and objective internally.
+    """Gets a batch retry solver, constructing the vmapped batch solver internally.
 
     A convenience wrapper around :func:`make_batch_retry_solver` that accepts
-    ``parameters`` directly, deriving the ``vmap`` axes and building both the batch solver and
-    vmapped objective function at construction time. Use this in preference to calling
-    :func:`make_batch_retry_solver` directly when the vmap axes are not already available.
+    ``parameters`` directly, deriving the ``vmap`` axes and building the batch solver at
+    construction time. Use this in preference to calling :func:`make_batch_retry_solver` directly
+    when the vmap axes are not already available.
 
     Args:
         parameters: Parameters used to derive the vmapping axes at construction time
@@ -285,14 +281,8 @@ def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:
         Callable that returns a :class:`~atmodeller.jax_utils.MultiAttemptSolution` object
     """
     batch_solver: Callable = make_batch_solver(parameters)
-    objective_function_vmapped: Callable = eqx.filter_vmap(
-        objective_function, in_axes=(LOG_NUMBER_MOLES_VMAP_AXES, vmap_axes_spec(parameters))
-    )
-    batch_retry_solver: Callable = make_batch_retry_solver(
-        batch_solver, objective_function_vmapped
-    )
 
-    return batch_retry_solver
+    return make_batch_retry_solver(batch_solver)
 
 
 def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) -> Callable:
@@ -372,7 +362,6 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
                 new_parameters,
                 subkey,
                 parameters.solver_parameters.max_starts - 1,
-                parameters.solver_parameters.atol,
                 implicit_gradient=False,
             )
 
@@ -397,7 +386,6 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             parameters,
             subkey,
             parameters.solver_parameters.max_starts - 1,
-            parameters.solver_parameters.atol,
             implicit_gradient=False,
         )
         first_success: Bool[Array, "..."] = first_sol.success
@@ -520,7 +508,6 @@ def make_solver(
                 parameters,
                 subkey,
                 parameters.solver_parameters.max_starts - 1,
-                parameters.solver_parameters.atol,
             )
 
         multi_sol = lax.cond(condition, solve_with_stability, solve_without_stability, operand=key)
@@ -619,7 +606,6 @@ def make_solver_with_jit_single_path(
             parameters,
             subkey,
             parameters.solver_parameters.max_starts - 1,
-            parameters.solver_parameters.atol,
         )
         return Output(parameters, multi_sol, base_solution_array)
 
@@ -651,9 +637,6 @@ def make_solver_with_jit_batch_only(
     """
     initial_guess_function: Callable = make_initial_guess_function(parameters, initializer)
     batch_solver: Callable = make_batch_solver(parameters)
-    objective_function_vmapped: Callable = eqx.filter_vmap(
-        objective_function, in_axes=(LOG_NUMBER_MOLES_VMAP_AXES, vmap_axes_spec(parameters))
-    )
 
     @eqx.filter_jit
     def batch_only_solver(
@@ -663,26 +646,13 @@ def make_solver_with_jit_batch_only(
     ) -> Output:
         """Basic batch solver path without retry or tau-sweep enhancements.
 
-        A model is solved on its single attempt if it passes the same objective-based check and
-        solver status as in the batch retry solver, so the reported attempts and steps are zero
-        otherwise.
+        Each model is solved on its single attempt if it passes the check in
+        :func:`solve_single`, so the reported successful attempt and steps are zero otherwise.
         """
         # Note: key is unused in basic batch solver, but included for interface compatibility
         del key
         base_solution_array = initial_guess_function(parameters, base_solution_array)
         multi_sol: MultiAttemptSolution = batch_solver(base_solution_array, parameters)
-
-        converged: Bool[Array, "..."] = (
-            max_norm(objective_function_vmapped, multi_sol.value, parameters)
-            < parameters.solver_parameters.atol
-        )
-        success: Bool[Array, "..."] = jnp.logical_and(converged, multi_sol.solver_success)
-        solution: optx.Solution = eqx.tree_at(
-            lambda sol: sol.stats["num_steps"],
-            multi_sol.solution,
-            jnp.where(success, multi_sol.num_steps, jnp.zeros_like(multi_sol.num_steps)),
-        )
-        multi_sol = MultiAttemptSolution(solution, success.astype(int))
 
         return Output(parameters, multi_sol, base_solution_array)
 

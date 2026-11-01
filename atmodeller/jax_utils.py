@@ -412,29 +412,6 @@ def left_null_space(matrix: NpArray, tolerance: float = 1e-10) -> NpArray:
     return augmented_matrix[pivot_row:, ncols:]
 
 
-def max_norm(
-    objective_function: Callable, solution: Float[Array, "... solution"], parameters: PyTree
-) -> FloatArray:  # pragma: no cover
-    """Computes the L-infinity norm of batched objective residuals.
-
-    Evaluates the objective function for each model in the batch and returns the maximum absolute
-    residual across all entries of each system. This is a vectorised variant of
-    :func:`optimistix.max_norm`, producing one scalar L-infinity norm per system in the batch.
-
-    See: https://docs.kidger.site/optimistix/api/norms/
-
-    Args:
-        objective_function: A callable taking ``solution`` and ``parameters`` that returns the
-            objective residuals for each model in the batch
-        solution: Batched array of candidate solutions
-        parameters: Parameters passed to the objective function
-
-    Returns:
-        L-infinity norm
-    """
-    return jnp.linalg.norm(objective_function(solution, parameters), ord=jnp.inf, axis=-1)
-
-
 def stack_broadcast(arrays: Sequence[Array], axis: int = -1) -> Array:
     """Broadcasts a sequence of arrays to a common shape and stacks them.
 
@@ -497,26 +474,69 @@ class RootFindParameters(eqx.Module):
         )
 
 
-class MultiAttemptSolution(eqx.Module):  # pragma: no cover
-    """A solution wrapper for handling multiple solver attempts per problem
+class RESULTS(eqx.Enumeration):
+    """Result of a multi-attempt solve for each model
 
-    This class standardises solver outputs from multi-attempt strategies. Some attributes
-    (e.g. ``success``, ``solver_success``, ``num_steps``) are broadcast to the batch dimension
-    to ensure consistent shapes across all outputs, whether the underlying solver returns scalar
-    or per-attempt values.
+    A model is solved only if the solver converged and the residual of the objective function is
+    within the tolerance. For a model that was not solved, the result describes its first attempt.
+    The result of the solver itself is :class:`optimistix.RESULTS`
+    (:attr:`MultiAttemptSolution.optimistix_result`).
+    """
+
+    successful = ""
+    solver_failed = (
+        "The solver did not converge on the first attempt, and every attempt failed. The "
+        "Optimistix result gives the reason."
+    )
+    objective_check_failed = (
+        "The solver converged on the first attempt, but the residual of the objective function "
+        "exceeds the tolerance, and every attempt failed."
+    )
+
+
+def classify_attempt(
+    solver_success: Bool[Array, "..."], converged: Bool[Array, "..."]
+) -> Integer[Array, "..."]:
+    """Classifies a solve attempt for each model.
 
     Args:
-        solution: Optimistix solution
-        _attempts: Attempt on which each batch element passed both the objective-based check and
-            the solver status (``0`` indicates no successful attempt). Defaults to ``0``.
+        solver_success: Whether the solver converged
+        converged: Whether the residual of the objective function is within the tolerance
+
+    Returns:
+        Value of the :class:`RESULTS` item for each model
+    """
+    return jnp.where(
+        solver_success & converged,
+        RESULTS.successful._value,  # pyright: ignore
+        jnp.where(
+            solver_success,
+            RESULTS.objective_check_failed._value,  # pyright: ignore
+            RESULTS.solver_failed._value,  # pyright: ignore
+        ),
+    )
+
+
+class MultiAttemptSolution(eqx.Module):  # pragma: no cover
+    """Checked solution of a solve with one or more attempts for each model
+
+    A model is solved if the solver converged and the residual of the objective function is within
+    the tolerance, on one of its attempts. This is always the final, checked outcome of a solve.
+
+    Args:
+        solution: Optimistix solution of the attempt kept for each model: the attempt on which the
+            model was solved or, for a model that was not solved, its first attempt. The solutions
+            of a batch may come from different attempts. The value of a model that was not solved
+            is its initial guess, and ``aux`` and ``state`` are not kept.
+        result: Result for each model
+        stats: Statistics for each model: ``successful_attempt``, the attempt on which the model
+            was solved (``0`` if it was not solved), and ``num_steps``, the number of solver
+            steps on that attempt (``0`` if it was not solved)
     """
 
     solution: optx.Solution
-    _attempts: ArrayLike = 0
-
-    @property
-    def attempts(self) -> Integer[Array, " batch"]:
-        return jnp.broadcast_to(self._attempts, self.batch_shape)
+    result: RESULTS
+    stats: dict[str, PyTree[ArrayLike]]
 
     @property
     def aux(self) -> Any:
@@ -530,22 +550,13 @@ class MultiAttemptSolution(eqx.Module):  # pragma: no cover
 
     @property
     def num_steps(self) -> Integer[Array, " batch"]:
-        """Number of steps"""
+        """Number of solver steps on the attempt on which each model was solved, or ``0``"""
         return jnp.broadcast_to(self.stats["num_steps"], self.batch_shape)
 
     @property
-    def result(self) -> optx.RESULTS:
-        """Raw Optimistix solver result code"""
+    def optimistix_result(self) -> optx.RESULTS:
+        """Optimistix result of the attempt kept for each model"""
         return self.solution.result
-
-    @property
-    def value(self) -> Float[Array, "batch solution"]:
-        return self.solution.value
-
-    @property
-    def solver_success(self) -> Bool[Array, " batch"]:
-        """Whether the underlying solver claims success"""
-        return jnp.broadcast_to(self.solution.result == optx.RESULTS.successful, self.batch_shape)
 
     @property
     def state(self) -> Any:
@@ -553,23 +564,34 @@ class MultiAttemptSolution(eqx.Module):  # pragma: no cover
         return self.solution.state
 
     @property
-    def stats(self) -> dict[str, PyTree[ArrayLike]]:
-        """Solver statistics from the underlying Optimistix solution"""
-        return self.solution.stats
+    def successful_attempt(self) -> Integer[Array, " batch"]:
+        """Attempt on which each model was solved, or ``0`` if it was not solved"""
+        return jnp.broadcast_to(self.stats["successful_attempt"], self.batch_shape)
+
+    @property
+    def solver_success(self) -> Bool[Array, " batch"]:
+        """Whether the solver converged on the attempt kept for each model"""
+        return jnp.broadcast_to(
+            self.optimistix_result == optx.RESULTS.successful, self.batch_shape
+        )
 
     @property
     def success(self) -> Bool[Array, " batch"]:
-        """Whether the model is solved, i.e. an attempt passed both the objective-based check and
-        the solver status (the latter is checked again here as a safeguard)"""
-        return jnp.logical_and(self.attempts > 0, self.solver_success)
+        """Whether each model is solved"""
+        return jnp.broadcast_to(self.result == RESULTS.successful, self.batch_shape)
+
+    @property
+    def value(self) -> Float[Array, "batch solution"]:
+        return self.solution.value
 
     def asdict(self) -> dict[str, ArrayLike]:
         """Converts pertinent solution statistics to a dictionary"""
         return {
             "solver_success": self.solver_success,
             "steps": self.num_steps,
-            "attempts": self.attempts,
+            "successful_attempt": self.successful_attempt,
             "success": self.success,
+            "result": jnp.broadcast_to(self.result._value, self.batch_shape),  # pyright: ignore
         }
 
     def stats_to_logger(self, logger_: logging.Logger = logger) -> None:
@@ -598,7 +620,7 @@ class MultiAttemptSolution(eqx.Module):  # pragma: no cover
             )
 
         # Count unique values and their frequencies over the successful models
-        successful_attempts = self.attempts[self.success]
+        successful_attempts = self.successful_attempt[self.success]
         unique_vals, counts = jnp.unique(successful_attempts, return_counts=True)
         for val, count in zip(unique_vals.tolist(), counts.tolist()):
             if val == 1:
@@ -610,6 +632,52 @@ class MultiAttemptSolution(eqx.Module):  # pragma: no cover
         # Maximum over the successful models, or 0 if none succeeded, as failed models report 0
         max_steps: int = int(jnp.max(jnp.where(self.success, self.num_steps, 0)).item())
         logger_.info("Solver steps (max) = %d", max_steps)
+
+
+def checked_root_find(
+    fn: Callable,
+    solver: OptxSolver,
+    y0: Float[Array, " solution"],
+    args: PyTree = None,
+    *,
+    atol: float,
+    **root_find_kwargs: Any,
+) -> MultiAttemptSolution:  # pragma: no cover
+    """Solves a single system with :func:`optimistix.root_find`, and checks it.
+
+    The system is solved if the solver converged and the residual of ``fn`` at the solution is
+    within ``atol`` in the infinity norm. This is the only place where the objective function is
+    needed: the batched and multi-attempt solvers built on it receive checked solutions.
+
+    Args:
+        fn: Objective function ``fn(y, args)`` returning the residual, as for
+            :func:`optimistix.root_find`
+        solver: Root finder
+        y0: Initial guess
+        args: Arguments passed to ``fn``. Defaults to ``None``.
+        atol: Absolute tolerance of the residual check
+        **root_find_kwargs: Keyword arguments passed to :func:`optimistix.root_find`, e.g.
+            ``max_steps``, ``throw`` or ``options``
+
+    Returns:
+        Checked :class:`MultiAttemptSolution` of this single attempt
+    """
+    sol: optx.Solution = optx.root_find(fn, solver, y0, args=args, **root_find_kwargs)
+
+    solver_success: Bool[Array, ""] = sol.result == optx.RESULTS.successful
+    residual: Float[Array, ""] = jnp.linalg.norm(fn(sol.value, args), ord=jnp.inf)
+    converged: Bool[Array, ""] = residual < atol
+    success: Bool[Array, ""] = jnp.logical_and(solver_success, converged)
+    result: RESULTS = cast(
+        RESULTS,
+        EnumerationItem(classify_attempt(solver_success, converged), RESULTS),  # pyright: ignore
+    )
+    stats: dict[str, Array] = {
+        "successful_attempt": success.astype(int),
+        "num_steps": jnp.where(success, sol.stats["num_steps"], 0),
+    }
+
+    return MultiAttemptSolution(sol, result, stats)
 
 
 def perturb_around_converged(
@@ -723,7 +791,6 @@ def implicit_polish(
 
 def make_batch_retry_solver(
     solver_function: Callable,
-    objective_fn: Callable,
     perturb_fn: Callable[
         [Float[Array, "... solution"], Integer[Array, "..."], PRNGKeyArray, PyTree],
         Float[Array, "... solution"],
@@ -731,21 +798,23 @@ def make_batch_retry_solver(
 ) -> Callable:  # pragma: no cover
     """Makes a generic batch retry solver, with the perturbation strategy supplied by the caller.
 
-    This factors out the retry-loop mechanics (perturb failed rows, re-solve, check objective-based
-    convergence, keep newly-successful rows, repeat) that are identical across every batch-retry
+    This factors out the retry-loop mechanics (perturb failed rows, re-solve, keep newly-successful
+    rows, repeat) that are identical across every batch-retry
     solver built on top of :class:`MultiAttemptSolution` -- both within this package and in
     downstream packages -- which otherwise differ only in what the solution vector represents and
     how it should be perturbed. See :func:`perturb_around_converged` for a ready-made perturbation
     strategy that can be composed into ``perturb_fn``.
 
-    ``solver_function``, ``objective_fn``, and ``perturb_fn`` must be pure JAX-callable functions
-    compatible with :func:`equinox.filter_jit`. They must not close over non-JAX state or produce
-    Python side effects.
+    Each attempt is checked by ``solver_function``, for example a batch of
+    :func:`checked_root_find`, so no objective function is needed here.
+
+    ``solver_function`` and ``perturb_fn`` must be pure JAX-callable functions compatible with
+    :func:`equinox.filter_jit`. They must not close over non-JAX state or produce Python side
+    effects.
 
     Args:
         solver_function: Callable that performs a single (batched) solve. Must accept an initial
-            guess and a pytree of parameters, and return a :class:`MultiAttemptSolution`.
-        objective_fn: Callable for the (batched) objective function
+            guess and a pytree of parameters, and return a checked :class:`MultiAttemptSolution`.
         perturb_fn: Callable ``(solution, attempt, key, parameters) -> perturbed`` returning a
             candidate perturbed solution for *every* row (converged or not); this
             factory only substitutes the rows where ``attempt == 0``, so ``perturb_fn`` does not
@@ -760,7 +829,6 @@ def make_batch_retry_solver(
         parameters: PyTree,
         key: PRNGKeyArray,
         max_retries: int,
-        tolerance: float = 1.0e-6,
         implicit_gradient: bool = True,
     ) -> MultiAttemptSolution:
         """Batched solver with retry and perturbation for failed cases.
@@ -776,18 +844,16 @@ def make_batch_retry_solver(
         the derivatives.
 
         Note:
-            - ``solution.result``: solver's internal convergence classification
-            - ``attempts``: first iteration satisfying objective-based check
-            - ``attempts == 0``: never converged within the initial attempt plus ``max_retries``
-              retries
+            - ``result``: :class:`RESULTS` of each model, which for a model that was not solved
+              describes its first attempt
+            - ``successful_attempt``: attempt on which each model was solved, or ``0`` if it was
+              not solved within the initial attempt plus ``max_retries`` retries
 
         Args:
             initial_guess: Batched array of initial guesses for the solver
             parameters: Model parameters passed to the solver and to ``perturb_fn``
             key: JAX PRNG key for reproducible random perturbations
             max_retries: Maximum number of solver retries per batch entry
-            tolerance: Tolerance for the objective-based convergence validation performed after
-                each solve attempt. Defaults to ``1.0e-6``.
             implicit_gradient: Whether to attach derivatives with respect to ``parameters`` with a
                 final solve. Set to ``False`` when the caller attaches them itself, for example
                 after a sequence of solves. Defaults to ``True``.
@@ -800,9 +866,34 @@ def make_batch_retry_solver(
         initial_guess = lax.stop_gradient(initial_guess)
         search_parameters: PyTree = stop_gradient_arrays(parameters)
 
-        def body_fn(state: tuple[Array, Array, Array, Array, Array, Array]) -> tuple:
+        def attempt_solve(guess: Float[Array, "... solution"]) -> tuple[Array, ...]:
+            """Solves from ``guess``.
+
+            Returns:
+                Value, Optimistix result value, :class:`RESULTS` value, success and number of
+                solver steps for each model
+            """
+            sol: MultiAttemptSolution = solver_function(guess, search_parameters)
+            value: Float[Array, "... solution"] = sol.value
+            batch_shape: tuple[int, ...] = value.shape[:-1]
+
+            result_value: Integer[Array, "..."] = jnp.broadcast_to(
+                sol.optimistix_result._value,  # pyright: ignore
+                batch_shape,
+            )
+            status: Integer[Array, "..."] = jnp.broadcast_to(
+                sol.result._value,  # pyright: ignore
+                batch_shape,
+            )
+            num_steps: Integer[Array, "..."] = jnp.broadcast_to(
+                sol.solution.stats["num_steps"], batch_shape
+            )
+
+            return value, result_value, status, sol.success, num_steps
+
+        def body_fn(state: tuple[Array, ...]) -> tuple[Array, ...]:
             """Performs one retry iteration for failed solutions."""
-            i, key, solution, result_value, steps, attempt = state
+            i, key, solution, result_value, status, steps, attempt = state
 
             failed_mask: Bool[Array, "..."] = attempt == 0
 
@@ -814,26 +905,23 @@ def make_batch_retry_solver(
                 Array, jnp.where(failed_mask[..., None], perturbed, solution)
             )
 
-            new_sol: MultiAttemptSolution = solver_function(
-                new_initial_solution, search_parameters
+            new_solution, new_result_value, _, new_success, new_num_steps = attempt_solve(
+                new_initial_solution
             )
-            new_solution: Float[Array, "... solution"] = new_sol.value
-            new_result_value: Integer[Array, "..."] = new_sol.result._value  # pyright: ignore
 
-            new_converged: Bool[Array, "..."] = (
-                max_norm(objective_fn, new_solution, search_parameters) < tolerance
-            )
-            new_solver_success: Bool[Array, "..."] = new_sol.solver_success
-            new_success: Bool[Array, "..."] = jnp.logical_and(new_converged, new_solver_success)
-            new_num_steps: Integer[Array, "..."] = new_sol.num_steps
-
-            # Determine which entries to update: previously failed, now succeeded
+            # Entries that previously failed and now succeeded take every quantity from this
+            # attempt, so a model that is not solved keeps those of its first attempt
             update_mask: Bool[Array, "..."] = jnp.logical_and(failed_mask, new_success)
             updated_solution: Float[Array, "... solution"] = cast(
                 Array, jnp.where(update_mask[..., None], new_solution, solution)
             )
             updated_result_value: Integer[Array, "..."] = jnp.where(
                 update_mask, new_result_value, result_value
+            )
+            updated_status: Integer[Array, "..."] = jnp.where(
+                update_mask,
+                RESULTS.successful._value,  # pyright: ignore
+                status,
             )
             updated_num_steps: Integer[Array, "..."] = cast(
                 Array, jnp.where(update_mask, new_num_steps, steps)
@@ -845,19 +933,18 @@ def make_batch_retry_solver(
                 key,
                 updated_solution,
                 updated_result_value,
+                updated_status,
                 updated_num_steps,
                 updated_attempt,
             )
 
-        def cond_fn(
-            state: tuple[Array, Array, Array, Array, Array, Array],
-        ) -> Bool[Array, "..."]:
+        def cond_fn(state: tuple[Array, ...]) -> Bool[Array, "..."]:
             """Determines whether additional solver retries are needed.
 
             ``i`` starts at 2 (the second overall attempt), so to allow ``max_retries`` retries the
             body must run while ``i`` is in ``{2, ..., max_retries + 1}``, hence the ``+ 2`` below.
             """
-            i, _, _, _, _, attempt = state
+            i, _, _, _, _, _, attempt = state
 
             continue_loop: Bool[Array, "..."] = jnp.logical_and(
                 jnp.any(attempt == 0), i < max_retries + 2
@@ -866,24 +953,11 @@ def make_batch_retry_solver(
             return continue_loop
 
         # Try first solution
-        first_sol: MultiAttemptSolution = solver_function(initial_guess, search_parameters)
-        first_solution: Float[Array, "... solution"] = first_sol.value
-
-        # Perform a per-system check
-        first_converged: Bool[Array, "..."] = (
-            max_norm(objective_fn, first_solution, search_parameters) < tolerance
-        )
-        first_solver_success: Bool[Array, "..."] = first_sol.solver_success
-        first_result_value: Integer[Array, "..."] = jnp.broadcast_to(
-            first_sol.result._value,  # pyright: ignore
-            first_converged.shape,
-        )
-        first_num_steps: Integer[Array, "..."] = jnp.broadcast_to(
-            first_sol.num_steps, first_converged.shape
+        first_solution, first_result_value, first_status, first_success, first_num_steps = (
+            attempt_solve(initial_guess)
         )
 
         # Failback solution to initial guess for failed models
-        first_success: Bool[Array, "..."] = jnp.logical_and(first_converged, first_solver_success)
         solution: Float[Array, "... solution"] = cast(
             Array, jnp.where(first_success[..., None], first_solution, initial_guess)
         )
@@ -893,36 +967,50 @@ def make_batch_retry_solver(
             key,
             solution,
             first_result_value,
+            first_status,
             first_num_steps,
             first_success.astype(int),  # 1 for solved, otherwise 0
         )
 
-        _, _, final_solution, final_result_value, final_num_steps, final_attempt = lax.while_loop(
-            cond_fn, body_fn, initial_state
-        )
+        (
+            _,
+            _,
+            final_solution,
+            final_result_value,
+            final_status,
+            final_num_steps,
+            final_attempt,
+        ) = lax.while_loop(cond_fn, body_fn, initial_state)
 
         if implicit_gradient:
             final_solution = implicit_polish(
                 solver_function, final_solution, final_attempt > 0, parameters
             )
 
-        # Bundle the final outputs into a single optimistix Solution object
+        # The Optimistix solution of the attempt kept for each model. It does not keep the
+        # auxiliary output or the internal state of the solves.
         final_result: optx.RESULTS = cast(
             optx.RESULTS,
             EnumerationItem(final_result_value, optx.RESULTS),  # pyright: ignore
         )
-
-        # This solution instance does not return all the information from the solves, but it
-        # encapsulates the most important (final) quantities. Zero out steps for failed entries so
-        # that reported steps are not misleadingly non-zero for models that never converged.
-        final_num_steps_out: Integer[Array, "..."] = cast(
-            Array, jnp.where(final_attempt > 0, final_num_steps, jnp.zeros_like(final_num_steps))
-        )
         sol: optx.Solution = optx.Solution(
-            final_solution, final_result, None, {"num_steps": final_num_steps_out}, None
+            final_solution, final_result, None, {"num_steps": final_num_steps}, None
         )
-        multi_sol: MultiAttemptSolution = MultiAttemptSolution(sol, final_attempt)
 
-        return multi_sol
+        # Zero out steps for failed entries so that reported steps are not misleadingly non-zero
+        # for models that never converged
+        stats: dict[str, Array] = {
+            "successful_attempt": final_attempt,
+            "num_steps": cast(
+                Array,
+                jnp.where(final_attempt > 0, final_num_steps, jnp.zeros_like(final_num_steps)),
+            ),
+        }
+        result: RESULTS = cast(
+            RESULTS,
+            EnumerationItem(final_status, RESULTS),  # pyright: ignore
+        )
+
+        return MultiAttemptSolution(sol, result, stats)
 
     return batch_retry_solver

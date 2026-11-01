@@ -126,6 +126,7 @@ from atmodeller.database import (  # noqa: E402, F401
     DataBase,
 )
 from atmodeller.interfaces import species_name  # noqa: E402, F401
+from atmodeller.jax_utils import RESULTS  # noqa: E402, F401
 from atmodeller.output import Output  # noqa: E402, F401
 from atmodeller.parameters import FixedActivityConstraint, Parameters  # noqa: E402, F401
 from atmodeller.phases import CondensedPhase, GasPhase, PurePhase  # noqa: E402, F401
