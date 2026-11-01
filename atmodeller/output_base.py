@@ -27,16 +27,11 @@ from jax.tree_util import tree_map
 from jaxtyping import Array, ArrayLike, Bool, Float, PyTree
 
 from atmodeller import override
-from atmodeller.jax_utils import (
-    FloatArray,
-    MultiAttemptSolution,
-    NpBool,
-    NpFloat,
-    stack_broadcast,
-)
+from atmodeller.jax_utils import FloatArray, NpBool, NpFloat, stack_broadcast
 from atmodeller.parameters import ActivityConstraintSet, MassConstraintSet, Parameters
 from atmodeller.phases import BasePhase, GasPhaseOutput, PhaseOutput
 from atmodeller.sci_utils import solar
+from atmodeller.solver_utils import MultiAttemptSolution
 
 logger: logging.Logger = logging.getLogger(__name__)
 

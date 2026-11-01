@@ -31,7 +31,7 @@ from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 from atmodeller import debug_logger
 from atmodeller.containers import ChemicalSpecies, SolverParameters
 from atmodeller.interfaces import ActivityConstraintProtocol
-from atmodeller.jax_utils import RESULTS, MultiAttemptSolution
+from atmodeller.solver_utils import RESULTS, MultiAttemptSolution
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.phases import PurePhase

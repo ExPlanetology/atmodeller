@@ -220,12 +220,17 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
         ),
         cho_output,
         (
-            jnp.array([RESULTS.successful._value, RESULTS.objective_check_failed._value]),
+            jnp.array(
+                [
+                    RESULTS.successful._value,  # pyright: ignore
+                    RESULTS.objective_check_failed._value,  # pyright: ignore
+                ]
+            ),
             jnp.array([1, 0]),
         ),
     )
     assert np.all(np.asarray(output.multi_attempt_solution.solver_success))
-    assert "residual" in RESULTS[output.multi_attempt_solution.result]
+    assert "residual" in RESULTS[output.multi_attempt_solution.result]  # pyright: ignore
 
     for df in output.to_dataframes(drop_unsuccessful_solves=True).values():
         assert df.index.tolist() == [0]

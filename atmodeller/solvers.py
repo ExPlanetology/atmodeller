@@ -39,7 +39,7 @@ Quick guide:
 - ``batch_only``: Fastest compilation; can still solve active-stability systems, but skips retry
     and tau-sweep robustness logic
 
-Most solvers return results as :class:`~atmodeller.jax_utils.MultiAttemptSolution` or
+Most solvers return results as :class:`~atmodeller.solver_utils.MultiAttemptSolution` or
 :class:`~atmodeller.output.Output` objects, with detailed convergence and step statistics.
 """
 
@@ -52,28 +52,25 @@ from jax import lax
 from jaxtyping import Array, Bool, Float, Integer, PRNGKeyArray
 
 from atmodeller.engine import compute_implied_log_stability, objective_function
-from atmodeller.initializer import ElementPotentialInitializer, InitializerProtocol
-from atmodeller.jax_utils import (
-    FloatArray,
+from atmodeller.initializer import InitializerProtocol, make_batch_initializer
+from atmodeller.jax_utils import FloatArray, vmap_axes_spec
+from atmodeller.output import Output
+from atmodeller.parameters import Parameters
+from atmodeller.solver_utils import (
+    LOG_NUMBER_MOLES_VMAP_AXES,
     MultiAttemptSolution,
     checked_root_find,
     implicit_polish,
     perturb_around_converged,
-    vmap_axes_spec,
 )
-from atmodeller.jax_utils import make_batch_retry_solver as generic_make_batch_retry_solver
-from atmodeller.output import Output
-from atmodeller.parameters import Parameters
-
-LOG_NUMBER_MOLES_VMAP_AXES: int = 0
-"""Axis index for the solution array in the vmapped batch solver"""
+from atmodeller.solver_utils import make_batch_retry_solver as generic_make_batch_retry_solver
 
 
 def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAttemptSolution:
     """Solves a single (unbatched) system, and checks it.
 
     Supplies Atmodeller's objective function and solver configuration, read from
-    ``parameters.solver_parameters``, to :func:`~atmodeller.jax_utils.checked_root_find`. The
+    ``parameters.solver_parameters``, to :func:`~atmodeller.solver_utils.checked_root_find`. The
     system is solved if the solver converged and the residual of the objective function is within
     ``solver_parameters.atol``. Intended to be wrapped with :func:`equinox.filter_vmap` by
     :func:`make_batch_solver` rather than called directly.
@@ -83,7 +80,7 @@ def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAtte
         parameters: Parameters providing the solver instance, step limit, and options
 
     Returns:
-        Checked :class:`~atmodeller.jax_utils.MultiAttemptSolution` of this single attempt
+        Checked :class:`~atmodeller.solver_utils.MultiAttemptSolution` of this single attempt
     """
     solver_parameters = parameters.solver_parameters
 
@@ -99,87 +96,6 @@ def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAtte
     )
 
 
-def make_initial_guess_function(
-    parameters: Parameters, initializer: InitializerProtocol | None = None
-) -> Callable:
-    """Gets a function that completes a batched initial guess with the initializer's cold guess.
-
-    Rows of the initial guess are used as given, and rows that contain ``NaN`` are replaced by the
-    cold guess from ``initializer``. The initializer acts on a single system, so it is wrapped
-    with :func:`equinox.filter_vmap` with the vmapping axes fixed from ``parameters`` at
-    construction time, as for :func:`make_batch_solver`. The decision to evaluate it is made for
-    the whole batch, outside the vmap, so that the cold guess is skipped when no row contains
-    ``NaN``.
-
-    Args:
-        parameters: Parameters used to derive the vmapping axes at construction time
-        initializer: Initializer for the cold initial guess. Defaults to
-            :class:`~atmodeller.initializer.element_potential.ElementPotentialInitializer`.
-
-    Returns:
-        Callable that returns the initial guess with shape ``(batch, solution)``
-    """
-    initializer_: InitializerProtocol = (
-        ElementPotentialInitializer() if initializer is None else initializer
-    )
-
-    def cold_start(
-        parameters: Parameters, base_solution: Float[Array, " solution"]
-    ) -> Float[Array, " solution"]:
-        """Cold guess for a single system; the solution sets the batch size, as for solving"""
-        del base_solution
-
-        return initializer_.start(parameters)
-
-    cold_start_vmapped: Callable = eqx.filter_vmap(
-        cold_start, in_axes=(vmap_axes_spec(parameters), LOG_NUMBER_MOLES_VMAP_AXES)
-    )
-
-    def initial_guess_function(
-        parameters: Parameters, base_solution_array: Float[Array, "batch solution"]
-    ) -> Float[Array, "batch solution"]:
-        """Replaces rows of ``base_solution_array`` that contain ``NaN`` with the cold guess.
-
-        Args:
-            parameters: Parameters
-            base_solution_array: Initial guess with shape ``(batch, solution)``. Rows that
-                contain ``NaN`` have no initial guess.
-
-        Returns:
-            Initial guess with shape ``(batch, solution)``
-        """
-        # Mask: True for rows where any entry is NaN along the last axis
-        nan_mask: Bool[Array, "batch 1"] = jnp.any(
-            jnp.isnan(base_solution_array), axis=-1, keepdims=True
-        )
-
-        def fill_from_cold_start(
-            base_solution_array: Float[Array, "batch solution"],
-        ) -> Float[Array, "batch solution"]:
-            """Selects the cold guess for rows with any NaN, otherwise keeps the given row."""
-            return jnp.where(
-                nan_mask,
-                cold_start_vmapped(parameters, base_solution_array),
-                base_solution_array,
-            )
-
-        # The predicate is a scalar for the whole batch, so the cold guess is skipped when every
-        # row has an initial guess
-        result: Float[Array, "batch solution"] = lax.cond(
-            jnp.any(nan_mask), fill_from_cold_start, lambda x: x, base_solution_array
-        )
-
-        result = eqx.error_if(
-            result,
-            jnp.any(jnp.isnan(result)),
-            "NaN encountered in initial guess, which will break the solver.",
-        )
-
-        return result
-
-    return initial_guess_function
-
-
 def make_batch_solver(parameters: Parameters) -> Callable:
     """Gets a vmapped batch solver for independent systems.
 
@@ -191,7 +107,7 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         parameters: Parameters used to derive the vmapping axes at construction time
 
     Returns:
-        Callable that returns a checked :class:`~atmodeller.jax_utils.MultiAttemptSolution` of a
+        Callable that returns a checked :class:`~atmodeller.solver_utils.MultiAttemptSolution` of a
         single attempt
     """
     solver_function_vmapped: Callable = eqx.filter_vmap(
@@ -206,7 +122,7 @@ def make_batch_solver(parameters: Parameters) -> Callable:
             parameters: Parameters passed through to each vmapped :func:`solve_single` call
 
         Returns:
-            Checked :class:`~atmodeller.jax_utils.MultiAttemptSolution` of a single attempt
+            Checked :class:`~atmodeller.solver_utils.MultiAttemptSolution` of a single attempt
         """
         # jax.debug.print("Running batch single-pass solver with vmapped single solve")
         # jax.debug.print("solution = {out}", out=solution)
@@ -220,9 +136,9 @@ def make_batch_retry_solver(solver_function: Callable) -> Callable:
     """Makes a batch retry solver.
 
     A thin, atmodeller-specific wrapper around the generic
-    :func:`~atmodeller.jax_utils.make_batch_retry_solver`: supplies a ``perturb_fn`` that splits
+    :func:`~atmodeller.solver_utils.make_batch_retry_solver`: supplies a ``perturb_fn`` that splits
     the solution into ``log_number_moles``/``log_stability``, perturbs only the former around its
-    already-converged rows (via :func:`~atmodeller.jax_utils.perturb_around_converged`), and
+    already-converged rows (via :func:`~atmodeller.solver_utils.perturb_around_converged`), and
     re-derives the latter via :func:`~atmodeller.engine.compute_implied_log_stability`. The
     retry-loop mechanics themselves (perturb failed rows, re-solve, keep newly-successful rows,
     repeat) live in the generic factory, shared with downstream packages (e.g. mcmodeller) that
@@ -235,10 +151,11 @@ def make_batch_retry_solver(solver_function: Callable) -> Callable:
     Args:
         solver_function: Callable that performs a single solve, e.g. from
             :func:`make_batch_solver`. Must accept arguments of an initial guess and a pytree of
-            parameters, and return a checked :class:`~atmodeller.jax_utils.MultiAttemptSolution`.
+            parameters, and return a checked
+            :class:`~atmodeller.solver_utils.MultiAttemptSolution`.
 
     Returns:
-        Callable that returns a :class:`~atmodeller.jax_utils.MultiAttemptSolution` object
+        Callable that returns a :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
     """
 
     def perturb_fn(
@@ -278,7 +195,7 @@ def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:
         parameters: Parameters used to derive the vmapping axes at construction time
 
     Returns:
-        Callable that returns a :class:`~atmodeller.jax_utils.MultiAttemptSolution` object
+        Callable that returns a :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
     """
     batch_solver: Callable = make_batch_solver(parameters)
 
@@ -296,8 +213,8 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
 
     The solves in the sweep only locate the root. The derivatives of the solution are attached
     once at the end by a final solve at the final tau (see
-    :func:`~atmodeller.jax_utils.implicit_polish`), so they are those of the root at the final tau
-    and do not depend on the sweep.
+    :func:`~atmodeller.solver_utils.implicit_polish`), so they are those of the root at the final
+    tau and do not depend on the sweep.
 
     Args:
         batch_retry_solver: Pre-built batch retry solver, e.g. from
@@ -306,7 +223,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             final solve that attaches the derivatives
 
     Returns:
-        Callable that returns a :class:`~atmodeller.jax_utils.MultiAttemptSolution` object
+        Callable that returns a :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
     """
     get_leaf: Callable = lambda t: t.solver_parameters.tau  # noqa: E731
 
@@ -332,7 +249,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             key: JAX PRNG key for reproducible random perturbations
 
         Returns:
-            :class:`~atmodeller.jax_utils.MultiAttemptSolution` object
+            :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
         """
 
         def solve_tau_step(carry: tuple, tau: Float[Array, " ..."]) -> tuple[tuple, None]:
@@ -344,7 +261,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
 
             Args:
                 carry: Tuple of ``(key, multi_sol)`` where ``multi_sol`` is the
-                    :class:`~atmodeller.jax_utils.MultiAttemptSolution` of the previous step
+                    :class:`~atmodeller.solver_utils.MultiAttemptSolution` of the previous step
                 tau: Scalar tau value for this scan step
 
             Returns:
@@ -460,7 +377,7 @@ def make_solver(
     Returns:
         Callable that returns a :class:`~atmodeller.output.Output` object
     """
-    initial_guess_function: Callable = make_initial_guess_function(parameters, initializer)
+    batch_initializer: Callable = make_batch_initializer(parameters, initializer)
     batch_retry_solver: Callable = make_batch_retry_solver_from_parameters(parameters)
     tau_sweep_solver: Callable = make_tau_sweep_solver(
         batch_retry_solver, make_batch_solver(parameters)
@@ -489,7 +406,7 @@ def make_solver(
         Returns:
             :class:`~atmodeller.output.Output` object
         """
-        base_solution_array = initial_guess_function(parameters, base_solution_array)
+        base_solution_array = batch_initializer(parameters, base_solution_array)
 
         # Define the condition to check if active stability is enabled
         condition: Bool[Array, ""] = jnp.any(parameters.reaction_system.species.active_stability)
@@ -569,7 +486,7 @@ def make_solver_with_jit_single_path(
     Returns:
         JIT-compiled callable that returns a :class:`~atmodeller.output.Output` object
     """
-    initial_guess_function: Callable = make_initial_guess_function(parameters, initializer)
+    batch_initializer: Callable = make_batch_initializer(parameters, initializer)
     batch_retry_solver: Callable = make_batch_retry_solver_from_parameters(parameters)
     tau_sweep_solver: Callable = make_tau_sweep_solver(
         batch_retry_solver, make_batch_solver(parameters)
@@ -588,7 +505,7 @@ def make_solver_with_jit_single_path(
     ) -> Output:
         """Tau sweep solver path for systems with active stability species."""
         _, subkey = jax.random.split(key)
-        base_solution_array = initial_guess_function(parameters, base_solution_array)
+        base_solution_array = batch_initializer(parameters, base_solution_array)
         multi_sol = tau_sweep_solver(base_solution_array, parameters, subkey)
         return Output(parameters, multi_sol, base_solution_array)
 
@@ -600,7 +517,7 @@ def make_solver_with_jit_single_path(
     ) -> Output:
         """Generic batch retry solver path for systems without active stability."""
         _, subkey = jax.random.split(key)
-        base_solution_array = initial_guess_function(parameters, base_solution_array)
+        base_solution_array = batch_initializer(parameters, base_solution_array)
         multi_sol = batch_retry_solver(
             base_solution_array,
             parameters,
@@ -635,7 +552,7 @@ def make_solver_with_jit_batch_only(
     Returns:
         JIT-compiled callable that returns a :class:`~atmodeller.output.Output` object
     """
-    initial_guess_function: Callable = make_initial_guess_function(parameters, initializer)
+    batch_initializer: Callable = make_batch_initializer(parameters, initializer)
     batch_solver: Callable = make_batch_solver(parameters)
 
     @eqx.filter_jit
@@ -651,7 +568,7 @@ def make_solver_with_jit_batch_only(
         """
         # Note: key is unused in basic batch solver, but included for interface compatibility
         del key
-        base_solution_array = initial_guess_function(parameters, base_solution_array)
+        base_solution_array = batch_initializer(parameters, base_solution_array)
         multi_sol: MultiAttemptSolution = batch_solver(base_solution_array, parameters)
 
         return Output(parameters, multi_sol, base_solution_array)

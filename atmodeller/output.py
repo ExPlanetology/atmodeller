@@ -35,7 +35,8 @@ from jaxtyping import Array, Float
 from openpyxl.styles import PatternFill
 
 from atmodeller import __version__
-from atmodeller.jax_utils import MultiAttemptSolution, NpArray
+from atmodeller.jax_utils import NpArray
+from atmodeller.solver_utils import MultiAttemptSolution
 from atmodeller.output_base import (
     OutputElementsSpeciesDict,
     OutputNamedArraysDict,

@@ -126,7 +126,6 @@ from atmodeller.database import (  # noqa: E402, F401
     DataBase,
 )
 from atmodeller.interfaces import species_name  # noqa: E402, F401
-from atmodeller.jax_utils import RESULTS  # noqa: E402, F401
 from atmodeller.output import Output  # noqa: E402, F401
 from atmodeller.parameters import FixedActivityConstraint, Parameters  # noqa: E402, F401
 from atmodeller.phases import CondensedPhase, GasPhase, PurePhase  # noqa: E402, F401
@@ -136,6 +135,7 @@ from atmodeller.sci_utils import (  # noqa: E402, F401
     unit_conversion,
 )
 from atmodeller.solubility import get_solubility_models  # noqa: E402, F401
+from atmodeller.solver_utils import RESULTS  # noqa: E402, F401
 from atmodeller.solvers import (  # noqa: E402, F401
     make_solver,
     make_solver_with_jit,  # Alias for the default solver
