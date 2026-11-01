@@ -36,7 +36,7 @@ from openpyxl.styles import PatternFill
 
 from atmodeller import __version__
 from atmodeller.jax_utils import NpArray
-from atmodeller.solver_utils import MultiAttemptSolution
+from atmodeller.solver_utils import CheckedSolution
 from atmodeller.output_base import (
     OutputElementsSpeciesDict,
     OutputNamedArraysDict,
@@ -66,19 +66,19 @@ class Output(eqx.Module):
 
     Args:
         parameters: Parameters
-        multi_attempt_solution: Multiple attempt solution object
+        checked_solution: Checked solution of the solve
         initial_guess: Initial guess the solver started from, i.e. log number of moles and log
             stability
     """
 
     parameters: Parameters
-    multi_attempt_solution: MultiAttemptSolution
+    checked_solution: CheckedSolution
     initial_guess: Float[Array, "n_batch twice_species"]
 
     @property
     def solution(self) -> Float[Array, "n_batch twice_species"]:
         """Solution array for all species i.e. log number of moles and log stability"""
-        return self.multi_attempt_solution.value
+        return self.checked_solution.value
 
     def to_dict(
         self,
@@ -107,15 +107,15 @@ class Output(eqx.Module):
         """
         if output_format == "natural":
             return OutputNaturalDict(
-                self.parameters, self.multi_attempt_solution, self.initial_guess
+                self.parameters, self.checked_solution, self.initial_guess
             ).to_dict(to_numpy=to_numpy, **kwargs)
         elif output_format == "named_arrays":
             return OutputNamedArraysDict(
-                self.parameters, self.multi_attempt_solution, self.initial_guess
+                self.parameters, self.checked_solution, self.initial_guess
             ).to_dict(to_numpy=to_numpy, **kwargs)
         elif output_format == "elements_species":
             return OutputElementsSpeciesDict(
-                self.parameters, self.multi_attempt_solution, self.initial_guess
+                self.parameters, self.checked_solution, self.initial_guess
             ).to_dict(to_numpy=to_numpy, **kwargs)
         else:
             raise ValueError(f"Invalid output format: {output_format}")
@@ -136,7 +136,7 @@ class Output(eqx.Module):
             ``True`` if all values match within the specified tolerances, else ``False``
         """
         return OutputNamedArraysDict(
-            self.parameters, self.multi_attempt_solution, self.initial_guess
+            self.parameters, self.checked_solution, self.initial_guess
         ).compare(d1, rtol, atol, log)
 
     def quick_look(
@@ -175,7 +175,7 @@ class Output(eqx.Module):
             Dictionary of dataframes without unsuccessful models
         """
         return {
-            key: df.loc[np.asarray(self.multi_attempt_solution.success)]
+            key: df.loc[np.asarray(self.checked_solution.success)]
             for key, df in dataframes.items()
         }
 
@@ -262,9 +262,7 @@ class Output(eqx.Module):
         highlight_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
         # Get the indices of the solves that fail the objective-based check or the solver status
-        unsuccessful_indices: NpArray = np.where(~np.asarray(self.multi_attempt_solution.success))[
-            0
-        ]
+        unsuccessful_indices: NpArray = np.where(~np.asarray(self.checked_solution.success))[0]
 
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             for df_name, df in out.items():
@@ -332,4 +330,4 @@ class Output(eqx.Module):
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
         """
-        return self.multi_attempt_solution.stats_to_logger(logger_)
+        return self.checked_solution.stats_to_logger(logger_)

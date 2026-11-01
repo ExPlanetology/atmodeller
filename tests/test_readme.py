@@ -30,5 +30,5 @@ def test_readme_basic_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     namespace: dict = {}
     exec(compile(_basic_usage_code(), str(README), "exec"), namespace)
 
-    assert bool(np.all(namespace["output"].multi_attempt_solution.success))
+    assert bool(np.all(namespace["output"].checked_solution.success))
     assert list(tmp_path.glob("example_single*.xlsx"))

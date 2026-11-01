@@ -36,7 +36,7 @@ Quick guide:
 - ``batch_only``: Fastest compilation; can still solve active-stability systems, but skips retry
     and tau-sweep robustness logic
 
-The solvers return a checked :class:`~atmodeller.solver_utils.MultiAttemptSolution`, or an
+The solvers return a checked :class:`~atmodeller.solver_utils.CheckedSolution`, or an
 :class:`~atmodeller.output.Output` for the entry points, with the result of each model.
 """
 
@@ -55,7 +55,7 @@ from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.solver_utils import (
     SOLUTION_BATCH_AXIS,
-    MultiAttemptSolution,
+    CheckedSolution,
     checked_root_find,
     implicit_polish,
     make_batch_retry_solver,
@@ -63,7 +63,7 @@ from atmodeller.solver_utils import (
 )
 
 
-def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAttemptSolution:
+def solve_single(initial_guess: FloatArray, parameters: Parameters) -> CheckedSolution:
     """Solves a single (unbatched) system, and checks it.
 
     Supplies Atmodeller's objective function and solver configuration, read from
@@ -77,7 +77,7 @@ def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAtte
         parameters: Parameters providing the solver instance, step limit, and options
 
     Returns:
-        Checked :class:`~atmodeller.solver_utils.MultiAttemptSolution` of this single attempt
+        Checked :class:`~atmodeller.solver_utils.CheckedSolution` of this single attempt
     """
     solver_parameters = parameters.solver_parameters
 
@@ -104,14 +104,14 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         parameters: Parameters used to derive the vmapping axes at construction time
 
     Returns:
-        Callable that returns a checked :class:`~atmodeller.solver_utils.MultiAttemptSolution` of a
+        Callable that returns a checked :class:`~atmodeller.solver_utils.CheckedSolution` of a
         single attempt
     """
     solver_function_vmapped: Callable = eqx.filter_vmap(
         solve_single, in_axes=(SOLUTION_BATCH_AXIS, vmap_axes_spec(parameters))
     )
 
-    def batch_single_pass_solver(solution: Array, parameters: Parameters) -> MultiAttemptSolution:
+    def batch_single_pass_solver(solution: Array, parameters: Parameters) -> CheckedSolution:
         """Runs the vmapped single-pass batch solve.
 
         Args:
@@ -119,7 +119,7 @@ def make_batch_solver(parameters: Parameters) -> Callable:
             parameters: Parameters passed through to each vmapped :func:`solve_single` call
 
         Returns:
-            Checked :class:`~atmodeller.solver_utils.MultiAttemptSolution` of a single attempt
+            Checked :class:`~atmodeller.solver_utils.CheckedSolution` of a single attempt
         """
         # jax.debug.print("Running batch single-pass solver with vmapped single solve")
         # jax.debug.print("solution = {out}", out=solution)
@@ -181,7 +181,7 @@ def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:
         parameters: Parameters used to derive the vmapping axes at construction time
 
     Returns:
-        Callable that returns a :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
+        Callable that returns a :class:`~atmodeller.solver_utils.CheckedSolution` object
     """
     batch_solver: Callable = make_batch_solver(parameters)
 
@@ -209,13 +209,13 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             final solve that attaches the derivatives
 
     Returns:
-        Callable that returns a :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
+        Callable that returns a :class:`~atmodeller.solver_utils.CheckedSolution` object
     """
     get_leaf: Callable = lambda t: t.solver_parameters.tau  # noqa: E731
 
     def tau_sweep_solver(
         initial_guess: Float[Array, "... solution"], parameters: Parameters, key: PRNGKeyArray
-    ) -> MultiAttemptSolution:
+    ) -> CheckedSolution:
         """Attempts a solve at the final tau and, if any element fails, runs a full tau sweep.
 
         First tries to solve all batch elements at the final tau (``solver_parameters.tau``) with
@@ -235,7 +235,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             key: JAX PRNG key for reproducible random perturbations
 
         Returns:
-            :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
+            :class:`~atmodeller.solver_utils.CheckedSolution` object
         """
 
         def solve_tau_step(carry: tuple, tau: Float[Array, " ..."]) -> tuple[tuple, None]:
@@ -246,22 +246,22 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             retry solver on all elements from the solution carried forward from the previous step.
 
             Args:
-                carry: Tuple of ``(key, multi_sol)`` where ``multi_sol`` is the
-                    :class:`~atmodeller.solver_utils.MultiAttemptSolution` of the previous step
+                carry: Tuple of ``(key, checked_sol)`` where ``checked_sol`` is the
+                    :class:`~atmodeller.solver_utils.CheckedSolution` of the previous step
                 tau: Scalar tau value for this scan step
 
             Returns:
-                Updated ``(key, multi_sol)`` carry tuple and no stacked output
+                Updated ``(key, checked_sol)`` carry tuple and no stacked output
             """
-            key, multi_sol = carry
+            key, checked_sol = carry
             key, subkey = jax.random.split(key)
 
             # Get new parameters with tau value
             new_parameters: Parameters = eqx.tree_at(get_leaf, parameters, tau)
             # jax.debug.print("tau = {out}", out=new_parameters.solver_parameters.tau)
 
-            new_sol: MultiAttemptSolution = batch_retry_solver(
-                multi_sol.value,
+            new_sol: CheckedSolution = batch_retry_solver(
+                checked_sol.value,
                 new_parameters,
                 subkey,
                 parameters.solver_parameters.max_starts - 1,
@@ -284,7 +284,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
         # Initial solve at the final tau
         key, subkey = jax.random.split(key)
 
-        first_sol: MultiAttemptSolution = batch_retry_solver(
+        first_sol: CheckedSolution = batch_retry_solver(
             initial_guess,
             parameters,
             subkey,
@@ -293,7 +293,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
         )
         first_success: Bool[Array, "..."] = first_sol.success
 
-        def run_scan(key: PRNGKeyArray) -> MultiAttemptSolution:
+        def run_scan(key: PRNGKeyArray) -> CheckedSolution:
             """Run the full tau sweep scan across all batch elements.
 
             Called when at least one element failed the initial solve at the final tau. All batch
@@ -315,22 +315,22 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
 
             return jax.tree.map(keep_first, first_sol, sweep_sol)
 
-        def run_single_step(_: PRNGKeyArray) -> MultiAttemptSolution:
+        def run_single_step(_: PRNGKeyArray) -> CheckedSolution:
             """All batch elements converged at the final tau on the first attempt: return
             immediately."""
             return first_sol
 
         # If all entries converged at the final tau on the first attempt, skip the sweep entirely
         all_converged: Bool[Array, ""] = jnp.all(first_success)
-        multi_sol: MultiAttemptSolution = lax.cond(all_converged, run_single_step, run_scan, key)
+        checked_sol: CheckedSolution = lax.cond(all_converged, run_single_step, run_scan, key)
 
         # The sweep finishes at the final tau, so attach the derivatives of the root there
         polished_solution: Float[Array, "... solution"] = implicit_polish(
-            batch_solver, multi_sol.value, multi_sol.success, parameters
+            batch_solver, checked_sol.value, checked_sol.success, parameters
         )
-        multi_sol = eqx.tree_at(lambda m: m.solution.value, multi_sol, polished_solution)
+        checked_sol = eqx.tree_at(lambda m: m.solution.value, checked_sol, polished_solution)
 
-        return multi_sol
+        return checked_sol
 
     return tau_sweep_solver
 
@@ -413,8 +413,10 @@ def make_solver(
                 parameters.solver_parameters.max_starts - 1,
             )
 
-        multi_sol = lax.cond(condition, solve_with_stability, solve_without_stability, operand=key)
-        output: Output = Output(parameters, multi_sol, base_solution_array)
+        checked_sol = lax.cond(
+            condition, solve_with_stability, solve_without_stability, operand=key
+        )
+        output: Output = Output(parameters, checked_sol, base_solution_array)
 
         return output
 
@@ -492,8 +494,8 @@ def make_solver_with_jit_single_path(
         """Tau sweep solver path for systems with active stability species."""
         _, subkey = jax.random.split(key)
         base_solution_array = batch_initializer(parameters, base_solution_array)
-        multi_sol = tau_sweep_solver(base_solution_array, parameters, subkey)
-        return Output(parameters, multi_sol, base_solution_array)
+        checked_sol = tau_sweep_solver(base_solution_array, parameters, subkey)
+        return Output(parameters, checked_sol, base_solution_array)
 
     @eqx.filter_jit
     def solver_without_stability(
@@ -504,13 +506,13 @@ def make_solver_with_jit_single_path(
         """Generic batch retry solver path for systems without active stability."""
         _, subkey = jax.random.split(key)
         base_solution_array = batch_initializer(parameters, base_solution_array)
-        multi_sol = batch_retry_solver(
+        checked_sol = batch_retry_solver(
             base_solution_array,
             parameters,
             subkey,
             parameters.solver_parameters.max_starts - 1,
         )
-        return Output(parameters, multi_sol, base_solution_array)
+        return Output(parameters, checked_sol, base_solution_array)
 
     # Return the appropriate pre-compiled solver based on the construction-time check.
     return solver_with_stability if has_active_stability else solver_without_stability
@@ -555,9 +557,9 @@ def make_solver_with_jit_batch_only(
         # Note: key is unused in basic batch solver, but included for interface compatibility
         del key
         base_solution_array = batch_initializer(parameters, base_solution_array)
-        multi_sol: MultiAttemptSolution = batch_solver(base_solution_array, parameters)
+        checked_sol: CheckedSolution = batch_solver(base_solution_array, parameters)
 
-        return Output(parameters, multi_sol, base_solution_array)
+        return Output(parameters, checked_sol, base_solution_array)
 
     return batch_only_solver
 

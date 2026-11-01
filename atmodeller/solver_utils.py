@@ -9,7 +9,7 @@ This module provides solver building blocks that do not depend on Atmodeller's m
 be reused by other packages:
 
 - :class:`RootFindParameters`: the configuration of an Optimistix root finder
-- :class:`RESULTS` and :class:`MultiAttemptSolution`: the checked outcome of a solve for each
+- :class:`RESULTS` and :class:`CheckedSolution`: the checked outcome of a solve for each
   model, alongside the Optimistix solution
 - :func:`checked_root_find`: solves a single system with any objective function and checks the
   residual, which is the only place the objective function is needed
@@ -88,12 +88,12 @@ class RootFindParameters(eqx.Module):
 
 
 class RESULTS(eqx.Enumeration):
-    """Result of a multi-attempt solve for each model
+    """Result of a solve for each model
 
     A model is solved only if the solver converged and the residual of the objective function is
     within the tolerance. For a model that was not solved, the result describes its first attempt.
     The result of the solver itself is :class:`optimistix.RESULTS`
-    (:attr:`MultiAttemptSolution.optimistix_result`).
+    (:attr:`CheckedSolution.optimistix_result`).
     """
 
     successful = ""
@@ -107,7 +107,7 @@ class RESULTS(eqx.Enumeration):
     )
 
 
-class MultiAttemptSolution(eqx.Module):  # pragma: no cover
+class CheckedSolution(eqx.Module):  # pragma: no cover
     """Checked solution of a solve with one or more attempts for each model
 
     A model is solved if the solver converged and the residual of the objective function is within
@@ -232,12 +232,12 @@ def checked_root_find(
     *,
     atol: float,
     **root_find_kwargs: Any,
-) -> MultiAttemptSolution:  # pragma: no cover
+) -> CheckedSolution:  # pragma: no cover
     """Solves a single system with :func:`optimistix.root_find`, and checks it.
 
     The system is solved if the solver converged and the residual of ``fn`` at the solution is
     within ``atol`` in the infinity norm. This is the only place where the objective function is
-    needed: the batched and multi-attempt solvers built on it receive checked solutions.
+    needed: the batched and retry solvers built on it receive checked solutions.
 
     Args:
         fn: Objective function ``fn(y, args)`` returning the residual, as for
@@ -250,7 +250,7 @@ def checked_root_find(
             ``max_steps``, ``throw`` or ``options``
 
     Returns:
-        Checked :class:`MultiAttemptSolution` of this single attempt
+        Checked :class:`CheckedSolution` of this single attempt
     """
     sol: optx.Solution = optx.root_find(fn, solver, y0, args=args, **root_find_kwargs)
 
@@ -268,7 +268,7 @@ def checked_root_find(
         "num_steps": jnp.where(success, sol.stats["num_steps"], 0),
     }
 
-    return MultiAttemptSolution(sol, result, stats)
+    return CheckedSolution(sol, result, stats)
 
 
 def perturb_around_converged(
@@ -352,7 +352,7 @@ def implicit_polish(
 
     Args:
         solver_function: Callable that performs a single (batched) solve. Must accept an initial
-            guess and a pytree of parameters, and return a :class:`MultiAttemptSolution`.
+            guess and a pytree of parameters, and return a :class:`CheckedSolution`.
         solution: Converged solution, which must not carry gradients
         success: Boolean mask of the batch entries that converged. Other entries are returned
             unchanged and have zero derivatives.
@@ -361,7 +361,7 @@ def implicit_polish(
     Returns:
         Solution with derivatives with respect to ``parameters``
     """
-    polished: MultiAttemptSolution = solver_function(solution, parameters)
+    polished: CheckedSolution = solver_function(solution, parameters)
 
     return cast(Array, jnp.where(success[..., None], polished.value, solution))
 
@@ -377,7 +377,7 @@ def make_batch_retry_solver(
 
     This factors out the retry-loop mechanics (perturb failed rows, re-solve, keep newly-successful
     rows, repeat) that are identical across every batch-retry
-    solver built on top of :class:`MultiAttemptSolution` -- both within this package and in
+    solver built on top of :class:`CheckedSolution` -- both within this package and in
     downstream packages -- which otherwise differ only in what the solution vector represents and
     how it should be perturbed. See :func:`perturb_around_converged` for a ready-made perturbation
     strategy that can be composed into ``perturb_fn``.
@@ -391,14 +391,14 @@ def make_batch_retry_solver(
 
     Args:
         solver_function: Callable that performs a single (batched) solve. Must accept an initial
-            guess and a pytree of parameters, and return a checked :class:`MultiAttemptSolution`.
+            guess and a pytree of parameters, and return a checked :class:`CheckedSolution`.
         perturb_fn: Callable ``(solution, attempt, key, parameters) -> perturbed`` returning a
             candidate perturbed solution for *every* row (converged or not); this
             factory only substitutes the rows where ``attempt == 0``, so ``perturb_fn`` does not
             need to preserve converged rows itself
 
     Returns:
-        Callable that returns a :class:`MultiAttemptSolution` object
+        Callable that returns a :class:`CheckedSolution` object
     """
 
     def batch_retry_solver(
@@ -407,7 +407,7 @@ def make_batch_retry_solver(
         key: PRNGKeyArray,
         max_retries: int,
         implicit_gradient: bool = True,
-    ) -> MultiAttemptSolution:
+    ) -> CheckedSolution:
         """Batched solver with retry and perturbation for failed cases.
 
         Runs a batched solver function on a set of initial guesses. If some entries fail to
@@ -436,7 +436,7 @@ def make_batch_retry_solver(
                 after a sequence of solves. Defaults to ``True``.
 
         Returns:
-            :class:`MultiAttemptSolution` object
+            :class:`CheckedSolution` object
         """
         # The retries only locate the root, so stop gradients to avoid differentiating through the
         # while loop, which does not support reverse mode
@@ -450,7 +450,7 @@ def make_batch_retry_solver(
                 Value, Optimistix result value, :class:`RESULTS` value, success and number of
                 solver steps for each model
             """
-            sol: MultiAttemptSolution = solver_function(guess, search_parameters)
+            sol: CheckedSolution = solver_function(guess, search_parameters)
             value: Float[Array, "... solution"] = sol.value
             batch_shape: tuple[int, ...] = value.shape[:-1]
 
@@ -588,6 +588,6 @@ def make_batch_retry_solver(
             EnumerationItem(final_status, RESULTS),  # pyright: ignore
         )
 
-        return MultiAttemptSolution(sol, result, stats)
+        return CheckedSolution(sol, result, stats)
 
     return batch_retry_solver

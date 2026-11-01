@@ -375,7 +375,7 @@ Excel, and to count the successful models in the solver log.
      - Why the model was or was not solved, as a value of ``atmodeller.RESULTS``: ``successful``,
        ``solver_failed`` or ``objective_check_failed``, describing the first attempt of a model
        that was not solved. The message of each model is
-       ``atmodeller.RESULTS[output.multi_attempt_solution.result]``
+       ``atmodeller.RESULTS[output.checked_solution.result]``
 
 Solution and initial guess
 --------------------------

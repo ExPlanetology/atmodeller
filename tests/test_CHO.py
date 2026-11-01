@@ -309,7 +309,7 @@ def CHO_solution() -> Output:
     )
 
     output: Output = EquilibriumModel(parameters).solve_with_default()
-    assert bool(np.all(output.multi_attempt_solution.success))
+    assert bool(np.all(output.checked_solution.success))
 
     return output
 
@@ -318,7 +318,7 @@ def CHO_solution() -> Output:
 def CHO_output(CHO_solution: Output) -> dict[str, Any]:
     """Output of the C-H-O model with graphite in the named arrays format"""
     return OutputNamedArraysDict(
-        CHO_solution.parameters, CHO_solution.multi_attempt_solution, CHO_solution.initial_guess
+        CHO_solution.parameters, CHO_solution.checked_solution, CHO_solution.initial_guess
     ).to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
 
 
@@ -326,7 +326,7 @@ def test_CHO_elements_species(CHO_solution: Output, CHO_output: dict[str, Any]) 
     """In the elements and species format, the graphite phase, which has the name of its species,
     keeps the species entry beside its phase entry, with the same values as the named arrays"""
     out: dict[str, Any] = OutputElementsSpeciesDict(
-        CHO_solution.parameters, CHO_solution.multi_attempt_solution, CHO_solution.initial_guess
+        CHO_solution.parameters, CHO_solution.checked_solution, CHO_solution.initial_guess
     ).to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
     graphite_mass: NpFloat = CHO_output["C_graphite"]["species"]["mass"]["C_graphite"]
 
