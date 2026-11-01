@@ -39,7 +39,7 @@ from atmodeller.jax_utils import OptxSolver, stop_gradient_arrays
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-LOG_NUMBER_MOLES_VMAP_AXES: int = 0
+SOLUTION_BATCH_AXIS: int = 0
 """Batch axis of the solution array, which is vmapped by the batched solvers and initializers"""
 
 

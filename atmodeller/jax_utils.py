@@ -6,8 +6,8 @@
 """Standalone helper functions and utilities for JAX-based scientific modelling
 
 This module provides type aliases, numerically stable mathematical operations, masking utilities,
-batch handling, and linear algebra helpers for use with JAX, NumPy, and related libraries. It is
-designed to be standalone and does not depend on other modules within the atmodeller package.
+and batch and pytree handling for use with JAX, NumPy, and related libraries. It is designed to be
+standalone and does not depend on other modules within the atmodeller package.
 """
 
 import logging
@@ -362,51 +362,6 @@ def vmap_axes_spec(x: PyTree) -> PyTree[Literal[0, None]]:
         if not.
     """
     return tree_map(get_batch_axis, x)
-
-
-def left_null_space(matrix: NpArray, tolerance: float = 1e-10) -> NpArray:
-    """Computes a basis of the left null space by forward elimination
-
-    The matrix is augmented with the identity and reduced to row echelon form with partial
-    pivoting. A pivot is the non-zero entry that eliminates the entries below it in its column,
-    and the pivot row only advances when a column has a pivot, so it ends at the rank. The rows
-    below the last pivot vanish, and their identity part records the linearly independent
-    combinations of the rows of the input that vanish. This uses NumPy in-place operations and is
-    therefore not compatible with JAX transformations.
-
-    Args:
-        matrix: A 2-D NumPy array of shape (nrows, ncols)
-        tolerance: Tolerance, relative to the largest entry, below which an entry is zero.
-            Defaults to 1e-10.
-
-    Returns:
-        A basis of the left null space, one combination per row, of which there are nrows minus
-        the rank of the matrix
-    """
-    nrows, ncols = matrix.shape
-    augmented_matrix: NpArray = np.hstack((matrix, np.eye(nrows)))
-    threshold: float = tolerance * max(np.max(np.abs(matrix), initial=0.0), 1.0)
-
-    pivot_row: int = 0
-    for column in range(ncols):
-        if pivot_row == nrows:
-            break
-        nonzero: NpInt = np.flatnonzero(np.abs(augmented_matrix[pivot_row:, column]) > threshold)
-        if nonzero.size == 0:
-            continue  # the column depends on earlier ones, so it has no pivot
-        # Swap the first row with a non-zero entry into the pivot row
-        swap_row: int = pivot_row + int(nonzero[0])
-        if swap_row != pivot_row:
-            augmented_matrix[[pivot_row, swap_row]] = augmented_matrix[[swap_row, pivot_row]]
-        # Eliminate the entries below the pivot
-        factors: NpArray = (
-            augmented_matrix[pivot_row + 1 :, column : column + 1]
-            / augmented_matrix[pivot_row, column]
-        )
-        augmented_matrix[pivot_row + 1 :] -= factors * augmented_matrix[pivot_row]
-        pivot_row += 1
-
-    return augmented_matrix[pivot_row:, ncols:]
 
 
 def stack_broadcast(arrays: Sequence[Array], axis: int = -1) -> Array:

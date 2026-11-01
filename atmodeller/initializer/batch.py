@@ -16,7 +16,7 @@ from atmodeller.initializer.core import InitializerProtocol
 from atmodeller.initializer.element_potential import ElementPotentialInitializer
 from atmodeller.jax_utils import vmap_axes_spec
 from atmodeller.parameters import Parameters
-from atmodeller.solver_utils import LOG_NUMBER_MOLES_VMAP_AXES
+from atmodeller.solver_utils import SOLUTION_BATCH_AXIS
 
 
 def make_batch_initializer(
@@ -52,7 +52,7 @@ def make_batch_initializer(
         return initializer_.start(parameters)
 
     cold_start_vmapped: Callable = eqx.filter_vmap(
-        cold_start, in_axes=(vmap_axes_spec(parameters), LOG_NUMBER_MOLES_VMAP_AXES)
+        cold_start, in_axes=(vmap_axes_spec(parameters), SOLUTION_BATCH_AXIS)
     )
 
     def batch_initializer(

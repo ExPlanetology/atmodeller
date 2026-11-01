@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for atmodeller.jax_utils"""
+"""Tests for atmodeller.reactions"""
 
 import logging
 
 import numpy as np
 
 from atmodeller import debug_logger
-from atmodeller.jax_utils import left_null_space
+from atmodeller.reactions import left_null_space
 
 logger: logging.Logger = debug_logger()
 logger.setLevel(logging.WARNING)

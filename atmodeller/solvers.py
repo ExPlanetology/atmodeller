@@ -3,34 +3,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""JAX-compatible non-linear solvers for chemical equilibrium.
+"""Atmodeller's solvers for chemical equilibrium
 
-Key features:
+These assemble the generic building blocks of :mod:`atmodeller.solver_utils` for Atmodeller's
+model:
 
-- **Single and batched solvers:**
-    - Solve individual or batched systems with automatic initial guess generation
-    - Batch solvers use :func:`equinox.filter_vmap` for efficient parallelism
-- **Robust convergence:**
-    - Retry logic for failed solves with random perturbations and multiple attempts
-    - Objective-based convergence validation, independent of solver's internal status
-- **Tau sweep for stability:**
-    - Automatic tau sweep for systems with active stability species, using a log-spaced schedule
-    - Efficiently finds solutions across a range of tau values when needed
-- **JIT compilation:**
-    - All main solver entry points are JIT-compatible and can be used in compiled workflows
-- **Flexible construction:**
-    - Main entry points allow construction of solvers with or without JIT, and with custom
-      retry/tau sweep logic
+- **Single solve:** :func:`solve_single` supplies Atmodeller's objective function and solver
+  configuration to :func:`~atmodeller.solver_utils.checked_root_find`, which solves a single
+  system and checks it. This is the only place the objective function is used.
+- **Batched solve:** :func:`make_batch_solver` vmaps :func:`solve_single` over the batch.
+- **Retries:** :func:`make_batch_retry_solver_from_parameters` retries the models that failed,
+  from initial guesses perturbed by :func:`perturb_log_number_moles`, with the generic
+  :func:`~atmodeller.solver_utils.make_batch_retry_solver`.
+- **Tau sweep:** :func:`make_tau_sweep_solver` solves systems with active stability species
+  along a log-spaced schedule of tau.
+- **Initial guess:** rows without an initial guess are completed with the initializer's cold
+  guess (:func:`~atmodeller.initializer.batch.make_batch_initializer`).
 
-Main entry points:
+Main entry points, all compatible with JIT-compiled workflows:
 
-- :func:`make_solver_with_jit`: Returns a JIT-compiled solver (default: single-path)
-- :func:`make_solver_with_jit_single_path`: Returns a JIT-compiled solver (single path only)
-- :func:`make_solver_with_jit_dual_path`: Returns a JIT-compiled solver (both branches for maximum flexibility)
-- :func:`make_solver_with_jit_batch_only`: Returns a JIT-compiled solver (batch solver only, fastest compilation)
-- :func:`make_solver`: Returns a non-JIT solver (can be wrapped with JIT externally)
-- :func:`make_batch_retry_solver_from_parameters`: Builds a batch retry solver from parameters
-- :func:`make_tau_sweep_solver`: Returns a tau sweep solver for active stability systems
+- :func:`make_solver_with_jit`: JIT-compiled solver (default: single path)
+- :func:`make_solver_with_jit_single_path`: JIT-compiled solver (single path only)
+- :func:`make_solver_with_jit_dual_path`: JIT-compiled solver (both branches, most flexible)
+- :func:`make_solver_with_jit_batch_only`: JIT-compiled solver (batch solver only, fastest
+  compilation)
+- :func:`make_solver`: non-JIT solver (can be wrapped with JIT externally)
 
 Quick guide:
 
@@ -39,8 +36,8 @@ Quick guide:
 - ``batch_only``: Fastest compilation; can still solve active-stability systems, but skips retry
     and tau-sweep robustness logic
 
-Most solvers return results as :class:`~atmodeller.solver_utils.MultiAttemptSolution` or
-:class:`~atmodeller.output.Output` objects, with detailed convergence and step statistics.
+The solvers return a checked :class:`~atmodeller.solver_utils.MultiAttemptSolution`, or an
+:class:`~atmodeller.output.Output` for the entry points, with the result of each model.
 """
 
 from collections.abc import Callable
@@ -57,13 +54,13 @@ from atmodeller.jax_utils import FloatArray, vmap_axes_spec
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.solver_utils import (
-    LOG_NUMBER_MOLES_VMAP_AXES,
+    SOLUTION_BATCH_AXIS,
     MultiAttemptSolution,
     checked_root_find,
     implicit_polish,
+    make_batch_retry_solver,
     perturb_around_converged,
 )
-from atmodeller.solver_utils import make_batch_retry_solver as generic_make_batch_retry_solver
 
 
 def solve_single(initial_guess: FloatArray, parameters: Parameters) -> MultiAttemptSolution:
@@ -111,7 +108,7 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         single attempt
     """
     solver_function_vmapped: Callable = eqx.filter_vmap(
-        solve_single, in_axes=(LOG_NUMBER_MOLES_VMAP_AXES, vmap_axes_spec(parameters))
+        solve_single, in_axes=(SOLUTION_BATCH_AXIS, vmap_axes_spec(parameters))
     )
 
     def batch_single_pass_solver(solution: Array, parameters: Parameters) -> MultiAttemptSolution:
@@ -132,64 +129,53 @@ def make_batch_solver(parameters: Parameters) -> Callable:
     return batch_single_pass_solver
 
 
-def make_batch_retry_solver(solver_function: Callable) -> Callable:
-    """Makes a batch retry solver.
+def perturb_log_number_moles(
+    solution: Float[Array, "... twice_species"],
+    attempt: Integer[Array, "..."],
+    key: PRNGKeyArray,
+    parameters: Parameters,
+) -> Float[Array, "... twice_species"]:
+    """Perturbs the solution of the models that failed, for Atmodeller's solution layout.
 
-    A thin, atmodeller-specific wrapper around the generic
-    :func:`~atmodeller.solver_utils.make_batch_retry_solver`: supplies a ``perturb_fn`` that splits
-    the solution into ``log_number_moles``/``log_stability``, perturbs only the former around its
-    already-converged rows (via :func:`~atmodeller.solver_utils.perturb_around_converged`), and
-    re-derives the latter via :func:`~atmodeller.engine.compute_implied_log_stability`. The
-    retry-loop mechanics themselves (perturb failed rows, re-solve, keep newly-successful rows,
-    repeat) live in the generic factory, shared with downstream packages (e.g. mcmodeller) that
-    have a different solution-vector layout. Each attempt is checked by ``solver_function``.
-
-    ``solver_function`` must be a pure JAX-callable function compatible with
-    :func:`equinox.filter_jit`. It must not close over non-JAX state or produce Python side
-    effects.
+    The solution is split into ``log_number_moles`` and ``log_stability``. Only the former is
+    perturbed around its already-converged rows (via
+    :func:`~atmodeller.solver_utils.perturb_around_converged`), and the latter is re-derived via
+    :func:`~atmodeller.engine.compute_implied_log_stability`. This is the ``perturb_fn`` of the
+    generic :func:`~atmodeller.solver_utils.make_batch_retry_solver`.
 
     Args:
-        solver_function: Callable that performs a single solve, e.g. from
-            :func:`make_batch_solver`. Must accept arguments of an initial guess and a pytree of
-            parameters, and return a checked
-            :class:`~atmodeller.solver_utils.MultiAttemptSolution`.
+        solution: Batched solution, ``log_number_moles`` followed by ``log_stability``
+        attempt: Attempt on which each model was solved, or ``0`` if it was not solved
+        key: JAX PRNG key
+        parameters: Parameters
 
     Returns:
-        Callable that returns a :class:`~atmodeller.solver_utils.MultiAttemptSolution` object
+        Candidate perturbed solution for every model
     """
+    log_number_moles, _ = jnp.split(solution, 2, axis=-1)
 
-    def perturb_fn(
-        solution: Float[Array, "... twice_species"],
-        attempt: Integer[Array, "..."],
-        key: PRNGKeyArray,
-        parameters: Parameters,
-    ) -> Float[Array, "... twice_species"]:
-        """Perturbs ``log_number_moles`` around its converged rows, then re-derives stability."""
-        log_number_moles, _ = jnp.split(solution, 2, axis=-1)
+    perturbed_log_number_moles: Float[Array, "... n_species"] = perturb_around_converged(
+        log_number_moles,
+        attempt,
+        key,
+        parameters.solver_parameters.log_number_moles_lower,
+        parameters.solver_parameters.log_number_moles_upper,
+    )
+    new_log_stability: Float[Array, "... n_species"] = compute_implied_log_stability(
+        parameters, perturbed_log_number_moles
+    )
 
-        perturbed_log_number_moles: Float[Array, "... n_species"] = perturb_around_converged(
-            log_number_moles,
-            attempt,
-            key,
-            parameters.solver_parameters.log_number_moles_lower,
-            parameters.solver_parameters.log_number_moles_upper,
-        )
-        new_log_stability: Float[Array, "... n_species"] = compute_implied_log_stability(
-            parameters, perturbed_log_number_moles
-        )
-
-        return jnp.concatenate([perturbed_log_number_moles, new_log_stability], axis=-1)
-
-    return generic_make_batch_retry_solver(solver_function, perturb_fn)
+    return jnp.concatenate([perturbed_log_number_moles, new_log_stability], axis=-1)
 
 
 def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:
     """Gets a batch retry solver, constructing the vmapped batch solver internally.
 
-    A convenience wrapper around :func:`make_batch_retry_solver` that accepts
-    ``parameters`` directly, deriving the ``vmap`` axes and building the batch solver at
-    construction time. Use this in preference to calling :func:`make_batch_retry_solver` directly
-    when the vmap axes are not already available.
+    Builds the batch solver (:func:`make_batch_solver`), whose vmapping axes are fixed from
+    ``parameters``, and passes it with :func:`perturb_log_number_moles` to the generic
+    :func:`~atmodeller.solver_utils.make_batch_retry_solver`. The retry-loop mechanics (perturb
+    failed rows, re-solve, keep newly-successful rows, repeat) live in the generic factory, which
+    is shared with downstream packages that have a different solution layout.
 
     Args:
         parameters: Parameters used to derive the vmapping axes at construction time
@@ -199,7 +185,7 @@ def make_batch_retry_solver_from_parameters(parameters: Parameters) -> Callable:
     """
     batch_solver: Callable = make_batch_solver(parameters)
 
-    return make_batch_retry_solver(batch_solver)
+    return make_batch_retry_solver(batch_solver, perturb_log_number_moles)
 
 
 def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) -> Callable:
