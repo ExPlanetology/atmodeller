@@ -10,6 +10,8 @@ from collections.abc import Mapping
 from typing import Any
 
 import jax.numpy as jnp
+import numpy as np
+import pytest
 from jaxtyping import ArrayLike
 from pytest import approx
 
@@ -23,7 +25,7 @@ from atmodeller.interfaces import (
     SolubilityProtocol,
     SpeciesProtocol,
 )
-from atmodeller.jax_utils import FloatArray
+from atmodeller.jax_utils import FloatArray, NpFloat
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.sci_utils import earth
@@ -80,14 +82,17 @@ def test_Si_iron_badro15() -> None:
     assert jnp.asarray(log_activity).tolist() == approx(jnp.asarray(expected).tolist())
 
 
-def test_subNeptune_melt_phase_with_si_activity() -> None:
-    """Tests a sub-Neptune with Si activity in the metal phase.
+@pytest.fixture(scope="module")
+def subneptune_output() -> Output:
+    """A sub-Neptune with a silicate melt and a metal phase with Fe and Si, compiled and solved once
+    for every case as one batch, each solved on its first attempt so the rows do not affect each
+    other.
 
-    Includes a metal phase (i.e. metallic core) with Fe and Si, and an Si activity model.
-
-    The silicate melt phase consists of a chemically-reactive component SiO2(l) and a dissolved
-    component H2O(l). Here, the activities of both species in the melt phase are calculated
-    self-consistently.
+    Row 0 imposes the fO2, and rows 1 to 3 impose several O masses instead. The silicate melt
+    phase consists of a chemically-reactive component SiO2(l) and a dissolved component H2O(l),
+    and the metal phase of Fe and Si, where Si has an activity model. The activities of the
+    species in the melt and metal phases are calculated self-consistently. This is an extension of
+    the model setup in :cite:t:`Hakim2026`.
     """
     # The species we specify in the melt should be considered as already included in the
     # "background" melt mass, so we set include_in_phase_mass=False for both species
@@ -113,55 +118,71 @@ def test_subNeptune_melt_phase_with_si_activity() -> None:
 
     # The melt and metal end-members are extended with a constant heat capacity outside their
     # data, so any temperature works. At this temperature all are inside their data.
-    surface_temperature = 3400  # K
-    planet_mass = 4.6 * earth.mass  # kg
-    surface_radius = 1.5 * earth.radius  # m
-
     planet: Planet = Planet.from_species(
         gas_species_subneptune,
         silicate_melt_species=melt_species,
         metal_species=metal_species,
-        temperature=surface_temperature,
-        planet_mass=planet_mass,
-        surface_radius=surface_radius,
+        temperature=3400,
+        planet_mass=4.6 * earth.mass,
+        surface_radius=1.5 * earth.radius,
         # None means the metal phase's mass comes entirely from tracked metal_species
         core_mass_fraction=None,
     )
 
     # Recall that `background_planet_mass` is only the mass of the background melt phase because
     # the metal phase is not tracked in the background.
-    h_kg: ArrayLike = 0.01 * planet.background_planet_mass
-    si_kg: ArrayLike = 0.4 * planet.background_planet_mass
+    background_mass: float = float(np.asarray(planet.background_planet_mass))
+    h_kg: NpFloat = np.full(4, 0.01 * background_mass)
+    # Si = 14.59 wt% Kargel & Lewis (1993) for the cases with an O mass
+    si_kg: NpFloat = np.array([0.4 * background_mass] + [0.1459 * background_mass] * 3)
 
-    # Add some Fe to the system, which can only be dumped in the metal core (no oxides specified
-    # in the melt phase).
     # Again, since `background_planet_mass` excludes the core, we work backwards to compute a
     # reasonable mass of Fe to add. This only accounts for Fe, so the resulting core mass fraction
     # ends up a bit higher than the 0.34 implied here once the solved Si mass is added on top.
     core_fe_mass_fraction: float = 0.34
-    fe_kg: ArrayLike = (
-        core_fe_mass_fraction / (1 - core_fe_mass_fraction) * planet.background_planet_mass
+    fe_kg: NpFloat = np.full(
+        4, core_fe_mass_fraction / (1 - core_fe_mass_fraction) * background_mass
     )
 
-    logger.info("h_kg = %s", h_kg)
-    logger.info("si_kg = %s", si_kg)
-    logger.info("fe_kg = %s", fe_kg)
-
-    mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "Fe": fe_kg}
-
     # Imposing O as a mass constraint is tricky since O is stoichiometrically constrained to H2O
-    # and SiO2, but now the metal phase can also compete for Si. In practice, imposing an fO2 is
-    # a more consistent approach to enable the model to find a solution.
-    activity_constraints: dict[str, ActivityConstraintProtocol] = {"O2_g": IronWustiteBuffer(-2.0)}
+    # and SiO2, but now the metal phase can also compete for Si. Row 0 instead imposes an fO2, a
+    # more consistent approach, and its O mass is inactive (NaN), as is the fO2 of the other rows.
+    o_kg: NpFloat = np.array([np.nan, 7.0e24, 7.5e24, 8.0e24])
+    mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "Fe": fe_kg, "O": o_kg}
+    activity_constraints: dict[str, ActivityConstraintProtocol] = {
+        "O2_g": IronWustiteBuffer(np.array([-2.0, np.nan, np.nan, np.nan]))
+    }
 
     parameters: Parameters = Parameters(
         planet, mass_constraints=mass_constraints, activity_constraints=activity_constraints
     )
+    output: Output = EquilibriumModel(parameters).solve_with_default()
 
-    model: EquilibriumModel = EquilibriumModel(parameters)
+    # We can also dump a summary of the solver stats to the logger for debugging purposes
+    output.solver_stats_to_logger()
+    assert np.all(np.asarray(output.checked_solution.successful_attempt) == 1)
 
-    output: Output = model.solve_with_default()
+    return output
 
+
+def _compare_rows(output: Output, target: dict[str, Any], rows: slice) -> bool:
+    """Compares a target with some rows of a batched output, as :meth:`Output.compare` does for
+    every row"""
+    out: dict[str, Any] = output.to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
+
+    def compare(target_: dict[str, Any], out_: dict[str, Any]) -> bool:
+        return all(
+            compare(value, out_[key])
+            if isinstance(value, dict)
+            else bool(np.allclose(value, np.asarray(out_[key])[rows], rtol=RTOL, atol=ATOL))
+            for key, value in target_.items()
+        )
+
+    return compare(target, out)
+
+
+def test_subNeptune_melt_phase_with_si_activity(subneptune_output: Output) -> None:
+    """Tests a sub-Neptune with Si activity in the metal phase, at an imposed fO2 (row 0)."""
     target: dict[str, Any] = {
         "gas": {
             "species": {
@@ -181,9 +202,42 @@ def test_subNeptune_melt_phase_with_si_activity() -> None:
         },
     }
 
-    # output.to_excel(file_prefix="test_subNeptune_melt_phase_with_si_activity", output_format="named_arrays")
+    assert _compare_rows(subneptune_output, target, slice(0, 1))
 
-    # We can also dump a summary of the solver stats to the logger for debugging purposes
-    output.solver_stats_to_logger()
 
-    assert output.compare(target, rtol=RTOL, atol=ATOL)
+def test_subNeptune_melt_phase(subneptune_output: Output) -> None:
+    """Tests a sub-Neptune with computed melt-phase activities for several O masses (rows 1 to 3).
+
+    The melt phase consists of a chemically-reactive component SiO2(l) and a dissolved component
+    H2O(l), and the planet also has a metal phase (see ``subneptune_output``).
+    """
+    target: dict[str, Any] = {
+        "gas": {
+            "species": {
+                "partial_pressure": {
+                    "H2O_g": np.array([18407.507470817447, 18450.38188829789, 18459.51355243942]),
+                    "H2_g": np.array(
+                        [0.641845615687295, 0.02511762505160897, 0.0024370511634242546]
+                    ),
+                    "O2_g": np.array([60188.08181318284, 191933.18537929462, 324297.0848929098]),
+                },
+                "activity": {
+                    "H2_g": np.array([11.020401158306242, 6.185687757328123, 4.761090091777577])
+                },
+            }
+        },
+        "silicate_melt": {
+            "species": {
+                "activity": {
+                    "H2O_d": np.array(
+                        [0.29276669247057885, 0.2931074474812595, 0.2931799724752679]
+                    ),
+                    "O2Si_l": np.array(
+                        [0.3121290589103115, 0.31212906225115455, 0.31212906291056275]
+                    ),
+                }
+            }
+        },
+    }
+
+    assert _compare_rows(subneptune_output, target, slice(1, 4))

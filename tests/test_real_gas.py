@@ -22,7 +22,6 @@ from atmodeller.interfaces import (
     ActivityConstraintProtocol,
     ActivityProtocol,
     SolubilityProtocol,
-    SpeciesProtocol,
 )
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
@@ -287,95 +286,5 @@ def test_pH2_fO2_real_gas() -> None:
     }
 
     # output.to_excel("pH2_fO2_real_gas")
-
-    assert output.compare(target, rtol=RTOL, atol=ATOL)
-
-
-def test_subNeptune_melt_phase() -> None:
-    """Tests a more realistic sub-Neptune with computed melt-phase activities.
-
-    This is an extension of the model setup in :cite:t:`Hakim2026`.
-
-    The melt phase consists of a chemically-reactive component SiO2(l) and a dissolved component
-    H2O(l). Here, the activities of both species in the melt phase are calculated
-    self-consistently.
-    """
-
-    # The species we specify in the melt should be considered as already included in the
-    # "background" melt mass, so we set include_in_phase_mass=False for both species
-    O2Si_l: ChemicalSpecies = ChemicalSpecies.from_end_member(
-        "liquid", formula="SiO2", include_in_phase_mass=False
-    )
-    H2O_d: ReservoirSpecies = ReservoirSpecies.create_dissolved(
-        "H2O", solubility=solubility_models["H2O_peridotite_sossi23"], include_in_phase_mass=False
-    )
-    melt_species: tuple[SpeciesProtocol, ...] = (O2Si_l, H2O_d)
-
-    # Temperature must be compatible with the choice of species, i.e. chemically-reactive species
-    # must have thermodynamic data available at the specified temperature. Here, we are limited by
-    # O2Si(l).
-    surface_temperature = 3400  # K
-    planet_mass = 4.6 * earth.mass  # kg
-    surface_radius = 1.5 * earth.radius  # m
-
-    planet: Planet = Planet.from_species(
-        gas_species_subneptune,
-        silicate_melt_species=melt_species,
-        temperature=surface_temperature,
-        planet_mass=planet_mass,
-        surface_radius=surface_radius,
-    )
-
-    # The previous mass constraints are still OK, because we are not allowing the melt species to
-    # contribute additionally to the planet mass. So these calculations are still exact.
-    h_kg: ArrayLike = 0.01 * planet.background_planet_mass
-    si_kg: ArrayLike = (
-        0.1459 * planet.background_planet_mass
-    )  # Si = 14.59 wt% Kargel & Lewis (1993)
-    # o_kg: ArrayLike = 6.74717e24
-    # Batch solve for three oxygen masses
-    o_kg: ArrayLike = 1e24 * np.array([7.0, 7.5, 8.0])
-
-    logger.info("h_kg = %s", h_kg)
-    logger.info("si_kg = %s", si_kg)
-    logger.info("o_kg = %s", o_kg)
-
-    mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
-
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
-
-    model: EquilibriumModel = EquilibriumModel(parameters)
-
-    output: Output = model.solve_with_default()
-
-    target: dict[str, Any] = {
-        "gas": {
-            "species": {
-                "partial_pressure": {
-                    "H2O_g": np.array([34153.82296420662, 34647.10590262693, 34773.426887896916]),
-                    "H2_g": np.array(
-                        [2.0037881656447794, 0.17031752927491278, 0.0277540975765887]
-                    ),
-                    "O2_g": np.array([34654.48940856429, 118719.9469235665, 205321.6303802464]),
-                },
-                "activity": {
-                    "H2_g": np.array([26.947421706500606, 14.769397743175231, 11.271658169843118])
-                },
-            }
-        },
-        "silicate_melt": {
-            "species": {
-                "activity": {
-                    "H2O_d": np.array([0.3987896102961398, 0.401659141224754, 0.402390685959212]),
-                    "O2Si_l": np.array([0.44294654092776, 0.442946543294337, 0.44294654385622]),
-                }
-            }
-        },
-    }
-
-    # output.to_excel(file_prefix="test_subNeptune_melt_phase", output_format="named_arrays")
-
-    # We can also dump a summary of the solver stats to the logger for debugging purposes
-    output.solver_stats_to_logger()
 
     assert output.compare(target, rtol=RTOL, atol=ATOL)
