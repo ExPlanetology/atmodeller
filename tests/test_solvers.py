@@ -49,13 +49,11 @@ logger: logging.Logger = debug_logger()
 logger.setLevel(logging.WARNING)
 
 # Gas species shared by all parameter sets below (mirrors tests/test_condensates.py)
-H2O_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O")
-H2_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2")
 O2_g: ChemicalSpecies = ChemicalSpecies.create_gas("O2")
 CO_g: ChemicalSpecies = ChemicalSpecies.create_gas("CO")
 CO2_g: ChemicalSpecies = ChemicalSpecies.create_gas("CO2")
-CH4_g: ChemicalSpecies = ChemicalSpecies.create_gas("CH4")
-GAS_SPECIES: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_g)
+# A small C-O system keeps the compilation of these tests of the solver constructors short
+GAS_SPECIES: tuple[ChemicalSpecies, ...] = (O2_g, CO_g, CO2_g)
 
 # Graphite condensate: created with the default `solve_for_stability=True`, so including it in a
 # model is what flips `active_stability` to True for one or more species.
@@ -63,7 +61,7 @@ graphite: PurePhase = PurePhase.from_end_member("graphite")
 
 
 def _build_parameters(*, with_condensate: bool, batch_size: int = 1) -> Parameters:
-    """Builds Parameters for a C-H-O system, optionally with a stability-active graphite phase.
+    """Builds Parameters for a C-O system, optionally with a stability-active graphite phase.
 
     Args:
         with_condensate: Whether to include a graphite condensate (activates stability solving)
@@ -81,9 +79,8 @@ def _build_parameters(*, with_condensate: bool, batch_size: int = 1) -> Paramete
     activity_constraints: dict[str, ActivityConstraintProtocol] = {"O2_g": IronWustiteBuffer(0.0)}
 
     oceans: ArrayLike = np.linspace(0.5, 2.0, batch_size) if batch_size > 1 else 1.0
-    h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(oceans)
-    c_kg: ArrayLike = 2.0 * h_kg
-    mass_constraints: dict[str, ArrayLike] = {"C": c_kg, "H": h_kg}
+    c_kg: ArrayLike = 2.0 * earth.oceans_to_hydrogen_mass(oceans)
+    mass_constraints: dict[str, ArrayLike] = {"C": c_kg}
 
     parameters: Parameters = Parameters(
         state=planet, activity_constraints=activity_constraints, mass_constraints=mass_constraints

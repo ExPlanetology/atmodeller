@@ -13,24 +13,26 @@ model (no heavy elements) and a C-O model (no H). Each output format is computed
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, cast
 
 import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
+import optimistix as optx
 import pandas as pd
 import pytest
-from jaxtyping import ArrayLike
+from equinox._enum import EnumerationItem
+from jaxtyping import Array, ArrayLike
 from openpyxl import load_workbook
 
 from atmodeller import RESULTS, __version__, debug_logger
-from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol
 from atmodeller.output import Output
 from atmodeller.output_base import flatten_dictionary, log_epsilon, recursively_merge_dictionaries
 from atmodeller.parameters import Parameters
 from atmodeller.sci_utils import earth, solar
+from atmodeller.solver_utils import CheckedSolution
 from atmodeller.state import BaseThermodynamicState, Planet
 from atmodeller.thermodata import IronWustiteBuffer
 
@@ -50,19 +52,129 @@ CO_g: ChemicalSpecies = ChemicalSpecies.create_gas("CO")
 CO2_g: ChemicalSpecies = ChemicalSpecies.create_gas("CO2")
 CH4_g: ChemicalSpecies = ChemicalSpecies.create_gas("CH4")
 
+# Solutions and initial guesses of the models below, from solves with the same inputs. Each is the
+# log number of moles and the log stability of each species, for each model in the batch.
+CHO_SOLUTION: list[list[float]] = [
+    [
+        51.98759850647271,
+        52.018926469810175,
+        50.70839922028918,
+        49.21784687690171,
+        43.00742200257946,
+        31.185228794736126,
+        -56.1624224055977,
+        -56.19375036893518,
+        -57.361114732738386,
+        -55.870562389350916,
+        -49.66013751502869,
+        -57.564627324851145,
+    ],
+    [
+        52.68037491259715,
+        52.71170287593462,
+        51.400441176561465,
+        49.909888833173994,
+        45.08480086897364,
+        31.185336745799624,
+        -56.16205163116219,
+        -56.19337959449966,
+        -57.360009508450716,
+        -55.869457165063245,
+        -51.0443692008629,
+        -57.564627324851145,
+    ],
+]
+CHO_INITIAL_GUESS: list[list[float]] = [
+    [
+        51.98759850647272,
+        52.0189264698102,
+        50.70839922028919,
+        49.21784687690172,
+        43.00742200257949,
+        31.18522879473613,
+        -56.1624224055977,
+        -56.19375036893518,
+        -57.361114732738386,
+        -55.870562389350916,
+        -49.66013751502869,
+        -57.564627324851145,
+    ],
+    [
+        52.68037491259716,
+        52.71170287593463,
+        51.400441176561465,
+        49.909888833173994,
+        45.08480086897365,
+        31.185336745799624,
+        -56.16205163116219,
+        -56.19337959449966,
+        -57.360009508450716,
+        -55.869457165063245,
+        -51.0443692008629,
+        -57.564627324851145,
+    ],
+]
+H_ONLY_SOLUTION: list[list[float]] = [
+    [52.696507147882926, 44.578817320916464, -56.87133104700791, -48.75364122004143]
+]
+H_ONLY_INITIAL_GUESS: list[list[float]] = [
+    [52.696507147882926, 44.57881732091645, -56.87133104700791, -48.75364122004143]
+]
+NO_H_SOLUTION: list[list[float]] = [
+    [
+        30.327804977294015,
+        50.70876837112065,
+        49.21821602773318,
+        -57.564627324851145,
+        -57.361483883569846,
+        -55.870931540182376,
+    ]
+]
+NO_H_INITIAL_GUESS: list[list[float]] = [
+    [
+        30.327804977294008,
+        50.70876837112065,
+        49.21821602773318,
+        -57.564627324851145,
+        -57.361483883569846,
+        -55.870931540182376,
+    ]
+]
 
-def _solve(
+
+def _output(
     gas_species: tuple[ChemicalSpecies, ...],
     mass_constraints: dict[str, ArrayLike],
+    solution: list[list[float]],
+    initial_guess: list[list[float]],
     activity_constraints: Optional[dict[str, ActivityConstraintProtocol]] = None,
 ) -> Output:
-    """Builds and solves a model"""
+    """Builds a model and its output from a stored solution, so that no solver is compiled
+
+    These tests check the output, not the solver. Each stored solution and initial guess is that of
+    a solve of the same model, in which every model was solved on its first attempt in one step.
+    """
     planet: BaseThermodynamicState = Planet.from_species(gas_species)
     parameters: Parameters = Parameters(
         planet, activity_constraints=activity_constraints, mass_constraints=mass_constraints
     )
+    value: Array = jnp.asarray(solution)
+    ones: Array = jnp.ones(value.shape[:-1], dtype=int)
+    optimistix_result: optx.RESULTS = cast(
+        optx.RESULTS,
+        EnumerationItem(ones * optx.RESULTS.successful._value, optx.RESULTS),  # pyright: ignore
+    )
+    result: RESULTS = cast(
+        RESULTS,
+        EnumerationItem(ones * RESULTS.successful._value, RESULTS),  # pyright: ignore
+    )
+    checked_solution: CheckedSolution = CheckedSolution(
+        optx.Solution(value, optimistix_result, None, {"num_steps": ones}, None),
+        result,
+        {"successful_attempt": ones, "num_steps": ones},
+    )
 
-    return EquilibriumModel(parameters).solve_with_default()
+    return Output(parameters, checked_solution, jnp.asarray(initial_guess))
 
 
 def _to_dicts(output: Output) -> dict[str, dict[str, Any]]:
@@ -81,9 +193,11 @@ def cho_output() -> Output:
     """
     h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(np.array([1.0, 2.0]))
 
-    return _solve(
+    return _output(
         (H2_g, H2O_g, CO_g, CO2_g, CH4_g, O2_g),
         {"H": h_kg, "C": h_kg},
+        CHO_SOLUTION,
+        CHO_INITIAL_GUESS,
         activity_constraints={"O2_g": IronWustiteBuffer()},
     )
 
@@ -97,15 +211,24 @@ def cho_dicts(cho_output: Output) -> dict[str, dict[str, Any]]:
 def h_only_dicts() -> dict[str, dict[str, Any]]:
     """H2 and H gas, so there are no heavy elements (two species avoid the degenerate
     single-species case)"""
-    return _to_dicts(_solve((H2_g, H_g), {"H": earth.oceans_to_hydrogen_mass(1)}))
+    return _to_dicts(
+        _output(
+            (H2_g, H_g),
+            {"H": earth.oceans_to_hydrogen_mass(1)},
+            H_ONLY_SOLUTION,
+            H_ONLY_INITIAL_GUESS,
+        )
+    )
 
 
 @pytest.fixture(scope="module")
 def no_h_output() -> Output:
     """C-O gas without H, so abundances relative to H are not defined"""
-    return _solve(
+    return _output(
         (O2_g, CO_g, CO2_g),
         {"C": earth.oceans_to_hydrogen_mass(1)},
+        NO_H_SOLUTION,
+        NO_H_INITIAL_GUESS,
         activity_constraints={"O2_g": IronWustiteBuffer()},
     )
 
