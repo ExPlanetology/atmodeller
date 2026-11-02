@@ -7,9 +7,10 @@
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
+import pytest
 from jaxtyping import ArrayLike
 
 from atmodeller import debug_logger
@@ -98,9 +99,10 @@ def test_fO2_holley() -> None:
     assert output.compare(target, rtol=RTOL, atol=ATOL)
 
 
-def test_chabrier_earth() -> None:
-    """Tests a system with the H2 EOS from :cite:t:`CD21`"""
-
+@pytest.fixture(scope="module")
+def chabrier_model() -> EquilibriumModel:
+    """The H2 EOS from :cite:t:`CD21` with silicate species for an Earth-sized planet, compiled once
+    and shared by the tests that update the planet and its mass constraints"""
     planet: Planet = Planet.from_species(
         gas_species_subneptune, temperature=3400, condensates=condensates_subneptune
     )
@@ -111,11 +113,12 @@ def test_chabrier_earth() -> None:
     o_kg: ArrayLike = h_kg * 10
     mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
 
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
+    return EquilibriumModel(Parameters(planet, mass_constraints=mass_constraints))
 
-    model: EquilibriumModel = EquilibriumModel(parameters)
 
-    output: Output = model.solve_with_default()
+def test_chabrier_earth(chabrier_model: EquilibriumModel) -> None:
+    """Tests a system with the H2 EOS from :cite:t:`CD21`"""
+    output: Output = chabrier_model.solve_with_default()
 
     target: dict[str, Any] = {
         "gas": {
@@ -142,23 +145,19 @@ def test_chabrier_earth() -> None:
     assert output.compare(target, rtol=RTOL, atol=ATOL)
 
 
-def test_chabrier_subNeptune() -> None:
+def test_chabrier_subNeptune(chabrier_model: EquilibriumModel) -> None:
     """Tests a system with the H2 EOS from :cite:t:`CD21` for a sub-Neptune
 
     This test is not physically realistic because solubilities are ignored, which would greatly
     lower the pressure and hence the number of moles in the atmosphere.
     """
 
-    surface_temperature = 3400  # K
     planet_mass = 4.6 * 5.97224e24  # kg
     surface_radius = 1.5 * 6371000  # m
-    planet: Planet = Planet.from_species(
-        gas_species_subneptune,
-        condensates=condensates_subneptune,
-        temperature=surface_temperature,
-        planet_mass=planet_mass,
-        surface_radius=surface_radius,
+    model: EquilibriumModel = chabrier_model.update_state(
+        planet_mass=planet_mass, surface_radius=surface_radius
     )
+    planet: Planet = cast(Planet, model.parameters.state)
     h_kg: ArrayLike = 0.01 * planet.background_planet_mass
     si_kg: ArrayLike = (
         0.1459 * planet.background_planet_mass
@@ -171,11 +170,9 @@ def test_chabrier_subNeptune() -> None:
 
     mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
 
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
-
-    model: EquilibriumModel = EquilibriumModel(parameters)
-
-    output: Output = model.solve_with_default()
+    output: Output = model.update_constraints(
+        mass_constraints=mass_constraints
+    ).solve_with_default()
 
     target: dict[str, Any] = {
         "gas": {

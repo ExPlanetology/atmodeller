@@ -74,20 +74,24 @@ def test_water_stable() -> None:
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
 
 
-def test_graphite_water_stable() -> None:
-    """Tests C and water in equilibrium at 430 K and 10 bar"""
+@pytest.fixture(scope="module")
+def graphite_water_model() -> EquilibriumModel:
+    """C-H-O gas with graphite and liquid water, compiled once and shared by the tests that
+    update its temperature and mass constraints"""
     gas_species: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_g)
     condensates: tuple[PurePhase, ...] = (water, graphite)
 
     planet: BaseThermodynamicState = Planet.from_species(
         gas_species, temperature=430, condensates=condensates
     )
-
     mass_constraints: dict[str, ArrayLike] = {"C": 1.08e20, "H": 3.10e20, "O": 2.48298883581636e21}
 
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
+    return EquilibriumModel(Parameters(planet, mass_constraints=mass_constraints))
 
-    output: Output = EquilibriumModel(parameters).solve_with_default()
+
+def test_graphite_water_stable(graphite_water_model: EquilibriumModel) -> None:
+    """Tests C and water in equilibrium at 430 K and 10 bar"""
+    output: Output = graphite_water_model.solve_with_default()
 
     factsage_result: dict[str, Any] = {
         "gas": {
@@ -111,28 +115,22 @@ def test_graphite_water_stable() -> None:
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
 
 
-def test_graphite_water_oxidised() -> None:
+def test_graphite_water_oxidised(graphite_water_model: EquilibriumModel) -> None:
     """Tests water and unstable graphite under an O2-rich atmosphere at 368 K
 
     O exceeds what H2O and CO2 can hold, so the excess is O2 gas and CH4 is about 1e-117 bar, far
     below the former default lower bound on the log number of moles (-200). Atmodeller result.
     """
-    gas_species: tuple[ChemicalSpecies, ...] = (H2O_g, H2_g, O2_g, CO_g, CO2_g, CH4_g)
-    condensates: tuple[PurePhase, ...] = (water, graphite)
-
-    planet: BaseThermodynamicState = Planet.from_species(
-        gas_species, temperature=367.8167944988913, condensates=condensates
-    )
-
     mass_constraints: dict[str, ArrayLike] = {
         "C": 1.5630593225639497e20,
         "H": 4.694481522139993e20,
         "O": 5.571195263063157e21,
     }
+    model: EquilibriumModel = graphite_water_model.update_state(
+        temperature=367.8167944988913
+    ).update_constraints(mass_constraints=mass_constraints)
 
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
-
-    output: Output = EquilibriumModel(parameters).solve_with_default()
+    output: Output = model.solve_with_default()
 
     target: dict[str, Any] = {
         "gas": {
@@ -240,12 +238,17 @@ def test_water_one_component() -> None:
         )
         return EquilibriumModel(Parameters(planet, mass_constraints=mass))
 
+    # One water model for every case, with O inactive (NaN) unless it is given
     h_kg: ArrayLike = earth.oceans_to_hydrogen_mass(1)
-    output: Output = model((H2O_g,), {"H": h_kg}).solve_with_default()
+    water_model: EquilibriumModel = model((H2O_g,), {"H": h_kg, "O": np.nan})
+
+    output: Output = water_model.solve_with_default()
     np.testing.assert_allclose(output.to_dict()["gas"]["phase"]["pressure"], 0.0353362, rtol=1e-5)
 
     with pytest.raises(ValueError, match="2 constraints"):
-        model((H2O_g,), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
+        water_model.update_constraints(
+            mass_constraints={"H": h_kg, "O": 8 * h_kg}
+        ).solve_with_default()
     with pytest.raises(ValueError, match="not independent"):
         model((H2O_g, N2_g), {"H": h_kg, "O": 8 * h_kg}).solve_with_default()
 
@@ -256,6 +259,5 @@ def test_water_one_component() -> None:
             mass_constraints={"H": h_kg, "O": o_kg}
         ).solve_with_default()
 
-    water_model: EquilibriumModel = model((H2O_g,), {"H": h_kg, "O": np.nan})
     for o_kg, success in ((np.nan, True), (8 * h_kg, False)):
         assert bool(solve(water_model, o_kg).to_dict()["solver"]["success"].item()) is success
