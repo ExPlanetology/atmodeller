@@ -57,7 +57,13 @@ condensates_subneptune: tuple[PurePhase, ...] = (O2Si_l,)
 
 
 def test_fO2_holley() -> None:
-    """Tests a system with the H2 EOS from :cite:t:`HWZ58`"""
+    """Tests a system with the H2 EOS from :cite:t:`HWZ58`
+
+    This is the only test in which an EOS that solves for its volume with its own root find, as
+    the Beattie-Bridgeman EOS does, is evaluated inside the solve, where the inner root find is
+    vmapped and differentiated within the Jacobian. The other models in these tests use EOS whose
+    volume is tabulated or analytic.
+    """
 
     H2_g: ChemicalSpecies = ChemicalSpecies.create_gas(
         "H2", activity=eos_models["H2_beattie_holley58"]
