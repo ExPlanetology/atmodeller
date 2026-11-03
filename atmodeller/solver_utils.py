@@ -58,9 +58,12 @@ class RootFindParameters(eqx.Module):
             Can be either ``fwd`` or ``bwd``. Defaults to ``fwd``.
         best_so_far: Whether to wrap the solver in :class:`optimistix.BestSoFarRootFinder`, which
             returns the iterate with the smallest residual rather than the last one, e.g. for a
-            solve that converges and then diverges. Atmodeller keeps only the attempts that pass
-            the residual check, so it gains nothing from this and it is off by default. Defaults
-            to ``False``.
+            solve that converges and then diverges. For a solve that fails, this may report a point
+            closer to a root than :func:`checked_root_find`, which compares only the starting
+            point and the final iterate. However, the wrapper scores each iterate before its step,
+            so the final iterate is never scored, and a solve that converges returns the iterate
+            before it, whose residual may exceed the tolerance of the check. It is therefore off by
+            default. Defaults to ``False``.
     """
 
     solver: type[OptxSolver] = optx.Newton
