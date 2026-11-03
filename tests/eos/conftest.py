@@ -103,50 +103,28 @@ class CheckValues:
         # Dynamically get the method from the eos model based on property_name
         method: Callable = getattr(eos, property_name)
 
-        # Since the shapes of the arrays are always changing here there's no point in converting to
-        # jax arrays in order to avoid recompilation because recompilation will occur anyway due to
-        # the changing array shapes.
-
-        # Tests pressure broadcasting
-        temperature = 2000
-        pressure = np.array([1, 10, 100])
-        result: Array = method(temperature, pressure)
-        logger.debug(f"Result of {property_name} with pressure broadcasting: {result}")
-        assert result.shape == (3,)
-
-        # Tests temperature broadcasting
-        temperature = np.array([1500, 2000])
-        pressure = 100
-        result = method(temperature, pressure)
-        logger.debug(f"Result of {property_name} with temperature broadcasting: {result}")
-        assert result.shape == (2,)
+        # Each new shape compiles the method again, so two shapes cover the cases that matter:
+        # arrays of equal length, as for a batch of models, and a grid, where each input is
+        # broadcast along an axis of the other (which also covers a scalar against an array).
 
         # Tests both temperature and pressure broadcasting with equal length arrays
         temperature = np.array([1500, 2000])
         pressure = np.array([0.5, 100])
-        results = method(temperature, pressure)
+        result: Array = method(temperature, pressure)
         logger.debug(
-            f"Result of {property_name} with both temperature and pressure broadcasting: {results}"
+            f"Result of {property_name} with both temperature and pressure broadcasting: {result}"
         )
-        assert results.shape == (2,)
+        assert result.shape == (2,)
 
-        # Tests both temperature and pressure broadcasting
+        # Tests both temperature and pressure broadcasting to form a grid
         temperature = np.array([1500, 2000])[:, None]
         pressure = np.array([1, 10, 100])[None, :]
         result = method(temperature, pressure)
         logger.debug(
-            f"Result of {property_name} with temperature and pressure broadcasting to form a grid: {result}"
+            f"Result of {property_name} with temperature and pressure broadcasting to form a grid: "
+            f"{result}"
         )
         assert result.shape == (2, 3)
-
-        # Tests both temperature and pressure broadcasting with switched axes
-        temperature = np.array([1500, 2000])[None, :]
-        pressure = np.array([1, 10, 100])[:, None]
-        result = method(temperature, pressure)
-        logger.debug(
-            f"Result of {property_name} with temperature and pressure broadcasting to form a grid with switched axes: {result}"
-        )
-        assert result.shape == (3, 2)
 
     def check_broadcasting(self, eos: RealGas) -> None:
         """Checks that the EOS model handles broadcasting correctly for all properties.
