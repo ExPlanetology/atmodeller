@@ -149,3 +149,15 @@ if shutil.which("pandoc") is None:
             "bundled with pypandoc-binary."
         ) from exc
     os.environ["PATH"] = os.path.dirname(pandoc_path) + os.pathsep + os.environ["PATH"]
+
+
+def _skip_equinox_enumeration_members(app, what, name, obj, skip, options):
+    """Skips the members that enumerations inherit from Equinox, such as ``RESULTS.promote``,
+    whose docstrings are Markdown rather than reStructuredText"""
+    if getattr(obj, "__module__", None) == "equinox._enum":
+        return True
+    return None
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", _skip_equinox_enumeration_members)
