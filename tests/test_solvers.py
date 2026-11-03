@@ -172,26 +172,27 @@ def test_make_solver_with_jit_batch_only() -> None:
     assert jnp.all(output.checked_solution.success)
 
 
-@pytest.mark.parametrize(
-    "y0, expected_value", [(0.0, 0.0), (10.0, 0.976379057568559)], ids=["start", "final"]
-)
-def test_checked_root_find_reports_best_point(y0: float, expected_value: float) -> None:
+def test_checked_root_find_reports_best_point() -> None:
     """A failed solve reports the point closer to a root, by the residual. ``y**2 + 1`` has no
     root. From 0, the Newton step divides by zero, so the solve reports its start. From 10, three
     Newton steps approach the minimum of the residual at 0, so the solve reports its final
-    iterate."""
-    checked_sol: CheckedSolution = checked_root_find(
-        lambda y, args: y**2 + 1,
-        optx.Newton(rtol=1.0e-8, atol=1.0e-8),
-        jnp.array([y0]),
-        atol=1.0e-8,
-        max_steps=3,
-        throw=False,
+    iterate. The two solves are a batch, as in the batch solver."""
+    batch_solve: Callable = jax.vmap(
+        lambda y0: checked_root_find(
+            lambda y, args: y**2 + 1,
+            optx.Newton(rtol=1.0e-8, atol=1.0e-8),
+            y0,
+            atol=1.0e-8,
+            max_steps=3,
+            throw=False,
+        )
     )
+    checked_sol: CheckedSolution = batch_solve(jnp.array([[0.0], [10.0]]))
 
-    assert not checked_sol.success
-    assert checked_sol.value[0] == pytest.approx(expected_value)
-    assert checked_sol.residual == pytest.approx(expected_value**2 + 1)
+    expected_value: Array = jnp.array([0.0, 0.976379057568559])
+    assert not jnp.any(checked_sol.success)
+    np.testing.assert_allclose(checked_sol.value[:, 0], expected_value)
+    np.testing.assert_allclose(checked_sol.residual, expected_value**2 + 1)
 
 
 def _stub_solution(
