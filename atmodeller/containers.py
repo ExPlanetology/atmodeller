@@ -692,6 +692,10 @@ class SolverParameters(RootFindParameters):  # pragma: no cover
         max_steps: The maximum number of steps the solver can take. Defaults to ``256``.
         jac: Whether to use forward- or reverse-mode autodifferentiation to compute the Jacobian.
             Can be either ``fwd`` or ``bwd``. Defaults to ``fwd``.
+        best_so_far: Whether to wrap the solver in :class:`optimistix.BestSoFarRootFinder`, which
+            returns the iterate with the smallest residual rather than the last one. Atmodeller
+            keeps only the attempts that pass the residual check, so it is off by default.
+            Defaults to ``False``.
         max_starts: Maximum number of starts. Defaults to ``10``.
         tau: Tau factor for species stability, i.e. the final tau of the tau sweep. Defaults to
             :data:`~atmodeller.constants.TAU`.

@@ -56,6 +56,11 @@ class RootFindParameters(eqx.Module):
         max_steps: The maximum number of steps the solver can take. Defaults to ``256``.
         jac: Whether to use forward- or reverse-mode autodifferentiation to compute the Jacobian.
             Can be either ``fwd`` or ``bwd``. Defaults to ``fwd``.
+        best_so_far: Whether to wrap the solver in :class:`optimistix.BestSoFarRootFinder`, which
+            returns the iterate with the smallest residual rather than the last one, e.g. for a
+            solve that converges and then diverges. Atmodeller keeps only the attempts that pass
+            the residual check, so it gains nothing from this and it is off by default. Defaults
+            to ``False``.
     """
 
     solver: type[OptxSolver] = optx.Newton
@@ -74,10 +79,13 @@ class RootFindParameters(eqx.Module):
     """Maximum number of steps the solver can take"""
     jac: Literal["fwd", "bwd"] = "fwd"
     """Whether to use forward- or reverse-mode autodifferentiation to compute the Jacobian"""
+    best_so_far: bool = False
+    """Whether to wrap the solver in :class:`optimistix.BestSoFarRootFinder`"""
 
     def get_solver_instance(self) -> OptxSolver:
-        """Instantiates the solver"""
-        return self.solver(
+        """Instantiates the solver, wrapped in :class:`optimistix.BestSoFarRootFinder` if
+        ``best_so_far``"""
+        solver: OptxSolver = self.solver(
             rtol=self.rtol,
             atol=self.atol,
             norm=self.norm,
@@ -85,6 +93,10 @@ class RootFindParameters(eqx.Module):
             # For debugging LM solver. Not valid for all solvers (e.g. Newton)
             # verbose=frozenset({"step_size", "y", "loss", "accepted"}),
         )
+        if self.best_so_far:
+            return optx.BestSoFarRootFinder(solver)  # pyright: ignore[reportArgumentType]
+
+        return solver
 
 
 class RESULTS(eqx.Enumeration):
