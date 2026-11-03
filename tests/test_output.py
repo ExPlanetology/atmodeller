@@ -171,7 +171,7 @@ def _output(
     checked_solution: CheckedSolution = CheckedSolution(
         optx.Solution(value, optimistix_result, None, {"num_steps": ones}, None),
         result,
-        {"successful_attempt": ones, "num_steps": ones},
+        {"successful_attempt": ones, "num_steps": ones, "residual": jnp.zeros(ones.shape)},
     )
 
     return Output(parameters, checked_solution, jnp.asarray(initial_guess))

@@ -209,6 +209,7 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
             "successful_attempt": self.successful_attempt,
             "success": self.success,
             "result": jnp.broadcast_to(self.result._value, self.batch_shape),  # pyright: ignore
+            "residual": self.residual,
         }
 
     def stats_to_logger(self, logger_: logging.Logger = logger) -> None:

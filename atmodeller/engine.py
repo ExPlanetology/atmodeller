@@ -176,25 +176,21 @@ def compute_implied_log_stability(
     return implied_log_stability
 
 
-def objective_function(
+def get_full_residual(
     solution: Float[Array, "... twice_species"], parameters: Parameters
-) -> Float[Array, "... residual"]:
-    """Objective function
+) -> Float[Array, "... dim"]:
+    """Gets the residual of every constraint, whether active or not.
 
-    The order of the residual does make a difference to the solution process. More investigations
-    are necessary, but justification for the current ordering is as follows:
-
-        1. Activity constraints - fixed target, well conditioned
-        2. Reaction constraints - log-linear, physics-based coupling
-        3. Mass balance constraints - stiffer
-        4. Stability constraints - stiffer still
+    The order is that of :func:`get_active_mask`: activity constraints (one per species),
+    reactions, mass balance (one per element) and stability (one per species). The entries of
+    inactive constraints are not meaningful, and :func:`objective_function` drops them.
 
     Args:
         solution: Solution array for all species i.e. log number of moles and log stability
         parameters: Parameters
 
     Returns:
-        Residual vector over active constraints.
+        Residual of every constraint
     """
     # jax.debug.print("Starting new objective_function evaluation")
     # jax.debug.print("solution = {out}", out=solution)
@@ -299,9 +295,51 @@ def objective_function(
     # )
 
     # NOTE: Order must be identical to get_active_mask()
-    residual: Float[Array, "... residual"] = jnp.concatenate(
+    return jnp.concatenate(
         [activity_residual, reaction_residual, mass_residual, stability_residual], axis=-1
     )
+
+
+def get_residual_by_constraint(
+    solution: Float[Array, "... twice_species"], parameters: Parameters
+) -> Float[Array, "... dim"]:
+    """Gets the residual of every constraint, NaN for inactive constraints.
+
+    This is the residual of :func:`objective_function` before inactive constraints are dropped,
+    so that each entry refers to the same constraint for every model, in the order of
+    :func:`get_active_mask`.
+
+    Args:
+        solution: Solution array for all species i.e. log number of moles and log stability
+        parameters: Parameters
+
+    Returns:
+        Residual of every constraint, NaN for inactive constraints
+    """
+    return jnp.where(get_active_mask(parameters), get_full_residual(solution, parameters), jnp.nan)
+
+
+def objective_function(
+    solution: Float[Array, "... twice_species"], parameters: Parameters
+) -> Float[Array, "... residual"]:
+    """Objective function
+
+    The order of the residual does make a difference to the solution process. More investigations
+    are necessary, but justification for the current ordering is as follows:
+
+        1. Activity constraints - fixed target, well conditioned
+        2. Reaction constraints - log-linear, physics-based coupling
+        3. Mass balance constraints - stiffer
+        4. Stability constraints - stiffer still
+
+    Args:
+        solution: Solution array for all species i.e. log number of moles and log stability
+        parameters: Parameters
+
+    Returns:
+        Residual vector over active constraints.
+    """
+    residual: Float[Array, "... residual"] = get_full_residual(solution, parameters)
     # jax.debug.print("residual (with nans) = {out}", out=residual)
 
     # This final masking operation drops nans (unused constraint options)

@@ -376,6 +376,12 @@ Excel, and to count the successful models in the solver log.
        ``solver_failed`` or ``objective_check_failed``, describing the best attempt of a model
        that was not solved. The message of each model is
        ``atmodeller.RESULTS[output.checked_solution.result]``
+   * - residual
+     - float
+     - Largest absolute residual of the objective function (infinity norm) on the attempt kept for
+       the model, which a solved model has below the absolute tolerance ``atol``. For a model that
+       was not solved, it shows how close the model came to a root. The residual of each
+       constraint is under the ``residual`` key (see :ref:`OutputResidual`).
 
 Solution and initial guess
 --------------------------
@@ -384,7 +390,6 @@ The ``solution`` key contains the raw solution from the solver for each species:
 logarithm of the number of moles (``<species>``) and the natural logarithm of the stability
 (``<species>_stability``). For a model that was not solved, this is the point closest to a root
 over all its attempts, by the residual of the objective function, which may be the initial guess.
-The residual of each model is ``output.checked_solution.residual``.
 
 The ``initial_guess`` key compares the solution with the initial guess the solver started from,
 which is useful for diagnosing and improving the initial guess. This is the guess of the model's
@@ -397,3 +402,24 @@ warm start from a previous solution):
   guess and the solution (``NaN`` for inactive stabilities)
 - ``log_error_mae`` and ``log_error_rmse``: mean absolute error and root-mean-square error of the
   guess across all solution quantities
+
+.. _OutputResidual:
+
+Residual
+--------
+
+The ``residual`` key contains the residual of each constraint at the solution, in the order and
+units of the objective function. It shows which constraints a model that was not solved fails to
+satisfy, and how far each constraint of a solved model is from exact:
+
+- ``<species>_activity``: log activity minus the log activity of the constraint
+- ``reaction_<index>``: residual of each reaction, in units of the log equilibrium constant. The
+  reaction of each index is given by ``model.parameters.reaction_system.get_reaction_dictionary()``.
+- ``<element>_mass``: ratio of the number of moles of the element to its mass constraint, minus one
+- ``<species>_stability``: log stability minus the log stability implied by the number of moles
+
+Inactive constraints are ``NaN``, e.g. a species without an activity constraint or an element whose
+mass constraint is switched off with ``NaN``. The residual is evaluated at the reported solution,
+which for a solved model comes from the final solve that attaches derivatives, so it can be smaller
+than ``residual`` under the ``solver`` key, which the solver used to decide whether the model is
+solved.

@@ -114,6 +114,14 @@ def _assert_valid_output(output: Output, parameters: Parameters) -> None:
     checked_sol: CheckedSolution = output.checked_solution
     np.testing.assert_array_equal(checked_sol.result == RESULTS.successful, checked_sol.success)
 
+    # The residual of a solved model is within the tolerance, both its norm and each constraint
+    atol: float = parameters.solver_parameters.atol
+    assert output.residual is not None
+    assert output.residual.shape[0] == parameters.batch_size
+    solved: Array = checked_sol.success
+    assert jnp.all(checked_sol.residual[solved] < atol)
+    assert jnp.all(jnp.nanmax(jnp.abs(output.residual[solved]), axis=-1) < atol)
+
 
 def test_make_solver() -> None:
     """Exercises `make_solver` without JIT, executing the batch-retry branch of `dispatch_solver`.

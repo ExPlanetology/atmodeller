@@ -69,11 +69,15 @@ class Output(eqx.Module):
         checked_solution: Checked solution of the solve
         initial_guess: Initial guess the solver started from, i.e. log number of moles and log
             stability
+        residual: Residual of every constraint at the solution, NaN for inactive constraints (see
+            :func:`~atmodeller.engine.get_residual_by_constraint`). Defaults to ``None``, in which
+            case the output has no ``residual`` section.
     """
 
     parameters: Parameters
     checked_solution: CheckedSolution
     initial_guess: Float[Array, "n_batch twice_species"]
+    residual: Float[Array, "n_batch dim"] | None = None
 
     @property
     def solution(self) -> Float[Array, "n_batch twice_species"]:
@@ -107,15 +111,15 @@ class Output(eqx.Module):
         """
         if output_format == "natural":
             return OutputNaturalDict(
-                self.parameters, self.checked_solution, self.initial_guess
+                self.parameters, self.checked_solution, self.initial_guess, self.residual
             ).to_dict(to_numpy=to_numpy, **kwargs)
         elif output_format == "named_arrays":
             return OutputNamedArraysDict(
-                self.parameters, self.checked_solution, self.initial_guess
+                self.parameters, self.checked_solution, self.initial_guess, self.residual
             ).to_dict(to_numpy=to_numpy, **kwargs)
         elif output_format == "elements_species":
             return OutputElementsSpeciesDict(
-                self.parameters, self.checked_solution, self.initial_guess
+                self.parameters, self.checked_solution, self.initial_guess, self.residual
             ).to_dict(to_numpy=to_numpy, **kwargs)
         else:
             raise ValueError(f"Invalid output format: {output_format}")
@@ -136,7 +140,7 @@ class Output(eqx.Module):
             ``True`` if all values match within the specified tolerances, else ``False``
         """
         return OutputNamedArraysDict(
-            self.parameters, self.checked_solution, self.initial_guess
+            self.parameters, self.checked_solution, self.initial_guess, self.residual
         ).compare(d1, rtol, atol, log)
 
     def quick_look(
