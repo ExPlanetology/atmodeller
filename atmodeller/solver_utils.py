@@ -64,6 +64,8 @@ class RootFindParameters(eqx.Module):
             so the final iterate is never scored, and a solve that converges returns the iterate
             before it, whose residual may exceed the tolerance of the check. It is therefore off by
             default. Defaults to ``False``.
+        max_starts: Maximum number of attempts for each model, the first attempt and its retries
+            (see :func:`make_batch_retry_solver`). Defaults to ``10``.
     """
 
     solver: type[OptxSolver] = optx.Newton
@@ -84,6 +86,8 @@ class RootFindParameters(eqx.Module):
     """Whether to use forward- or reverse-mode autodifferentiation to compute the Jacobian"""
     best_so_far: bool = False
     """Whether to wrap the solver in :class:`optimistix.BestSoFarRootFinder`"""
+    max_starts: int = 10
+    """Maximum number of attempts for each model"""
 
     def get_solver_instance(self) -> OptxSolver:
         """Instantiates the solver, wrapped in :class:`optimistix.BestSoFarRootFinder` if
@@ -249,18 +253,20 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
 
 def checked_root_find(
     fn: Callable,
-    solver: OptxSolver,
     y0: Float[Array, " solution"],
-    args: PyTree = None,
+    args: PyTree,
+    root_find_parameters: RootFindParameters,
     *,
-    atol: float,
-    **root_find_kwargs: Any,
+    lower: ArrayLike | None = None,
+    upper: ArrayLike | None = None,
 ) -> CheckedSolution:  # pragma: no cover
     """Solves a single system with :func:`optimistix.root_find`, and checks it.
 
-    The system is solved if the solver converged and the residual of ``fn`` at the solution is
-    within ``atol`` in the infinity norm. This is the only place where the objective function is
-    needed: the batched and retry solvers built on it receive checked solutions.
+    The solver and its configuration (``throw``, ``max_steps`` and ``jac``) come from
+    ``root_find_parameters``. The system is solved if the solver converged and the residual of
+    ``fn`` at the solution is within ``root_find_parameters.atol`` in the infinity norm. This is
+    the only place where the objective function is needed: the batched and retry solvers built on
+    it receive checked solutions.
 
     A system that is not solved reports the point closer to a root, by the residual: the final
     iterate or ``y0``. The final iterate of a failed solve may have diverged, so the value of the
@@ -269,12 +275,12 @@ def checked_root_find(
     Args:
         fn: Objective function ``fn(y, args)`` returning the residual, as for
             :func:`optimistix.root_find`
-        solver: Root finder
         y0: Initial guess
-        args: Arguments passed to ``fn``. Defaults to ``None``.
-        atol: Absolute tolerance of the residual check
-        **root_find_kwargs: Keyword arguments passed to :func:`optimistix.root_find`, e.g.
-            ``max_steps``, ``throw`` or ``options``
+        args: Arguments passed to ``fn``, e.g. the parameters of the model
+        root_find_parameters: Configuration of the root finder
+        lower: Lower bound on the solution, for a solver that supports it (e.g.
+            :class:`optimistix.Newton`). Defaults to ``None``, i.e. no bound.
+        upper: Upper bound on the solution, as for ``lower``. Defaults to ``None``.
 
     Returns:
         Checked :class:`CheckedSolution` of this single attempt
@@ -285,11 +291,25 @@ def checked_root_find(
         norm: Array = jnp.linalg.norm(fn(y, args), ord=jnp.inf)
         return jnp.where(jnp.isnan(norm), jnp.inf, norm)
 
-    sol: optx.Solution = optx.root_find(fn, solver, y0, args=args, **root_find_kwargs)
+    options: dict[str, Any] = {"jac": root_find_parameters.jac}
+    if lower is not None:
+        options["lower"] = lower
+    if upper is not None:
+        options["upper"] = upper
+
+    sol: optx.Solution = optx.root_find(
+        fn,
+        root_find_parameters.get_solver_instance(),
+        y0,
+        args=args,
+        options=options,
+        max_steps=root_find_parameters.max_steps,
+        throw=root_find_parameters.throw,
+    )
 
     solver_success: Bool[Array, ""] = sol.result == optx.RESULTS.successful
     residual: Float[Array, ""] = residual_norm(sol.value)
-    converged: Bool[Array, ""] = residual < atol
+    converged: Bool[Array, ""] = residual < root_find_parameters.atol
     success: Bool[Array, ""] = jnp.logical_and(solver_success, converged)
     result: RESULTS = RESULTS.where(
         success,
@@ -325,7 +345,7 @@ def perturb_around_converged(
     uniform perturbation scaled by that range around the median. Each retry draws a fresh key, so
     repeated calls already sample different candidate points without needing to widen the window --
     an earlier version scaled the window by the retry count, but that made the window's endpoint
-    depend on ``max_retries`` (an unrelated, caller-side setting) and, for a large retry budget,
+    depend on ``max_starts`` (an unrelated, caller-side setting) and, for a large retry budget,
     collapsed into clipping almost every draw onto ``lower``/``upper`` instead of usefully covering
     a wide range. Falls back to the whole array's own statistics on the rare chance that no row has
     converged yet.
@@ -447,14 +467,14 @@ def make_batch_retry_solver(
         initial_guess: Float[Array, "... solution"],
         parameters: PyTree,
         key: PRNGKeyArray,
-        max_retries: int,
+        max_starts: int,
         implicit_gradient: bool = True,
     ) -> CheckedSolution:
         """Batched solver with retry and perturbation for failed cases.
 
         Runs a batched solver function on a set of initial guesses. If some entries fail to
         converge, the function perturbs only the failed solutions (via ``perturb_fn``) and
-        retries, up to ``max_retries``. Successfully converged solutions are kept fixed throughout.
+        retries, up to ``max_starts`` attempts in total. Successfully converged solutions are kept fixed throughout.
 
         The retries only locate the root, so they run with stopped gradients. With
         ``implicit_gradient``, a final solve from the root (see :func:`implicit_polish`) attaches
@@ -466,13 +486,14 @@ def make_batch_retry_solver(
             - ``result``: :class:`RESULTS` of each model, which for a model that was not solved
               describes its best attempt, the one with the smallest residual
             - ``successful_attempt``: attempt on which each model was solved, or ``0`` if it was
-              not solved within the initial attempt plus ``max_retries`` retries
+              not solved within ``max_starts`` attempts
 
         Args:
             initial_guess: Batched array of initial guesses for the solver
             parameters: Model parameters passed to the solver and to ``perturb_fn``
             key: JAX PRNG key for reproducible random perturbations
-            max_retries: Maximum number of solver retries per batch entry
+            max_starts: Maximum number of attempts for each model, the first attempt and its
+                retries, e.g. :attr:`RootFindParameters.max_starts`
             implicit_gradient: Whether to attach derivatives with respect to ``parameters`` with a
                 final solve. Set to ``False`` when the caller attaches them itself, for example
                 after a sequence of solves. Defaults to ``True``.
@@ -567,13 +588,13 @@ def make_batch_retry_solver(
         def cond_fn(state: tuple[Array, ...]) -> Bool[Array, "..."]:
             """Determines whether additional solver retries are needed.
 
-            ``i`` starts at 2 (the second overall attempt), so to allow ``max_retries`` retries the
-            body must run while ``i`` is in ``{2, ..., max_retries + 1}``, hence the ``+ 2`` below.
+            ``i`` is the attempt about to be made, starting at 2 (the second overall attempt), so the
+            body runs while ``i`` is in ``{2, ..., max_starts}``.
             """
             i, _, _, _, _, _, attempt, _ = state
 
             continue_loop: Bool[Array, "..."] = jnp.logical_and(
-                jnp.any(attempt == 0), i < max_retries + 2
+                jnp.any(attempt == 0), i <= max_starts
             )
 
             return continue_loop

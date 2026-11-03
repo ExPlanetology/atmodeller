@@ -7,7 +7,7 @@
 
 import logging
 from collections.abc import Iterable, Iterator
-from typing import Any, Generic, Optional, Self
+from typing import Generic, Optional, Self
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -697,7 +697,8 @@ class SolverParameters(RootFindParameters):  # pragma: no cover
             scores the final iterate, so a solve that converges returns the iterate before it,
             which may fail the residual check. It is therefore off by default (see
             :class:`~atmodeller.solver_utils.RootFindParameters`). Defaults to ``False``.
-        max_starts: Maximum number of starts. Defaults to ``10``.
+        max_starts: Maximum number of attempts for each model, the first attempt and its retries.
+            Defaults to ``10``.
         tau: Tau factor for species stability, i.e. the final tau of the tau sweep. Defaults to
             :data:`~atmodeller.constants.TAU`.
         tau_max: Largest tau, at the start of the tau sweep for systems with species stability.
@@ -714,8 +715,6 @@ class SolverParameters(RootFindParameters):  # pragma: no cover
             :data:`~atmodeller.constants.LOG_STABILITY_UPPER`.
     """
 
-    max_starts: int = 10
-    """Maximum number of starts"""
     tau: Array = eqx.field(converter=as_j64, default=TAU)
     """Tau factor for species stability, i.e. the final tau of the tau sweep"""
     tau_max: float = TAU_MAX
@@ -731,24 +730,7 @@ class SolverParameters(RootFindParameters):  # pragma: no cover
     log_stability_upper: float = LOG_STABILITY_UPPER
     """Upper bound on the log stability of a species"""
 
-    def get_options(self, number_species: int) -> dict[str, Any]:
-        """Gets the solver options.
-
-        Args:
-            number_species: Number of species
-
-        Returns:
-            Solver options
-        """
-        options: dict[str, Any] = {
-            "lower": self._get_lower_bound(number_species),
-            "upper": self._get_upper_bound(number_species),
-            "jac": self.jac,
-        }
-
-        return options
-
-    def _get_lower_bound(self, number_species: int) -> Float[Array, " dim"]:
+    def get_lower_bound(self, number_species: int) -> Float[Array, " dim"]:
         """Gets the lower bound for truncating the solution during the solve.
 
         Args:
@@ -761,7 +743,7 @@ class SolverParameters(RootFindParameters):  # pragma: no cover
             number_species, self.log_number_moles_lower, self.log_stability_lower
         )
 
-    def _get_upper_bound(self, number_species: int) -> Float[Array, " dim"]:
+    def get_upper_bound(self, number_species: int) -> Float[Array, " dim"]:
         """Gets the upper bound for truncating the solution during the solve.
 
         Args:

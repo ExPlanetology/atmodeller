@@ -31,7 +31,12 @@ from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 from atmodeller import debug_logger
 from atmodeller.containers import ChemicalSpecies, SolverParameters
 from atmodeller.interfaces import ActivityConstraintProtocol
-from atmodeller.solver_utils import RESULTS, CheckedSolution, checked_root_find
+from atmodeller.solver_utils import (
+    RESULTS,
+    CheckedSolution,
+    RootFindParameters,
+    checked_root_find,
+)
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.phases import PurePhase
@@ -180,11 +185,9 @@ def test_checked_root_find_reports_best_point() -> None:
     batch_solve: Callable = jax.vmap(
         lambda y0: checked_root_find(
             lambda y, args: y**2 + 1,
-            optx.Newton(rtol=1.0e-8, atol=1.0e-8),
             y0,
-            atol=1.0e-8,
-            max_steps=3,
-            throw=False,
+            None,
+            RootFindParameters(atol=1.0e-8, rtol=1.0e-8, max_steps=3),
         )
     )
     checked_sol: CheckedSolution = batch_solve(jnp.array([[0.0], [10.0]]))
