@@ -74,22 +74,22 @@ def solve_single(initial_guess: FloatArray, parameters: Parameters) -> CheckedSo
 
     Args:
         initial_guess: Initial guess for the solution vector
-        parameters: Parameters providing the solver instance, step limit, and options
+        parameters: Parameters, which provide the configuration of the solver and the bounds on
+            the solution
 
     Returns:
         Checked :class:`~atmodeller.solver_utils.CheckedSolution` of this single attempt
     """
     solver_parameters = parameters.solver_parameters
+    number_species: int = parameters.species.number_species
 
     return checked_root_find(
         objective_function,
-        solver_parameters.get_solver_instance(),
         initial_guess,
         parameters,
-        atol=solver_parameters.atol,
-        throw=solver_parameters.throw,
-        max_steps=solver_parameters.max_steps,
-        options=solver_parameters.get_options(parameters.species.number_species),
+        solver_parameters,
+        lower=solver_parameters.get_lower_bound(number_species),
+        upper=solver_parameters.get_upper_bound(number_species),
     )
 
 
@@ -264,7 +264,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
                 checked_sol.value,
                 new_parameters,
                 subkey,
-                parameters.solver_parameters.max_starts - 1,
+                parameters.solver_parameters.max_starts,
                 implicit_gradient=False,
             )
 
@@ -288,7 +288,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             initial_guess,
             parameters,
             subkey,
-            parameters.solver_parameters.max_starts - 1,
+            parameters.solver_parameters.max_starts,
             implicit_gradient=False,
         )
         first_success: Bool[Array, "..."] = first_sol.success
@@ -410,7 +410,7 @@ def make_solver(
                 base_solution_array,
                 parameters,
                 subkey,
-                parameters.solver_parameters.max_starts - 1,
+                parameters.solver_parameters.max_starts,
             )
 
         checked_sol = lax.cond(
@@ -510,7 +510,7 @@ def make_solver_with_jit_single_path(
             base_solution_array,
             parameters,
             subkey,
-            parameters.solver_parameters.max_starts - 1,
+            parameters.solver_parameters.max_starts,
         )
         return Output(parameters, checked_sol, base_solution_array)
 
