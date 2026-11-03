@@ -91,18 +91,18 @@ class RESULTS(eqx.Enumeration):
     """Result of a solve for each model
 
     A model is solved only if the solver converged and the residual of the objective function is
-    within the tolerance. For a model that was not solved, the result describes its first attempt.
-    The result of the solver itself is :class:`optimistix.RESULTS`
+    within the tolerance. For a model that was not solved, the result describes its best attempt,
+    the one with the smallest residual. The result of the solver itself is :class:`optimistix.RESULTS`
     (:attr:`CheckedSolution.optimistix_result`).
     """
 
     successful = ""
     solver_failed = (
-        "The solver did not converge on the first attempt, and every attempt failed. The "
+        "The solver did not converge on the best attempt, and every attempt failed. The "
         "Optimistix result gives the reason."
     )
     objective_check_failed = (
-        "The solver converged on the first attempt, but the residual of the objective function "
+        "The solver converged on the best attempt, but the residual of the objective function "
         "exceeds the tolerance, and every attempt failed."
     )
 
@@ -115,13 +115,16 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
 
     Args:
         solution: Optimistix solution of the attempt kept for each model: the attempt on which the
-            model was solved or, for a model that was not solved, its first attempt. The solutions
-            of a batch may come from different attempts. The value of a model that was not solved
-            is its initial guess, and ``aux`` and ``state`` are not kept.
+            model was solved or, for a model that was not solved, its best attempt, the one with
+            the smallest residual. The solutions of a batch may come from different attempts. The
+            value of a model that was not solved is the point of its best attempt closest to a
+            root, which is either the final iterate or the starting point (see
+            :func:`checked_root_find`), and ``aux`` and ``state`` are not kept.
         result: Result for each model
         stats: Statistics for each model: ``successful_attempt``, the attempt on which the model
-            was solved (``0`` if it was not solved), and ``num_steps``, the number of solver
-            steps on that attempt (``0`` if it was not solved)
+            was solved (``0`` if it was not solved), ``num_steps``, the number of solver steps on
+            that attempt (``0`` if it was not solved), and ``residual``, the infinity norm of the
+            objective function at the value
     """
 
     solution: optx.Solution
@@ -147,6 +150,11 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
     def optimistix_result(self) -> optx.RESULTS:
         """Optimistix result of the attempt kept for each model"""
         return self.solution.result
+
+    @property
+    def residual(self) -> Float[Array, " batch"]:
+        """Infinity norm of the objective function at the value of each model"""
+        return jnp.broadcast_to(self.stats["residual"], self.batch_shape)
 
     @property
     def state(self) -> Any:
@@ -239,6 +247,10 @@ def checked_root_find(
     within ``atol`` in the infinity norm. This is the only place where the objective function is
     needed: the batched and retry solvers built on it receive checked solutions.
 
+    A system that is not solved reports the point closer to a root, by the residual: the final
+    iterate or ``y0``. The final iterate of a failed solve may have diverged, so the value of the
+    returned Optimistix solution is then ``y0``. A residual that is NaN counts as infinite.
+
     Args:
         fn: Objective function ``fn(y, args)`` returning the residual, as for
             :func:`optimistix.root_find`
@@ -252,10 +264,16 @@ def checked_root_find(
     Returns:
         Checked :class:`CheckedSolution` of this single attempt
     """
+
+    def residual_norm(y: Float[Array, " solution"]) -> Float[Array, ""]:
+        """Infinity norm of the residual at ``y``, with NaN as infinity"""
+        norm: Array = jnp.linalg.norm(fn(y, args), ord=jnp.inf)
+        return jnp.where(jnp.isnan(norm), jnp.inf, norm)
+
     sol: optx.Solution = optx.root_find(fn, solver, y0, args=args, **root_find_kwargs)
 
     solver_success: Bool[Array, ""] = sol.result == optx.RESULTS.successful
-    residual: Float[Array, ""] = jnp.linalg.norm(fn(sol.value, args), ord=jnp.inf)
+    residual: Float[Array, ""] = residual_norm(sol.value)
     converged: Bool[Array, ""] = residual < atol
     success: Bool[Array, ""] = jnp.logical_and(solver_success, converged)
     result: RESULTS = RESULTS.where(
@@ -263,9 +281,16 @@ def checked_root_find(
         RESULTS.successful,
         RESULTS.where(solver_success, RESULTS.objective_check_failed, RESULTS.solver_failed),
     )
+
+    # A failed solve reports its starting point if that is closer to a root than its final iterate
+    initial_residual: Float[Array, ""] = residual_norm(y0)
+    use_start: Bool[Array, ""] = jnp.logical_and(~success, initial_residual <= residual)
+    sol = eqx.tree_at(lambda s: s.value, sol, jnp.where(use_start, y0, sol.value))
+
     stats: dict[str, Array] = {
         "successful_attempt": success.astype(int),
         "num_steps": jnp.where(success, sol.stats["num_steps"], 0),
+        "residual": jnp.where(use_start, initial_residual, residual),
     }
 
     return CheckedSolution(sol, result, stats)
@@ -376,7 +401,7 @@ def make_batch_retry_solver(
     """Makes a generic batch retry solver, with the perturbation strategy supplied by the caller.
 
     This factors out the retry-loop mechanics (perturb failed rows, re-solve, keep newly-successful
-    rows, repeat) that are identical across every batch-retry
+    rows and the best attempt of the others, repeat) that are identical across every batch-retry
     solver built on top of :class:`CheckedSolution` -- both within this package and in
     downstream packages -- which otherwise differ only in what the solution vector represents and
     how it should be perturbed. See :func:`perturb_around_converged` for a ready-made perturbation
@@ -384,6 +409,7 @@ def make_batch_retry_solver(
 
     Each attempt is checked by ``solver_function``, for example a batch of
     :func:`~atmodeller.solver_utils.checked_root_find`, so no objective function is needed here.
+    A model that is not solved keeps its best attempt, the one with the smallest ``residual``.
 
     ``solver_function`` and ``perturb_fn`` must be pure JAX-callable functions compatible with
     :func:`equinox.filter_jit`. They must not close over non-JAX state or produce Python side
@@ -391,7 +417,8 @@ def make_batch_retry_solver(
 
     Args:
         solver_function: Callable that performs a single (batched) solve. Must accept an initial
-            guess and a pytree of parameters, and return a checked :class:`CheckedSolution`.
+            guess and a pytree of parameters, and return a checked :class:`CheckedSolution` with
+            ``residual`` in its ``stats``.
         perturb_fn: Callable ``(solution, attempt, key, parameters) -> perturbed`` returning a
             candidate perturbed solution for *every* row (converged or not); this
             factory only substitutes the rows where ``attempt == 0``, so ``perturb_fn`` does not
@@ -422,7 +449,7 @@ def make_batch_retry_solver(
 
         Note:
             - ``result``: :class:`RESULTS` of each model, which for a model that was not solved
-              describes its first attempt
+              describes its best attempt, the one with the smallest residual
             - ``successful_attempt``: attempt on which each model was solved, or ``0`` if it was
               not solved within the initial attempt plus ``max_retries`` retries
 
@@ -447,8 +474,8 @@ def make_batch_retry_solver(
             """Solves from ``guess``.
 
             Returns:
-                Value, Optimistix result value, :class:`RESULTS` value, success and number of
-                solver steps for each model
+                Value, Optimistix result value, :class:`RESULTS` value, success, number of solver
+                steps and residual for each model
             """
             sol: CheckedSolution = solver_function(guess, search_parameters)
             value: Float[Array, "... solution"] = sol.value
@@ -466,11 +493,11 @@ def make_batch_retry_solver(
                 sol.solution.stats["num_steps"], batch_shape
             )
 
-            return value, result_value, status, sol.success, num_steps
+            return value, result_value, status, sol.success, num_steps, sol.residual
 
         def body_fn(state: tuple[Array, ...]) -> tuple[Array, ...]:
             """Performs one retry iteration for failed solutions."""
-            i, key, solution, result_value, status, steps, attempt = state
+            i, key, solution, result_value, status, steps, attempt, residual = state
 
             failed_mask: Bool[Array, "..."] = attempt == 0
 
@@ -482,28 +509,34 @@ def make_batch_retry_solver(
                 Array, jnp.where(failed_mask[..., None], perturbed, solution)
             )
 
-            new_solution, new_result_value, _, new_success, new_num_steps = attempt_solve(
-                new_initial_solution
-            )
+            (
+                new_solution,
+                new_result_value,
+                new_status,
+                new_success,
+                new_num_steps,
+                new_residual,
+            ) = attempt_solve(new_initial_solution)
 
-            # Entries that previously failed and now succeeded take every quantity from this
-            # attempt, so a model that is not solved keeps those of its first attempt
-            update_mask: Bool[Array, "..."] = jnp.logical_and(failed_mask, new_success)
+            # Entries that previously failed take every quantity from this attempt if it solved
+            # them or, failing that, if its residual is smaller, so a model that is not solved
+            # keeps its best attempt
+            solved_mask: Bool[Array, "..."] = jnp.logical_and(failed_mask, new_success)
+            update_mask: Bool[Array, "..."] = jnp.logical_and(
+                failed_mask, jnp.logical_or(new_success, new_residual < residual)
+            )
             updated_solution: Float[Array, "... solution"] = cast(
                 Array, jnp.where(update_mask[..., None], new_solution, solution)
             )
             updated_result_value: Integer[Array, "..."] = jnp.where(
                 update_mask, new_result_value, result_value
             )
-            updated_status: Integer[Array, "..."] = jnp.where(
-                update_mask,
-                RESULTS.successful._value,  # pyright: ignore
-                status,
-            )
+            updated_status: Integer[Array, "..."] = jnp.where(update_mask, new_status, status)
             updated_num_steps: Integer[Array, "..."] = cast(
-                Array, jnp.where(update_mask, new_num_steps, steps)
+                Array, jnp.where(solved_mask, new_num_steps, steps)
             )
-            updated_attempt: Array = jnp.where(update_mask, i, attempt)  # pyright: ignore
+            updated_attempt: Array = jnp.where(solved_mask, i, attempt)  # pyright: ignore
+            updated_residual: Float[Array, "..."] = jnp.where(update_mask, new_residual, residual)
 
             return (
                 i + 1,
@@ -513,6 +546,7 @@ def make_batch_retry_solver(
                 updated_status,
                 updated_num_steps,
                 updated_attempt,
+                updated_residual,
             )
 
         def cond_fn(state: tuple[Array, ...]) -> Bool[Array, "..."]:
@@ -521,7 +555,7 @@ def make_batch_retry_solver(
             ``i`` starts at 2 (the second overall attempt), so to allow ``max_retries`` retries the
             body must run while ``i`` is in ``{2, ..., max_retries + 1}``, hence the ``+ 2`` below.
             """
-            i, _, _, _, _, _, attempt = state
+            i, _, _, _, _, _, attempt, _ = state
 
             continue_loop: Bool[Array, "..."] = jnp.logical_and(
                 jnp.any(attempt == 0), i < max_retries + 2
@@ -529,24 +563,26 @@ def make_batch_retry_solver(
 
             return continue_loop
 
-        # Try first solution
-        first_solution, first_result_value, first_status, first_success, first_num_steps = (
-            attempt_solve(initial_guess)
-        )
-
-        # Failback solution to initial guess for failed models
-        solution: Float[Array, "... solution"] = cast(
-            Array, jnp.where(first_success[..., None], first_solution, initial_guess)
-        )
+        # Try first solution. A failed model reports its initial guess if the final iterate is no
+        # closer to a root (see checked_root_find).
+        (
+            first_solution,
+            first_result_value,
+            first_status,
+            first_success,
+            first_num_steps,
+            first_residual,
+        ) = attempt_solve(initial_guess)
 
         initial_state: tuple = (
             jnp.array(2),  # Second overall attempt
             key,
-            solution,
+            first_solution,
             first_result_value,
             first_status,
             first_num_steps,
             first_success.astype(int),  # 1 for solved, otherwise 0
+            first_residual,
         )
 
         (
@@ -557,6 +593,7 @@ def make_batch_retry_solver(
             final_status,
             final_num_steps,
             final_attempt,
+            final_residual,
         ) = lax.while_loop(cond_fn, body_fn, initial_state)
 
         if implicit_gradient:
@@ -582,6 +619,7 @@ def make_batch_retry_solver(
                 Array,
                 jnp.where(final_attempt > 0, final_num_steps, jnp.zeros_like(final_num_steps)),
             ),
+            "residual": final_residual,
         }
         result: RESULTS = cast(
             RESULTS,

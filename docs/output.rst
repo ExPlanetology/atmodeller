@@ -361,8 +361,8 @@ Excel, and to count the successful models in the solver log.
    * - solver_success
      - boolean
      - Whether the solver terminated successfully according to its internal criteria. For a model
-       that was not solved, this is the status of its first attempt, so it can be true even if
-       ``success`` is false
+       that was not solved, this is the status of its best attempt, the one with the smallest
+       residual, so it can be true even if ``success`` is false
    * - steps
      - integer
      - Number of iterations taken during the successful attempt. Zero if the model was not solved
@@ -373,7 +373,7 @@ Excel, and to count the successful models in the solver log.
    * - result
      - integer
      - Why the model was or was not solved, as a value of ``atmodeller.RESULTS``: ``successful``,
-       ``solver_failed`` or ``objective_check_failed``, describing the first attempt of a model
+       ``solver_failed`` or ``objective_check_failed``, describing the best attempt of a model
        that was not solved. The message of each model is
        ``atmodeller.RESULTS[output.checked_solution.result]``
 
@@ -382,7 +382,9 @@ Solution and initial guess
 
 The ``solution`` key contains the raw solution from the solver for each species: the natural
 logarithm of the number of moles (``<species>``) and the natural logarithm of the stability
-(``<species>_stability``).
+(``<species>_stability``). For a model that was not solved, this is the point closest to a root
+over all its attempts, by the residual of the objective function, which may be the initial guess.
+The residual of each model is ``output.checked_solution.residual``.
 
 The ``initial_guess`` key compares the solution with the initial guess the solver started from,
 which is useful for diagnosing and improving the initial guess. This is the guess of the model's
