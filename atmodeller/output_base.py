@@ -27,16 +27,11 @@ from jax.tree_util import tree_map
 from jaxtyping import Array, ArrayLike, Bool, Float, PyTree
 
 from atmodeller import override
-from atmodeller.jax_utils import (
-    FloatArray,
-    MultiAttemptSolution,
-    NpBool,
-    NpFloat,
-    stack_broadcast,
-)
+from atmodeller.jax_utils import FloatArray, NpBool, NpFloat, stack_broadcast
 from atmodeller.parameters import ActivityConstraintSet, MassConstraintSet, Parameters
 from atmodeller.phases import BasePhase, GasPhaseOutput, PhaseOutput
 from atmodeller.sci_utils import solar
+from atmodeller.solver_utils import CheckedSolution
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -197,13 +192,13 @@ class BaseOutputDict(eqx.Module):
 
     Args:
         parameters: Parameters
-        multi_attempt_solution: Multiple attempt solution object
+        checked_solution: Checked solution of the solve
         initial_guess: Initial guess the solver started from, i.e. log number of moles and log
             stability
     """
 
     parameters: Parameters
-    multi_attempt_solution: MultiAttemptSolution
+    checked_solution: CheckedSolution
     initial_guess: Float[Array, "n_batch twice_species"]
 
     @abstractmethod
@@ -234,7 +229,7 @@ class BaseOutputDict(eqx.Module):
     @property
     def _split_solution(self) -> list[Float[Array, "#n_batch n_species"]]:
         """Log number of moles and log stability, split from the solution array in one pass."""
-        return jnp.split(self.multi_attempt_solution.value, 2, axis=-1)
+        return jnp.split(self.checked_solution.value, 2, axis=-1)
 
     @property
     def batch_size(self) -> int:
@@ -261,7 +256,7 @@ class BaseOutputDict(eqx.Module):
     @property
     def solution(self) -> Float[Array, "n_batch twice_species"]:
         """Solution array for all species i.e. log number of moles and log stability"""
-        return self.multi_attempt_solution.value
+        return self.checked_solution.value
 
     def _solution_array_to_dict(
         self, solution_array: Float[Array, "n_batch twice_species"], suffix: str = ""
@@ -504,7 +499,7 @@ class BaseOutputDict(eqx.Module):
 
     def solver_to_dict(self) -> dict[str, ArrayLike]:
         """Solver information such as success flags and number of iterations"""
-        return self.multi_attempt_solution.asdict()
+        return self.checked_solution.asdict()
 
     def state_to_dict(self) -> dict[str, Any]:
         """Thermodynamic state of the system"""
@@ -516,7 +511,7 @@ class OutputNaturalDict(BaseOutputDict):
 
     Args:
         parameters: Parameters
-        multi_attempt_solution: Multiple attempt solution object
+        checked_solution: Checked solution of the solve
         initial_guess: Initial guess the solver started from, i.e. log number of moles and log
             stability
     """

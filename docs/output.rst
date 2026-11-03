@@ -361,15 +361,21 @@ Excel, and to count the successful models in the solver log.
    * - solver_success
      - boolean
      - Whether the solver terminated successfully according to its internal criteria. For a model
-       that was not solved, this is the status of an attempt that failed the objective-based check
-       or the solver status, so it can be true even if ``success`` is false
+       that was not solved, this is the status of its first attempt, so it can be true even if
+       ``success`` is false
    * - steps
      - integer
      - Number of iterations taken during the successful attempt. Zero if the model was not solved
-   * - attempts
+   * - successful_attempt
      - integer
      - Attempt on which the model was solved (e.g. in a multistart procedure). Zero if no attempt
        succeeded
+   * - result
+     - integer
+     - Why the model was or was not solved, as a value of ``atmodeller.RESULTS``: ``successful``,
+       ``solver_failed`` or ``objective_check_failed``, describing the first attempt of a model
+       that was not solved. The message of each model is
+       ``atmodeller.RESULTS[output.checked_solution.result]``
 
 Solution and initial guess
 --------------------------

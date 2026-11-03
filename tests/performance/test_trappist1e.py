@@ -283,4 +283,4 @@ def test_trappist1e_with_solubility_batch(trappist1e_with_solubility: Equilibriu
 
     # The timings are logged rather than asserted, since they depend on the machine. The sampled
     # conditions span a wide range, so every realisation being solved checks robustness at scale.
-    assert np.all(np.asarray(first_result.multi_attempt_solution.success))
+    assert np.all(np.asarray(first_result.checked_solution.success))

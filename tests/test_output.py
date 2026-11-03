@@ -23,7 +23,7 @@ import pytest
 from jaxtyping import ArrayLike
 from openpyxl import load_workbook
 
-from atmodeller import __version__, debug_logger
+from atmodeller import RESULTS, __version__, debug_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol
@@ -204,7 +204,7 @@ def test_to_dataframes(cho_output: Output) -> None:
         cho_output.to_dataframes(output_format="elements_species")["H2O_g"], pd.DataFrame
     )
 
-    n_success: int = int(np.sum(np.asarray(cho_output.multi_attempt_solution.success)))
+    n_success: int = int(np.sum(np.asarray(cho_output.checked_solution.success)))
     for df in cho_output.to_dataframes(drop_unsuccessful_solves=True).values():
         assert len(df) == n_success
 
@@ -214,9 +214,23 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
     though the solver status reports success"""
     # Emulate a failed post-check of the second model, as reported by the batch retry solver
     output: Output = eqx.tree_at(
-        lambda out: out.multi_attempt_solution._attempts, cho_output, jnp.array([1, 0])
+        lambda out: (
+            out.checked_solution.result._value,
+            out.checked_solution.stats["successful_attempt"],
+        ),
+        cho_output,
+        (
+            jnp.array(
+                [
+                    RESULTS.successful._value,  # pyright: ignore
+                    RESULTS.objective_check_failed._value,  # pyright: ignore
+                ]
+            ),
+            jnp.array([1, 0]),
+        ),
     )
-    assert np.all(np.asarray(output.multi_attempt_solution.solver_success))
+    assert np.all(np.asarray(output.checked_solution.solver_success))
+    assert "residual" in RESULTS[output.checked_solution.result]  # pyright: ignore
 
     for df in output.to_dataframes(drop_unsuccessful_solves=True).values():
         assert df.index.tolist() == [0]

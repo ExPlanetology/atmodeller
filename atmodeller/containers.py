@@ -42,7 +42,8 @@ from atmodeller.interfaces import (
     SpeciesProtocol,
     TSpecies_co,
 )
-from atmodeller.jax_utils import NpFloat, NpInt, RootFindParameters, as_j64
+from atmodeller.jax_utils import NpFloat, NpInt, as_j64
+from atmodeller.solver_utils import RootFindParameters
 from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
 from atmodeller.thermodata import ActivityCoefficient, ThermodynamicProperties

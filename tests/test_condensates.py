@@ -152,7 +152,7 @@ def test_graphite_water_oxidised() -> None:
         },
     }
 
-    assert bool(np.all(output.multi_attempt_solution.success))
+    assert bool(np.all(output.checked_solution.success))
     assert output.compare(target, log=True, rtol=TOLERANCE, atol=TOLERANCE)
 
 
