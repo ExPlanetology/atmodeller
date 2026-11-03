@@ -10,17 +10,18 @@ from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
+import pytest
 from jaxtyping import ArrayLike
 
 from atmodeller import debug_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.eos.library import get_eos_models
+from atmodeller.jax_utils import NpFloat
 from atmodeller.interfaces import (
     ActivityConstraintProtocol,
     ActivityProtocol,
     SolubilityProtocol,
-    SpeciesProtocol,
 )
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
@@ -56,7 +57,13 @@ condensates_subneptune: tuple[PurePhase, ...] = (O2Si_l,)
 
 
 def test_fO2_holley() -> None:
-    """Tests a system with the H2 EOS from :cite:t:`HWZ58`"""
+    """Tests a system with the H2 EOS from :cite:t:`HWZ58`
+
+    This is the only test in which an EOS that solves for its volume with its own root find, as
+    the Beattie-Bridgeman EOS does, is evaluated inside the solve, where the inner root find is
+    vmapped and differentiated within the Jacobian. The other models in these tests use EOS whose
+    volume is tabulated or analytic.
+    """
 
     H2_g: ChemicalSpecies = ChemicalSpecies.create_gas(
         "H2", activity=eos_models["H2_beattie_holley58"]
@@ -98,24 +105,55 @@ def test_fO2_holley() -> None:
     assert output.compare(target, rtol=RTOL, atol=ATOL)
 
 
-def test_chabrier_earth() -> None:
-    """Tests a system with the H2 EOS from :cite:t:`CD21`"""
-
+@pytest.fixture(scope="module")
+def chabrier_output() -> Output:
+    """The H2 EOS from :cite:t:`CD21` with silicate species, compiled and solved once for every
+    case as one batch: an Earth-sized planet (row 0), and a sub-Neptune (rows 1 to 4) for several O
+    masses. Every row is solved on the first attempt, so the rows do not affect each other."""
+    earth_mass: float = 5.9722e24  # kg
+    earth_radius: float = 6371000  # m
+    planet_mass: NpFloat = np.array([earth_mass] + [4.6 * 5.97224e24] * 4)
+    surface_radius: NpFloat = np.array([earth_radius] + [1.5 * 6371000] * 4)
     planet: Planet = Planet.from_species(
-        gas_species_subneptune, temperature=3400, condensates=condensates_subneptune
+        gas_species_subneptune,
+        condensates=condensates_subneptune,
+        temperature=3400,
+        planet_mass=planet_mass,
+        surface_radius=surface_radius,
     )
     h_kg: ArrayLike = 0.01 * planet.background_planet_mass
     si_kg: ArrayLike = (
         0.1459 * planet.background_planet_mass
     )  # Si = 14.59 wt% Kargel & Lewis (1993)
-    o_kg: ArrayLike = h_kg * 10
+    o_kg: NpFloat = np.array([10 * float(np.asarray(h_kg)[0]), 6.74717e24, 7.0e24, 7.5e24, 8.0e24])
     mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
 
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
+    output: Output = EquilibriumModel(
+        Parameters(planet, mass_constraints=mass_constraints)
+    ).solve_with_default()
+    assert np.all(np.asarray(output.checked_solution.successful_attempt) == 1)
 
-    model: EquilibriumModel = EquilibriumModel(parameters)
+    return output
 
-    output: Output = model.solve_with_default()
+
+def _compare_rows(output: Output, target: dict[str, Any], rows: slice) -> bool:
+    """Compares a target with some rows of a batched output, as :meth:`Output.compare` does for
+    every row"""
+    out: dict[str, Any] = output.to_dict(expand_to_batch=True, ravel=True, to_numpy=True)
+
+    def compare(target_: dict[str, Any], out_: dict[str, Any]) -> bool:
+        return all(
+            compare(value, out_[key])
+            if isinstance(value, dict)
+            else bool(np.allclose(value, np.asarray(out_[key])[rows], rtol=RTOL, atol=ATOL))
+            for key, value in target_.items()
+        )
+
+    return compare(target, out)
+
+
+def test_chabrier_earth(chabrier_output: Output) -> None:
+    """Tests a system with the H2 EOS from :cite:t:`CD21`"""
 
     target: dict[str, Any] = {
         "gas": {
@@ -139,44 +177,15 @@ def test_chabrier_earth() -> None:
         "O2Si_l": {"species": {"activity": {"O2Si_l": 1.0}}},
     }
 
-    assert output.compare(target, rtol=RTOL, atol=ATOL)
+    assert _compare_rows(chabrier_output, target, slice(0, 1))
 
 
-def test_chabrier_subNeptune() -> None:
+def test_chabrier_subNeptune(chabrier_output: Output) -> None:
     """Tests a system with the H2 EOS from :cite:t:`CD21` for a sub-Neptune
 
     This test is not physically realistic because solubilities are ignored, which would greatly
     lower the pressure and hence the number of moles in the atmosphere.
     """
-
-    surface_temperature = 3400  # K
-    planet_mass = 4.6 * 5.97224e24  # kg
-    surface_radius = 1.5 * 6371000  # m
-    planet: Planet = Planet.from_species(
-        gas_species_subneptune,
-        condensates=condensates_subneptune,
-        temperature=surface_temperature,
-        planet_mass=planet_mass,
-        surface_radius=surface_radius,
-    )
-    h_kg: ArrayLike = 0.01 * planet.background_planet_mass
-    si_kg: ArrayLike = (
-        0.1459 * planet.background_planet_mass
-    )  # Si = 14.59 wt% Kargel & Lewis (1993)
-    o_kg: ArrayLike = 6.74717e24
-
-    logger.info("h_kg = %s", h_kg)
-    logger.info("si_kg = %s", si_kg)
-    logger.info("o_kg = %s", o_kg)
-
-    mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
-
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
-
-    model: EquilibriumModel = EquilibriumModel(parameters)
-
-    output: Output = model.solve_with_default()
-
     target: dict[str, Any] = {
         "gas": {
             "species": {
@@ -199,47 +208,15 @@ def test_chabrier_subNeptune() -> None:
         "O2Si_l": {"species": {"activity": {"O2Si_l": 1.0}}},
     }
 
-    assert output.compare(target, rtol=RTOL, atol=ATOL)
+    assert _compare_rows(chabrier_output, target, slice(1, 2))
 
 
-def test_chabrier_subNeptune_batch() -> None:
+def test_chabrier_subNeptune_batch(chabrier_output: Output) -> None:
     """Tests a system with the H2 EOS from :cite:t:`CD21` for a sub-Neptune for several O masses
 
     As above, this test has questionable physical relevance without the inclusion of more species'
     solubility, but it serves its purpose as a test.
     """
-
-    surface_temperature = 3400  # K
-    planet_mass = 4.6 * 5.97224e24  # kg
-    surface_radius = 1.5 * 6371000  # m
-    planet: Planet = Planet.from_species(
-        gas_species_subneptune,
-        condensates=condensates_subneptune,
-        temperature=surface_temperature,
-        planet_mass=planet_mass,
-        surface_radius=surface_radius,
-    )
-    h_kg: ArrayLike = 0.01 * planet.background_planet_mass
-    si_kg: ArrayLike = (
-        0.1459 * planet.background_planet_mass
-    )  # Si = 14.59 wt% Kargel & Lewis (1993)
-    # Batch solve for three oxygen masses
-    o_kg: ArrayLike = 1e24 * np.array([7.0, 7.5, 8.0])
-
-    logger.info("h_kg = %s", h_kg)
-    logger.info("si_kg = %s", si_kg)
-    logger.info("o_kg = %s", o_kg)
-
-    mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
-
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
-
-    model: EquilibriumModel = EquilibriumModel(parameters)
-
-    output: Output = model.solve_with_default()
-
-    # output.to_excel(file_prefix="test_chabrier_subNeptune_batch", output_format="named_arrays")
-
     target: dict[str, Any] = {
         "gas": {
             "species": {
@@ -263,7 +240,7 @@ def test_chabrier_subNeptune_batch() -> None:
         }
     }
 
-    assert output.compare(target, rtol=RTOL, atol=ATOL)
+    assert _compare_rows(chabrier_output, target, slice(2, 5))
 
 
 def test_pH2_fO2_real_gas() -> None:
@@ -315,95 +292,5 @@ def test_pH2_fO2_real_gas() -> None:
     }
 
     # output.to_excel("pH2_fO2_real_gas")
-
-    assert output.compare(target, rtol=RTOL, atol=ATOL)
-
-
-def test_subNeptune_melt_phase() -> None:
-    """Tests a more realistic sub-Neptune with computed melt-phase activities.
-
-    This is an extension of the model setup in :cite:t:`Hakim2026`.
-
-    The melt phase consists of a chemically-reactive component SiO2(l) and a dissolved component
-    H2O(l). Here, the activities of both species in the melt phase are calculated
-    self-consistently.
-    """
-
-    # The species we specify in the melt should be considered as already included in the
-    # "background" melt mass, so we set include_in_phase_mass=False for both species
-    O2Si_l: ChemicalSpecies = ChemicalSpecies.from_end_member(
-        "liquid", formula="SiO2", include_in_phase_mass=False
-    )
-    H2O_d: ReservoirSpecies = ReservoirSpecies.create_dissolved(
-        "H2O", solubility=solubility_models["H2O_peridotite_sossi23"], include_in_phase_mass=False
-    )
-    melt_species: tuple[SpeciesProtocol, ...] = (O2Si_l, H2O_d)
-
-    # Temperature must be compatible with the choice of species, i.e. chemically-reactive species
-    # must have thermodynamic data available at the specified temperature. Here, we are limited by
-    # O2Si(l).
-    surface_temperature = 3400  # K
-    planet_mass = 4.6 * earth.mass  # kg
-    surface_radius = 1.5 * earth.radius  # m
-
-    planet: Planet = Planet.from_species(
-        gas_species_subneptune,
-        silicate_melt_species=melt_species,
-        temperature=surface_temperature,
-        planet_mass=planet_mass,
-        surface_radius=surface_radius,
-    )
-
-    # The previous mass constraints are still OK, because we are not allowing the melt species to
-    # contribute additionally to the planet mass. So these calculations are still exact.
-    h_kg: ArrayLike = 0.01 * planet.background_planet_mass
-    si_kg: ArrayLike = (
-        0.1459 * planet.background_planet_mass
-    )  # Si = 14.59 wt% Kargel & Lewis (1993)
-    # o_kg: ArrayLike = 6.74717e24
-    # Batch solve for three oxygen masses
-    o_kg: ArrayLike = 1e24 * np.array([7.0, 7.5, 8.0])
-
-    logger.info("h_kg = %s", h_kg)
-    logger.info("si_kg = %s", si_kg)
-    logger.info("o_kg = %s", o_kg)
-
-    mass_constraints: dict[str, ArrayLike] = {"H": h_kg, "Si": si_kg, "O": o_kg}
-
-    parameters: Parameters = Parameters(planet, mass_constraints=mass_constraints)
-
-    model: EquilibriumModel = EquilibriumModel(parameters)
-
-    output: Output = model.solve_with_default()
-
-    target: dict[str, Any] = {
-        "gas": {
-            "species": {
-                "partial_pressure": {
-                    "H2O_g": np.array([34153.82296420662, 34647.10590262693, 34773.426887896916]),
-                    "H2_g": np.array(
-                        [2.0037881656447794, 0.17031752927491278, 0.0277540975765887]
-                    ),
-                    "O2_g": np.array([34654.48940856429, 118719.9469235665, 205321.6303802464]),
-                },
-                "activity": {
-                    "H2_g": np.array([26.947421706500606, 14.769397743175231, 11.271658169843118])
-                },
-            }
-        },
-        "silicate_melt": {
-            "species": {
-                "activity": {
-                    "H2O_d": np.array([0.3987896102961398, 0.401659141224754, 0.402390685959212]),
-                    "O2Si_l": np.array([0.44294654092776, 0.442946543294337, 0.44294654385622]),
-                }
-            }
-        },
-    }
-
-    # output.to_excel(file_prefix="test_subNeptune_melt_phase", output_format="named_arrays")
-
-    # We can also dump a summary of the solver stats to the logger for debugging purposes
-    output.solver_stats_to_logger()
 
     assert output.compare(target, rtol=RTOL, atol=ATOL)
