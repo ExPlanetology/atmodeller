@@ -284,3 +284,12 @@ def test_tau_sweep_reports_final_tau(
     np.testing.assert_array_equal(checked_sol.value[:, 0], [1.0, sweep_steps])
     np.testing.assert_array_equal(checked_sol.num_steps, expected_steps)
     np.testing.assert_array_equal(checked_sol.successful_attempt, expected_successful_attempt)
+
+
+def test_best_so_far() -> None:
+    """The solver is wrapped in BestSoFarRootFinder only if best_so_far is set, which is off by
+    default"""
+    assert isinstance(SolverParameters().get_solver_instance(), optx.Newton)
+    assert isinstance(
+        SolverParameters(best_so_far=True).get_solver_instance(), optx.BestSoFarRootFinder
+    )
