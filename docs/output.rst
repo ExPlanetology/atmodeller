@@ -416,8 +416,9 @@ output can be used inside JIT, and their names (e.g. ``objective_check_failed``)
      - integer or text
      - Why the model was or was not solved, as a value of ``atmodeller.RESULTS``: ``successful``,
        ``solver_failed`` or ``objective_check_failed``, describing the best attempt of a model
-       that was not solved. The message of each model is
-       ``atmodeller.RESULTS[output.checked_solution.result]``
+       that was not solved, or ``invalid_model`` for a model that is not well posed and can never
+       be solved, which is not retried (only inside JIT, since ``solve`` raises for it otherwise).
+       The message of each model is ``atmodeller.RESULTS[output.checked_solution.result]``
    * - optimistix_result
      - integer or text
      - Why the solver stopped on that attempt, as a value of ``optimistix.RESULTS``, e.g.

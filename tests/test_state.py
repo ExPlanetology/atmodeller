@@ -12,6 +12,7 @@ import pytest
 
 from atmodeller import EquilibriumModel, Planet, debug_logger
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
+from atmodeller.engine import is_valid_model
 from atmodeller.phases import PurePhase
 from atmodeller.solubility import get_solubility_models
 from atmodeller.state import BasePlanet, PressureScalingLawPlanet, ThermodynamicState
@@ -97,6 +98,13 @@ def test_dissolved_species_raise() -> None:
     )
     with pytest.raises(ValueError, match=r"Models \[1\] have species dissolved .* but no melt"):
         model.solve_with_default()
+
+    # Inside JIT, where this is not checked, such a model is not well posed (invalid_model)
+    valid_by_model: list[bool] = [
+        bool(is_valid_model(model.update_state(mantle_melt_fraction=f).parameters))
+        for f in (1.0, 0.0)
+    ]
+    assert valid_by_model == [True, False]
 
 
 def test_duplicate_names_raise() -> None:

@@ -112,7 +112,8 @@ class RESULTS(eqx.Enumeration):
     A model is solved only if the solver converged and the residual of the objective function is
     within the tolerance. For a model that was not solved, the result describes its best attempt,
     the one with the smallest residual. The result of the solver itself is :class:`optimistix.RESULTS`
-    (:attr:`CheckedSolution.optimistix_result`).
+    (:attr:`CheckedSolution.optimistix_result`). A model that is not well posed can never be solved,
+    so it is not retried and its result is ``invalid_model``.
     """
 
     successful = ""
@@ -123,6 +124,11 @@ class RESULTS(eqx.Enumeration):
     objective_check_failed = (
         "The solver converged on the best attempt, but the residual of the objective function "
         "exceeds the tolerance, and every attempt failed."
+    )
+    invalid_model = (
+        "The model is not well posed, so it can never be solved and was not retried: its "
+        "constraints do not match its unknowns, an element of a condensate imposed stable has a "
+        "mass constraint, or species are dissolved in a melt of zero mass."
     )
 
 
@@ -239,6 +245,13 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
                 "%d (%0.2f%%) model(s) still failed",
                 num_failed_models,
                 num_failed_models * 100 / total_models,
+            )
+        num_invalid_models: int = jnp.count_nonzero(self.result == RESULTS.invalid_model).item()
+        if num_invalid_models > 0:
+            logger_.warning(
+                "%d (%0.2f%%) model(s) are not well posed and can never be solved",
+                num_invalid_models,
+                num_invalid_models * 100 / total_models,
             )
 
         # Count unique values and their frequencies over the successful models
@@ -536,11 +549,18 @@ def make_batch_retry_solver(
 
             return value, result_value, status, sol.success, num_steps, sol.residual
 
+        def retryable(attempt: Integer[Array, "..."], status: Integer[Array, "..."]) -> Array:
+            """Whether each model failed and can be retried, i.e. is not an invalid model"""
+            return jnp.logical_and(
+                attempt == 0,
+                status != RESULTS.invalid_model._value,  # pyright: ignore
+            )
+
         def body_fn(state: tuple[Array, ...]) -> tuple[Array, ...]:
             """Performs one retry iteration for failed solutions."""
             i, key, solution, result_value, status, steps, attempt, residual = state
 
-            failed_mask: Bool[Array, "..."] = attempt == 0
+            failed_mask: Bool[Array, "..."] = retryable(attempt, status)
 
             key, subkey = jax.random.split(key)
             perturbed: Float[Array, "... solution"] = perturb_fn(
@@ -596,10 +616,10 @@ def make_batch_retry_solver(
             ``i`` is the attempt about to be made, starting at 2 (the second overall attempt), so the
             body runs while ``i`` is in ``{2, ..., max_starts}``.
             """
-            i, _, _, _, _, _, attempt, _ = state
+            i, _, _, _, status, _, attempt, _ = state
 
             continue_loop: Bool[Array, "..."] = jnp.logical_and(
-                jnp.any(attempt == 0), i <= max_starts
+                jnp.any(retryable(attempt, status)), i <= max_starts
             )
 
             return continue_loop
