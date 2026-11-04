@@ -322,6 +322,9 @@ def test_to_dataframes(cho_output: Output) -> None:
     dataframes: dict[str, pd.DataFrame] = cho_output.to_dataframes()
     assert all(isinstance(df, pd.DataFrame) for df in dataframes.values())
     assert all(df.index.name == "model" for df in dataframes.values())
+    # Gas species have no stability, so there are no stability columns
+    for sheet in ("solution", "initial_guess"):
+        assert not any("stability" in column for column in dataframes[sheet].columns)
     assert any(col.startswith("species.partial_pressure") for col in dataframes["gas"].columns)
 
     assert isinstance(

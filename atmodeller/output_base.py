@@ -293,25 +293,40 @@ class BaseOutputDict(eqx.Module):
         """Tau of the solve, which sets the boundary between stable and unstable species"""
         return jnp.asarray(self.parameters.solver_parameters.tau)
 
+    @property
+    def _solves_for_stability(self) -> tuple[bool, ...]:
+        """Whether the stability of each species is solved for.
+
+        This is fixed when the species are created, so it is the same for every model. The
+        stability of the other species (e.g. gas species, or condensates imposed as stable) is
+        never part of the solution, and is left out of the output.
+        """
+        return tuple(bool(species_.solve_for_stability) for species_ in self.parameters.species)
+
     def _solution_array_to_dict(
         self, solution_array: Float[Array, "n_batch twice_species"], suffix: str = ""
     ) -> dict[str, ArrayLike]:
         """Converts a solution array to a dictionary mapping.
 
+        The stability is included only for species whose stability is solved for.
+
         Args:
             solution_array: The solution array containing log number of moles and log stability
-            suffix: Optional suffix to add to the keys. Defauls to an empty string.
+            suffix: Optional suffix to add to the keys. Defaults to an empty string.
 
         Returns:
             Dictionary mapping species names and their stability keys to arrays of values
         """
         out: dict[str, ArrayLike] = {}
 
-        for nn, species_ in enumerate(self.parameters.species.species_names):
+        for nn, (species_, solves_for_stability) in enumerate(
+            zip(self.parameters.species.species_names, self._solves_for_stability)
+        ):
             out[f"{species_}{suffix}"] = solution_array[..., nn]
-            out[f"{species_}_stability{suffix}"] = solution_array[
-                ..., nn + self.parameters.species.number_species
-            ]
+            if solves_for_stability:
+                out[f"{species_}_stability{suffix}"] = solution_array[
+                    ..., nn + self.parameters.species.number_species
+                ]
 
         return out
 
@@ -599,14 +614,19 @@ class BaseOutputDict(eqx.Module):
             return {}
 
         species_names: tuple[str, ...] = tuple(self.parameters.species.species_names)
-        names: list[str] = (
+        # Constraints that can be active in some models are kept (NaN where inactive), so the
+        # structure is the same for every model, but stabilities that are never solved for are not
+        names: list[str | None] = (
             [f"{name}_activity" for name in species_names]
             + [f"reaction_{jj}" for jj in range(self.parameters.reaction_system.number_reactions)]
             + [f"{name}_mass" for name in self.parameters.mass_constraints.species.unique_elements]
-            + [f"{name}_stability" for name in species_names]
+            + [
+                f"{name}_stability" if solves else None
+                for name, solves in zip(species_names, self._solves_for_stability)
+            ]
         )
 
-        return {name: self.residual[..., nn] for nn, name in enumerate(names)}
+        return {name: self.residual[..., nn] for nn, name in enumerate(names) if name is not None}
 
     def solver_to_dict(self) -> dict[str, ArrayLike]:
         """Solver information such as success flags and number of iterations"""

@@ -429,7 +429,9 @@ Solution and initial guess
 
 The ``solution`` key contains the raw solution from the solver for each species: the natural
 logarithm of the number of moles (``<species>``) and the natural logarithm of the stability
-(``<species>_stability``). For a model that was not solved, this is the point closest to a root
+(``<species>_stability``). The stability is included only for species whose stability is solved
+for (``solve_for_stability``), which is fixed by the species, so it is not output for gas species or
+condensates imposed as stable. For a model that was not solved, this is the point closest to a root
 over all its attempts, by the residual of the objective function, which may be the initial guess.
 
 The ``initial_guess`` key compares the solution with the initial guess the solver started from,
@@ -440,7 +442,10 @@ warm start from a previous solution):
 - ``<species>_solution`` and ``<species>_stability_solution``: the solution, as in ``solution``
 - ``<species>_guess`` and ``<species>_stability_guess``: the initial guess
 - ``<species>_log_error`` and ``<species>_stability_log_error``: absolute difference between the
-  guess and the solution (``NaN`` for inactive stabilities)
+  guess and the solution
+
+As in ``solution``, the stability entries are included only for species whose stability is solved
+for.
 - ``log_error_mae`` and ``log_error_rmse``: mean absolute error and root-mean-square error of the
   guess across all solution quantities
 
@@ -457,10 +462,12 @@ satisfy, and how far each constraint of a solved model is from exact:
 - ``reaction_<index>``: residual of each reaction, in units of the log equilibrium constant. The
   reaction of each index is given by ``model.parameters.reaction_system.get_reaction_dictionary()``.
 - ``<element>_mass``: ratio of the number of moles of the element to its mass constraint, minus one
-- ``<species>_stability``: log stability minus the log stability implied by the number of moles
+- ``<species>_stability``: log stability minus the log stability implied by the number of moles,
+  only for species whose stability is solved for
 
 Inactive constraints are ``NaN``, e.g. a species without an activity constraint or an element whose
-mass constraint is switched off with ``NaN``. The residual is evaluated at the reported solution,
+mass constraint is switched off with ``NaN``. These are kept so that the columns are the same for
+every model, whatever its constraints. The residual is evaluated at the reported solution,
 which for a solved model comes from the final solve that attaches derivatives, so it can be smaller
 than ``residual`` under the ``solver`` key, which the solver used to decide whether the model is
 solved.
