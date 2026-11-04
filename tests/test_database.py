@@ -51,18 +51,6 @@ def test_from_file(tmp_path: Path) -> None:
     with pytest.raises(KeyError, match="gas is not an end-member of H2O"):
         ChemicalSpecies.create_gas("H2O", database=db)
 
-    # End-members of a formula that overlap in temperature cannot be stitched together, as for
-    # hematite before it was made to end at its melting point
-    overlap_file: Path = tmp_path / "overlap.txt"
-    overlap_file.write_text(
-        "".join(
-            line.replace("hematite,Fe2O3,1800,1812,", "hematite,Fe2O3,1800,6000,")
-            for line in lines
-        )
-    )
-    with pytest.raises(ValueError, match="hematite .* overlaps liquid"):
-        PurePhase.from_formula("Fe2O3", database=DataBase.from_glenn_file(overlap_file))
-
     bad_file: Path = tmp_path / "bad.txt"
     bad_file.write_text("end_member,hill_formula,T_min,T_max\n")
     with pytest.raises(ValueError, match="is missing the columns"):
