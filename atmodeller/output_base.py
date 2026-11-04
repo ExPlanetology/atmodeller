@@ -28,6 +28,7 @@ from jax.tree_util import tree_map
 from jaxtyping import Array, ArrayLike, Bool, Float, PyTree
 
 from atmodeller import override
+from atmodeller.containers import ReservoirSpecies
 from atmodeller.jax_utils import FloatArray, NpBool, NpFloat, stack_broadcast
 from atmodeller.parameters import ActivityConstraintSet, MassConstraintSet, Parameters
 from atmodeller.phases import BasePhase, GasPhaseOutput, PhaseOutput, PurePhase
@@ -111,6 +112,25 @@ def expand_jax_arrays_in_pytree_to_batch(pytree: PyTree, batch_size: int) -> PyT
         return x
 
     return tree_map(expand, pytree)
+
+
+def condensate_indices(phase_output: PhaseOutput[BasePhase]) -> tuple[int, ...]:
+    """Indices of the species of a phase that are condensates, i.e. not dissolved species.
+
+    Dissolved species (:class:`~atmodeller.containers.ReservoirSpecies`) have no stability, so
+    the ``stable`` flag is only reported for condensates.
+
+    Args:
+        phase_output: The phase output object
+
+    Returns:
+        Indices of the condensate species in the phase
+    """
+    return tuple(
+        ii
+        for ii, species in enumerate(phase_output.phase.species)
+        if not isinstance(species, ReservoirSpecies)
+    )
 
 
 def ravel_jax_arrays_in_pytree(pytree: PyTree) -> PyTree:
@@ -631,6 +651,8 @@ class OutputNaturalDict(BaseOutputDict):
         checked_solution: Checked solution of the solve
         initial_guess: Initial guess the solver started from, i.e. log number of moles and log
             stability
+        residual: Residual of every constraint at the solution, NaN for inactive constraints.
+            Defaults to ``None``, in which case the output has no ``residual`` section.
     """
 
     @override
@@ -654,7 +676,9 @@ class OutputNaturalDict(BaseOutputDict):
             "mole_fraction": phase_output.species_mole_fraction,
             "include_in_phase_mass": phase_output.include_in_phase_mass,
         }
-        if not isinstance(phase_output, GasPhaseOutput):
+        # The natural format keeps the arrays of all species of the phase, so a dissolved species
+        # in a phase that also has condensates is reported as stable
+        if not isinstance(phase_output, GasPhaseOutput) and condensate_indices(phase_output):
             out["species"]["stable"] = phase_output.species_stable(self.tau)
 
         return out
@@ -806,9 +830,13 @@ class OutputNamedArraysDict(BaseOutputDict):
         self._split_by_species_and_add(
             phase_output, phase_output.species_mole_fraction, species_out, "mole_fraction"
         )
-        if not isinstance(phase_output, GasPhaseOutput):
-            self._split_by_species_and_add(
-                phase_output, phase_output.species_stable(self.tau), species_out, "stable"
+        indices: tuple[int, ...] = condensate_indices(phase_output)
+        if not isinstance(phase_output, GasPhaseOutput) and indices:
+            self._split_by_name_and_add(
+                tuple(phase_output.phase.species_names[ii] for ii in indices),
+                phase_output.species_stable(self.tau)[..., jnp.asarray(indices)],
+                species_out,
+                "stable",
             )
         self._split_by_species_and_add(
             phase_output, phase_output.include_in_phase_mass, species_out, "include_in_phase_mass"
@@ -1057,6 +1085,7 @@ class OutputElementsSpeciesDict(BaseOutputDict):
             if isinstance(phase_output, GasPhaseOutput)
             else self._split_array_by_names(species_names, phase_output.species_stable(self.tau))
         )
+        indices: tuple[int, ...] = condensate_indices(phase_output)
 
         for nn, species in enumerate(species_names):
             species_dict: dict[str, Any] = out.setdefault(species, {})
@@ -1067,7 +1096,7 @@ class OutputElementsSpeciesDict(BaseOutputDict):
             phase_dict["number_moles"] = species_number_moles[nn]
             phase_dict["mole_fraction"] = species_mole_fraction[nn]
             phase_dict["include_in_phase_mass"] = include_in_mass_phase[nn]
-            if species_stable is not None:
+            if species_stable is not None and nn in indices:
                 phase_dict["stable"] = species_stable[nn]
 
         return out

@@ -310,11 +310,12 @@ def test_compare(cho_output: Output, cho_dicts: dict[str, dict[str, Any]]) -> No
 
 
 def test_quick_look(cho_output: Output, caplog: pytest.LogCaptureFixture) -> None:
-    """quick_look logs the output"""
+    """quick_look logs and returns the output"""
     with caplog.at_level(logging.INFO, logger="atmodeller"):
-        cho_output.quick_look()
+        out: dict[str, Any] = cho_output.quick_look()
 
     assert "Quick look output" in caplog.text
+    assert "gas" in out
 
 
 def test_to_dataframes(cho_output: Output) -> None:

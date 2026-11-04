@@ -130,6 +130,14 @@ class EquilibriumModel(eqx.Module):
 
         Returns:
             An :class:`~atmodeller.output.Output` instance
+
+        Raises:
+            ValueError: If any model of the batch is not well posed: its constraints do not match
+                its components, an element of a condensate imposed stable has a mass constraint,
+                or species are dissolved in a melt of zero mass. The whole batch is rejected
+                before solving. Inside a JIT-compiled function of your own, where the constraints
+                are traced, this is not checked, and such a model is instead not solved and has
+                the result ``invalid_model``.
         """
         self._check_constraints()
         self._check_melt()
@@ -293,6 +301,9 @@ class EquilibriumModel(eqx.Module):
 
         Returns:
             An :class:`~atmodeller.output.Output` instance
+
+        Raises:
+            ValueError: If any model of the batch is not well posed (see :meth:`solve`)
         """
         initial_guess: Float[Array, "n_batch twice_species"] = jnp.full(
             (
@@ -333,6 +344,14 @@ class EquilibriumModel(eqx.Module):
         :meth:`atmodeller.parameters.Parameters.update_constraints` that preserves the immutable
         Equinox tree semantics of the model.
 
+        An update keeps the structure of the model, so that a compiled solver can be reused:
+
+        - Mass constraints are keyed by element (e.g. ``"H"``), not by species, and a constraint
+          is switched off with ``NaN`` and on with a finite value.
+        - An activity/fugacity constraint keeps its type: it can be given new values (e.g. a new
+          ``log10_shift`` of a buffer, or ``NaN`` to switch it off), but not replaced by a
+          constraint of another type, which raises an error. Build a new model for that.
+
         Args:
             activity_constraints: New activity/fugacity constraint mapping. Defaults to ``None``.
             mass_constraints: New mass-constraint mapping. Defaults to ``None``.
@@ -342,6 +361,9 @@ class EquilibriumModel(eqx.Module):
 
         Returns:
             A new model instance with updated parameters
+
+        Raises:
+            ValueError: If a key is not in the system, or a constraint changes type
         """
         parameters_updated: Parameters = self.parameters.update_constraints(
             activity_constraints=activity_constraints,

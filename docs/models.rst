@@ -29,7 +29,7 @@ and given to a gas species, e.g.
 
 .. code-block:: python
 
-    from atmodeller.eos import get_eos_models
+    from atmodeller import ChemicalSpecies, get_eos_models
 
     eos_models = get_eos_models()
     H2O_g = ChemicalSpecies.create_gas("H2O", activity=eos_models["H2O_cork_holland98"])
@@ -49,7 +49,7 @@ and given to a dissolved species, e.g.
 
 .. code-block:: python
 
-    from atmodeller.solubility import get_solubility_models
+    from atmodeller import ReservoirSpecies, get_solubility_models
 
     solubility_models = get_solubility_models()
     H2O_d = ReservoirSpecies.create_dissolved(

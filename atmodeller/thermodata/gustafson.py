@@ -57,6 +57,9 @@ class SGTEThermodynamicProperties(GibbsThermodynamicProperties):
         coefficients: Coefficients :math:`(a, b, c, d, e, f, g)` of the Gibbs energy (J/mol),
             with :math:`T` in K
         volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
+        extrapolate_below: Extrapolation below the temperature range (see
+            :class:`~atmodeller.thermodata.core.ThermodynamicProperties`). Defaults to ``"data"``.
+        extrapolate_above: Extrapolation above the temperature range. Defaults to ``"data"``.
     """
 
     coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)

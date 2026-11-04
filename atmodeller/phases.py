@@ -31,6 +31,9 @@ formula and a suffix (see :class:`~atmodeller.interfaces.ChemicalSpeciesData`):
 - ``"cd"`` : the condensed end-members of a formula stitched together (a pseudo end-member)
 - ``"s"`` : the solid end-members of a formula stitched together, without the liquid (a
   pseudo end-member)
+- a chosen suffix for a chosen set of end-members stitched together, e.g. ``"quartz"`` in
+  ``O2Si_quartz``
+- ``"d"`` : dissolved, for a :class:`~atmodeller.containers.ReservoirSpecies`
 
 Quantities are accumulated in log-space throughout for numerical stability. Many methods accept an
 optional background material (e.g., the silicate melt mass) that contributes to phase totals but

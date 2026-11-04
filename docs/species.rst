@@ -186,6 +186,7 @@ The constant heat capacity extension allows solutions to be modelled from end-me
         ChemicalSpecies.from_end_member("liquid", formula=formula)
         for formula in ("SiO2", "MgO", "FeO")
     )
+    gas_species = tuple(ChemicalSpecies.create_gas(formula) for formula in ("O2", "SiO", "Mg"))
     # In the silicate melt, they are extended to lower temperatures with a constant heat capacity
     planet = Planet.from_species(gas_species, silicate_melt_species=melt_species, temperature=1500)
 

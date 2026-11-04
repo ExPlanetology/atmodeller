@@ -628,6 +628,14 @@ class Parameters(eqx.Module):
         New values are assumed to be broadcastable to the shapes of the existing fields. Keeping
         leaf shapes stable helps avoid unnecessary JAX recompilation.
 
+        An update keeps the structure of the model, so that a compiled solver can be reused:
+
+        - Mass constraints are keyed by element (e.g. ``"H"``), not by species, and a constraint
+          is switched off with ``NaN`` and on with a finite value.
+        - An activity/fugacity constraint keeps its type: it can be given new values (e.g. a new
+          ``log10_shift`` of a buffer, or ``NaN`` to switch it off), but not replaced by a
+          constraint of another type, which raises an error. Build a new model for that.
+
         Args:
             activity_constraints: New activity/fugacity constraints. Defaults to ``None``.
             mass_constraints: New mass constraints. Defaults to ``None``.
@@ -637,6 +645,9 @@ class Parameters(eqx.Module):
 
         Returns:
             Updated parameters
+
+        Raises:
+            ValueError: If a key is not in the system, or a constraint changes type
         """
         parameters_updated: Parameters = self
 

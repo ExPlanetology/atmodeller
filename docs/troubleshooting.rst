@@ -21,6 +21,8 @@ Because the solution process is compiled and optimised by JAX, it can be challen
 - A solution cannot be found
 - The solver detects a NaN (not a number) or infinity in a function
 
+A model that is not well posed can never be solved: its constraints do not match its components, an element of a condensate imposed stable has a mass constraint, or species are dissolved in a melt of zero mass (see :ref:`species-constraints`). ``EquilibriumModel.solve`` checks this before solving and raises an error for the whole batch if any model is not well posed. Inside a JIT-compiled function of your own, the constraints are traced and cannot be checked, so such a model is instead not solved and not retried, and its ``result`` is ``invalid_model``.
+
 A solution cannot be found
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -45,6 +45,9 @@ class NasaGlennThermodynamicProperties(ThermodynamicProperties):
         T_min: Minimum temperature of each range (K)
         T_max: Maximum temperature of each range (K)
         volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
+        extrapolate_below: Extrapolation below the temperature range (see
+            :class:`~atmodeller.thermodata.core.ThermodynamicProperties`). Defaults to ``"data"``.
+        extrapolate_above: Extrapolation above the temperature range. Defaults to ``"data"``.
     """
 
     cp_coeffs: tuple[tuple[float, ...], ...] = eqx.field(converter=to_native_floats)

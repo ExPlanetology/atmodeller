@@ -382,6 +382,9 @@ class IntegratedThermodynamicProperties(ThermodynamicProperties):
         entropy_reference: Entropy in :math:`\mathrm{J}\ \mathrm{K}^{-1} \mathrm{mol}^{-1}` at
             the reference temperature
         volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
+        extrapolate_below: Extrapolation below the temperature range (see
+            :class:`~atmodeller.thermodata.core.ThermodynamicProperties`). Defaults to ``"data"``.
+        extrapolate_above: Extrapolation above the temperature range. Defaults to ``"data"``.
     """
 
     heat_capacity_model: HeatCapacityProtocol
@@ -568,6 +571,9 @@ class RelativeThermodynamicProperties(GibbsThermodynamicProperties):
         difference: Thermodynamic properties of the phase relative to the base phase, whose Gibbs
             energy is :math:`\Delta G`
         volume_model: Volume model. Defaults to ``None``, which ignores the pressure dependence.
+        extrapolate_below: Extrapolation below the temperature range (see
+            :class:`~atmodeller.thermodata.core.ThermodynamicProperties`). Defaults to ``"data"``.
+        extrapolate_above: Extrapolation above the temperature range. Defaults to ``"data"``.
     """
 
     base: ThermodynamicProperties

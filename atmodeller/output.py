@@ -75,6 +75,7 @@ OUTPUT_UNITS: dict[str, str] = {
     "metals_to_hydrogen_by_mass": "kg/kg",
     "molar_mass": "kg/mol",
     "mole_fraction": "mol/mol",
+    "num_steps": "integer",
     "number_moles": "mol",
     "optimistix_result": "text",
     "partial_pressure": "bar",
@@ -82,12 +83,15 @@ OUTPUT_UNITS: dict[str, str] = {
     "pressure": "bar",
     "residual": "units of the objective function (see the documentation)",
     "result": "text",
+    "silicate_mass": "kg",
+    "silicate_melt_fraction": "kg/kg",
+    "silicate_melt_mass": "kg",
+    "silicate_solid_mass": "kg",
     "solution": "natural logarithm of the number of moles (mol) and of the stability",
     "solver_success": "boolean",
     "species_number_moles": "mol",
     "species_to_phase_mass_ratio": "kg/kg",
     "stable": "boolean",
-    "num_steps": "integer",
     "success": "boolean",
     "successful_attempt": "integer",
     "surface_area": "m^2",
@@ -208,8 +212,12 @@ class Output(eqx.Module):
     def quick_look(
         self,
         output_format: Literal["natural", "named_arrays", "elements_species"] = "named_arrays",
-    ) -> None:
+    ) -> dict[str, Any]:
         """Quick look at the output.
+
+        The output is logged at the ``INFO`` level of the ``atmodeller.output`` logger, so it is
+        shown only if logging is set up, e.g. with :func:`atmodeller.debug_logger`. It is also
+        returned, so in a notebook the returned dictionary is displayed in any case.
 
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
@@ -219,9 +227,15 @@ class Output(eqx.Module):
                 output format based on the arrays used internally, ``named_arrays`` for an
                 alternative format with named arrays, or ``elements_species`` for an alternative
                 format grouped by element and species names. Defaults to ``named_arrays``.
+
+        Returns:
+            The output dictionary with NumPy arrays, as from :meth:`to_dict` with
+            ``to_numpy=True``
         """
         out: dict[str, Any] = self.to_dict(output_format=output_format, to_numpy=True)
         logger.info("Quick look output:\n%s", pformat(out, sort_dicts=False))
+
+        return out
 
     def _drop_unsuccessful_solves(
         self, dataframes: dict[str, pd.DataFrame]
@@ -461,5 +475,9 @@ class Output(eqx.Module):
 
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
+
+        Args:
+            logger_: Logger to write the statistics to. Defaults to the ``atmodeller.output``
+                logger.
         """
         return self.checked_solution.stats_to_logger(logger_)
