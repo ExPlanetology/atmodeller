@@ -20,6 +20,7 @@ For questions and ideas, or to share how you are using *Atmodeller*, join the `D
    species.rst
    models.rst
    output.rst
+   updating.rst
    solver.rst
    common_tasks.rst
    development.rst
