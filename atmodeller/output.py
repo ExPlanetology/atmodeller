@@ -22,8 +22,10 @@ The :class:`Output` class is the main entry point for downstream workflows.
     inside ``jax.jit``).
 """
 
+import dataclasses
 import logging
 import pickle
+from datetime import datetime
 from pathlib import Path
 from pprint import pformat
 from typing import Any, Literal
@@ -44,8 +46,58 @@ from atmodeller.output_base import (
     flatten_dictionary,
 )
 from atmodeller.parameters import Parameters
+from atmodeller.reactions import get_reaction_dictionary
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+OUTPUT_UNITS: dict[str, str] = {
+    "activity": "dimensionless (fugacity in bar for gas species)",
+    "background_mass": "kg",
+    "background_molar_mass": "kg/mol",
+    "background_number_moles": "mol",
+    "C_to_H": "mol/mol",
+    "C_to_O": "mol/mol",
+    "elements_number_moles": "mol",
+    "include_in_phase_mass": "boolean",
+    "log10dIW_1_bar": "dimensionless",
+    "log10dIW_P": "dimensionless",
+    "log_epsilon": "dex",
+    "M_H": "dex",
+    "mantle_mass": "kg",
+    "mantle_melt_fraction": "kg/kg",
+    "mantle_melt_mass": "kg",
+    "mantle_solid_mass": "kg",
+    "mass": "kg",
+    "mass_fraction": "kg/kg",
+    "metallic_core_mass": "kg",
+    "metallicity_by_mass": "kg/kg",
+    "metals_to_hydrogen": "mol/mol",
+    "metals_to_hydrogen_by_mass": "kg/kg",
+    "molar_mass": "kg/mol",
+    "mole_fraction": "mol/mol",
+    "number_moles": "mol",
+    "optimistix_result": "text",
+    "partial_pressure": "bar",
+    "planet_mass": "kg",
+    "pressure": "bar",
+    "residual": "units of the objective function (see the documentation)",
+    "result": "text",
+    "solution": "natural logarithm of the number of moles (mol) and of the stability",
+    "solver_success": "boolean",
+    "species_number_moles": "mol",
+    "species_to_phase_mass_ratio": "kg/kg",
+    "stable": "boolean",
+    "steps": "integer",
+    "success": "boolean",
+    "successful_attempt": "integer",
+    "surface_area": "m^2",
+    "surface_gravity": "m/s^2",
+    "surface_radius": "m",
+    "temperature": "K",
+    "volume": "m^3",
+    "X_H": "dex",
+}
+"""Units of the output quantities, by quantity name, as in the documentation"""
 
 
 class Output(eqx.Module):
@@ -183,6 +235,56 @@ class Output(eqx.Module):
             for key, df in dataframes.items()
         }
 
+    def info(self) -> pd.DataFrame:
+        """Gets a description of the run, which is the same for every model.
+
+        The description has the *Atmodeller* version and the date (``run``), the solver settings
+        (``solver``), the equation of each reaction whose residual is ``reaction_<index>``
+        (``reactions``), the units of the output quantities (``units``) and the configuration of
+        each species (``species``).
+
+        .. warning::
+            Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
+
+        Returns:
+            Dataframe with columns ``section``, ``name`` and ``value``
+        """
+
+        def describe(value: Any) -> Any:
+            """A readable value for a solver setting"""
+            if isinstance(value, type) or callable(value):
+                return getattr(value, "__name__", type(value).__name__)
+            array: NpArray = np.asarray(value)
+            if array.dtype != object:
+                return array.item() if array.size == 1 else str(array.tolist())
+            return type(value).__name__
+
+        rows: list[tuple[str, str, Any]] = [
+            ("run", "atmodeller_version", __version__),
+            ("run", "date", datetime.now().isoformat(timespec="seconds")),
+        ]
+        solver_parameters: Any = self.parameters.solver_parameters
+        rows += [
+            ("solver", field.name, describe(getattr(solver_parameters, field.name)))
+            for field in dataclasses.fields(solver_parameters)
+        ]
+        # The parameters of an output from a compiled solve hold JAX arrays
+        reaction_system: Any = self.parameters.reaction_system
+        reactions: dict[int, str] = get_reaction_dictionary(
+            np.asarray(reaction_system.matrix), reaction_system.species.species_names
+        )
+        rows += [
+            ("reactions", f"reaction_{index}", equation) for index, equation in reactions.items()
+        ]
+        rows += [("units", name, unit) for name, unit in OUTPUT_UNITS.items()]
+        for name, species_ in zip(self.parameters.species.species_names, self.parameters.species):
+            rows += [
+                ("species", f"{name}.solve_for_stability", species_.solve_for_stability),
+                ("species", f"{name}.include_in_phase_mass", species_.include_in_phase_mass),
+            ]
+
+        return pd.DataFrame(rows, columns=["section", "name", "value"])
+
     def to_dataframes(
         self,
         output_format: Literal["named_arrays", "elements_species"] = "named_arrays",
@@ -234,6 +336,9 @@ class Output(eqx.Module):
     ) -> None:
         """Writes the output to an Excel file.
 
+        The first sheet, ``info``, describes the run (see :meth:`info`), and each other sheet has
+        one row per model. Rows of models that were not solved are highlighted.
+
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
 
@@ -270,9 +375,21 @@ class Output(eqx.Module):
         unsuccessful_indices: NpArray = np.where(~np.asarray(self.checked_solution.success))[0]
 
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+            self.info().to_excel(writer, sheet_name="info", index=False)
+            for column in writer.sheets["info"].columns:
+                width: int = max(len(str(cell.value)) for cell in column) + 2
+                writer.sheets["info"].column_dimensions[column[0].column_letter].width = width
+
             for df_name, df in out.items():
                 df.to_excel(writer, sheet_name=df_name, index=True)
                 sheet = writer.sheets[df_name]
+
+                # Freeze the header row and the model column, and fit the columns to the headers
+                sheet.freeze_panes = "B2"
+                for column in sheet.iter_cols(max_row=1):
+                    sheet.column_dimensions[column[0].column_letter].width = max(
+                        10, len(str(column[0].value)) + 2
+                    )
 
                 # Map batch indices to row positions, since unsuccessful solves may be dropped
                 unsuccessful_rows: NpArray = np.flatnonzero(df.index.isin(unsuccessful_indices))

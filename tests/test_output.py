@@ -373,7 +373,8 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
         output.to_excel(
             file_prefix=tmp_path / "out", drop_unsuccessful_solves=drop, append_version=False
         )
-        for sheet in load_workbook(tmp_path / "out.xlsx").worksheets:
+        # The info sheet describes the run, so it has no rows of models
+        for sheet in load_workbook(tmp_path / "out.xlsx").worksheets[1:]:
             highlighted_rows: list[int] = [
                 number
                 for number, row in enumerate(sheet.iter_rows(), start=1)
@@ -409,6 +410,13 @@ def test_exports(
     """File names with and without the version, an existing extension, and a relative prefix"""
     export(cho_output, file_prefix=tmp_path / "out")
     assert "gas" in read_back(tmp_path / f"out_v{__version__}.{extension}")
+    if extension == "xlsx":
+        workbook = load_workbook(tmp_path / f"out_v{__version__}.xlsx")
+        assert workbook.sheetnames[0] == "info"
+        assert workbook["gas"].freeze_panes == "B2"
+        info: pd.DataFrame = cho_output.info()
+        assert set(info["section"]) == {"run", "solver", "reactions", "units", "species"}
+        assert info.loc[info["name"] == "max_starts", "value"].item() == 10
 
     export(cho_output, file_prefix=tmp_path / "no_version", append_version=False)
     assert (tmp_path / f"no_version.{extension}").exists()

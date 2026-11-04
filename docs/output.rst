@@ -14,6 +14,12 @@ sheet) with one row per model, indexed by ``model``, and the nested keys are joi
 form the column names (e.g. ``species.partial_pressure.H2O_g`` in the ``gas`` dataframe). In Excel,
 rows of models that were not solved successfully are highlighted.
 
+The Excel file also starts with an ``info`` sheet, which describes the run rather than the models:
+the *Atmodeller* version and the date, the solver settings, the equation of each reaction whose
+residual is ``reaction_<index>`` (see :ref:`OutputResidual`), the units of the output quantities,
+and the configuration of each species. The same table is returned by
+:meth:`~atmodeller.output.Output.info`.
+
 Output formats
 --------------
 
