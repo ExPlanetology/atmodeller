@@ -449,11 +449,11 @@ warm start from a previous solution):
 - ``<species>_guess`` and ``<species>_stability_guess``: the initial guess
 - ``<species>_log_error`` and ``<species>_stability_log_error``: absolute difference between the
   guess and the solution
+- ``log_error_mae`` and ``log_error_rmse``: mean absolute error and root-mean-square error of the
+  guess across all solution quantities
 
 As in ``solution``, the stability entries are included only for species whose stability is solved
 for.
-- ``log_error_mae`` and ``log_error_rmse``: mean absolute error and root-mean-square error of the
-  guess across all solution quantities
 
 .. _OutputResidual:
 
