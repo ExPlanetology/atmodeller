@@ -10,6 +10,7 @@ This page follows the solution process in order: how the equations are built, ho
 
 Equations
 ---------
+
 *Atmodeller* turns the question "what is the equilibrium composition?" into a set of non-linear equations, built from two principles: mass balance (atoms are neither created nor destroyed) and chemical equilibrium (each reaction satisfies its equilibrium constant).
 
 The unknowns are the natural logarithms of the number of moles of each species. Working in logs keeps every amount positive, handles species whose abundances differ by hundreds of orders of magnitude, and turns the equilibrium-constant equations into simple sums. Each condensate (e.g. graphite or liquid water) also has a *stability* variable: it stays near zero when the condensate is present and grows large when it is not, which switches the condensate off. This lets condensates appear and disappear as conditions change, without the user deciding in advance which phases are present.
@@ -18,6 +19,7 @@ What makes the problem harder is that the parts of the model are coupled. A real
 
 Initializer
 -----------
+
 *Atmodeller* makes the initial guess with an *initializer*: a simplified version of the problem (pure condensates, and an ideal gas speciation so that the Gibbs energies of the gases are held fixed) that can be solved quickly and reliably.
 
 Composing an initializer is something of a dark art. It must be simplified enough to solve robustly from almost no information, yet honour enough of the necessary complexity to produce a meaningful initial guess for the main solver. For example, nonideality has a strong control on dissolution, because solubility depends on fugacity rather than partial pressure. *Atmodeller*'s initializer therefore treats the gas speciation as ideal, but evaluates the solubility laws with the real-gas fugacities, so that the amount dissolved in the melt, which can be a large share of the volatile budget, is already close to the answer.
@@ -38,20 +40,20 @@ The initializer uses element potentials. The composition of a system is specifie
 
 Main solver
 -----------
-The main solver starts from the initializer's result and drops its simplifications: it brings back the real-gas equations of state in the gas speciation and the coupling between the parts of the model described in `Equations`_, and solves the complete system together. It uses Newton's method from Optimistix :cite:p:`optimistix2024`, with the Jacobian from automatic differentiation and full Newton steps clipped to fixed bounds on every unknown (see :doc:`troubleshooting`). A solve counts as converged only if Newton reports success *and* the largest residual of the equations is below the tolerance (``atol``, default :math:`10^{-6}`).
 
-1. **Solve and retry.** All conditions in the batch are solved together from their initial guesses. Conditions that fail are given a new guess and solved again, up to ``max_starts`` attempts in total (default 10), while converged conditions are kept as they are. The new guess is drawn at random around the conditions that did converge: each log number of moles is sampled uniformly over the range spanned by the converged solutions, centred on their median, and the stabilities are then recomputed from the new guess. If no condition has converged yet, the median and range of the whole batch are used instead. The range is zero if only one condition has converged, or for a single condition that has not, so the failed conditions then restart from their best point so far.
+The main solver starts from the initializer's result and drops its simplifications: it brings back the real-gas equations of state in the gas speciation and the coupling between the parts of the model described in `Equations`_, and solves the complete system together. It uses Newton's method from Optimistix :cite:p:`optimistix2024`, with the Jacobian from automatic differentiation and full Newton steps clipped to fixed bounds on every unknown (see :doc:`troubleshooting`). A model is solved (``success`` in the output) only if Newton reports success *and* the largest residual of the equations is below the tolerance (``atol``, default :math:`10^{-6}`).
 
-2. **Condensates.** The stability of a condensate is scaled by a small factor :math:`\tau` (default :math:`10^{-25}`), which sets how many moles remain of a condensate that is switched off :cite:p:`LKK16`. A very small :math:`\tau` makes the switch between present and absent sharp, so the equations change steeply near it and Newton can fail from a poor guess. If any condition fails at the default :math:`\tau`, every condition is first solved at a much larger :math:`\tau` (:math:`10^{-3}`), where the problem is easier, and that solution becomes the starting point for a second solve at the default :math:`\tau` :cite:p:`Leal2014`. The final :math:`\tau`, the starting :math:`\tau` and the number of :math:`\tau` values in the sweep are set by ``tau``, ``tau_max`` and ``tau_num`` of ``SolverParameters``.
+1. **Solve and retry.** All models in the batch are solved together from their initial guesses. Models that fail are given a new guess and solved again, up to ``max_starts`` attempts in total (default 10), while solved models are kept as they are. The new guess is drawn at random around the models that were solved: each log number of moles is sampled uniformly over the range spanned by their solutions, centred on their median, and the stabilities are then recomputed from the new guess. If no model has been solved yet, the median and range of the whole batch are used instead. The range is zero if only one model has been solved, or for a single model that has not, so the failed models then restart from their best point so far.
 
-3. **Derivatives.** A final solve from the converged root attaches derivatives with respect to the inputs, using the implicit function theorem. The results can therefore be differentiated, however many retries were needed to find the root.
+2. **Condensates.** The stability of a condensate is scaled by a small factor :math:`\tau` (default :math:`10^{-25}`), which sets how many moles remain of a condensate that is switched off :cite:p:`LKK16`. A very small :math:`\tau` makes the switch between present and absent sharp, so the equations change steeply near it and Newton can fail from a poor guess. If any model fails at the default :math:`\tau`, every model is first solved at a much larger :math:`\tau` (:math:`10^{-3}`), where the problem is easier, and that solution becomes the starting point for a second solve at the default :math:`\tau` :cite:p:`Leal2014`. The final :math:`\tau`, the starting :math:`\tau` and the number of :math:`\tau` values in the sweep are set by ``tau``, ``tau_max`` and ``tau_num`` of ``SolverParameters``.
 
-This describes the default solver, which is one of the more extensive solver options. Other options bypass the retries and the :math:`\tau` sweep to reduce compilation and execution time, at the cost of potentially less robust convergence.
+3. **Derivatives.** A final solve from the root attaches derivatives with respect to the inputs, using the implicit function theorem. The results can therefore be differentiated, however many retries were needed to find the root.
 
 .. _NestedSolvers:
 
 Nested solvers
 --------------
+
 Some real-gas equations of state give the pressure as a function of volume and temperature, :math:`P(V, T)`, and cannot be rearranged to give the volume directly. These include the van der Waals, Beattie–Bridgeman :cite:p:`HWZ58`, implicit Redlich–Kwong :cite:p:`HP91` and Zhang and Duan :cite:p:`ZD09` equations of state. For these, *Atmodeller* finds the molar volume at the given temperature and pressure with its own Newton solve, and then computes the fugacity coefficient :math:`\phi` from the volume by integrating over pressure, :math:`RT \ln \phi = \int_0^P (V - RT/P')\,dP'`.
 
 These volume solves are nested inside the main solver: every evaluation of the fugacity, and hence of the equations, solves for the volume of each such species. The derivatives of the volume, which the main solver needs for its Jacobian, follow from the implicit function theorem, so they do not depend on how many iterations the volume solve took.

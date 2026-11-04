@@ -1,6 +1,6 @@
 .. _UsedInFile:
 
-Used In
+Used in
 =======
 
 If you use *Atmodeller* in your research, we would be happy to include your work here.

@@ -1,4 +1,4 @@
-Atmodeller Documentation
+Atmodeller documentation
 ########################
 
 | Lead author: Dan J. Bower

@@ -24,11 +24,11 @@ It is released under the [Apache License, Version 2.0](https://www.apache.org/li
 
 The documentation is available online, with options to download it in EPUB or PDF format:
 
-[https://atmodeller.readthedocs.io/en/latest/](https://atmodeller.readthedocs.io/en/latest/)
+[https://atmodeller.readthedocs.io/](https://atmodeller.readthedocs.io/)
 
 ## Quick install
 
-Atmodeller is a Python package that can be installed on a variety of platforms (e.g. Mac, Windows, Linux). It is recommended to install Atmodeller in a dedicated Python environment. Before installation, create and activate the environment, then run:
+Atmodeller is a Python package that requires Python 3.11 or later. It is tested on Linux and macOS, and Windows should work but is not tested. It is recommended to install Atmodeller in a dedicated Python environment. Before installation, create and activate the environment, then run:
 
 ```pip install atmodeller```
 
@@ -53,8 +53,6 @@ Unlike the source code, the logo is licensed under [Creative Commons Attribution
 Several Jupyter notebooks providing examples are in the `notebooks/examples/` directory. A simple example of how to use Atmodeller is provided below:
 
 ```python
-import logging
-
 from atmodeller import (
     ChemicalSpecies,
     EquilibriumModel,
@@ -66,9 +64,8 @@ from atmodeller import (
     get_solubility_models,
 )
 
-# Log to the console (use logging.DEBUG for more output)
+# Log to the console. For more detail, use console_logger(logging.DEBUG)
 logger = console_logger()
-logger.setLevel(logging.INFO)
 
 # Get the available solubility models
 solubility_models = get_solubility_models()

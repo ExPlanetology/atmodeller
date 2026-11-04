@@ -254,12 +254,13 @@ Gas species have the following additional output:
      - bar
      - Partial pressure
 
-Condensates, i.e. the species of condensed phases other than dissolved species, have the following
+Condensed species, i.e. the species of condensed phases other than dissolved species (pure
+condensates and the end-members of the silicate melt, silicate solid and metal), have the following
 additional output. Dissolved species (``_d``) have no stability, so it is not output for them (in
 the ``natural`` format, whose arrays include every species of the phase, a dissolved species in a
-phase that also has condensates is reported as stable).
+phase that also has condensed species is reported as stable).
 
-.. list-table:: Additional outputs for condensates
+.. list-table:: Additional outputs for condensed species
    :widths: 30 20 50
    :header-rows: 1
 
@@ -443,7 +444,7 @@ Solution and initial guess
 The ``solution`` key contains the raw solution from the solver for each species: the natural
 logarithm of the number of moles (``<species>``) and the natural logarithm of the stability
 (``<species>_stability``). The stability is included only for species whose stability is solved
-for (``solve_for_stability``), which is fixed by the species, so it is not output for gas species or
+for (``solve_for_stability``), which is fixed by the species, so it is not output for gas species, dissolved species or
 condensates imposed as stable. For a model that was not solved, this is the point closest to a root
 over all its attempts, by the residual of the objective function, which may be the initial guess.
 

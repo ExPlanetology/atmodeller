@@ -1,6 +1,6 @@
 .. _DevelopersGuideFile:
 
-Developer's Guide
+Developer's guide
 =================
 
 Introduction

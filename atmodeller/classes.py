@@ -324,10 +324,12 @@ class EquilibriumModel(eqx.Module):
     def rebuild_solver(self) -> Self:
         """Rebuilds the compiled solver from the model's current parameters.
 
-        Use this after parameter updates that may have changed array-leaf shapes or batching in a
-        way that invalidates the vmapping axes captured by the existing solver closure, or that
-        invalidates the original leaf-shape broadcasting assumptions preserved by the
-        ``update`` methods on the parameter containers.
+        The update methods (:meth:`update_state` and :meth:`update_constraints`) keep the shapes
+        of the parameters, and raise an error for a value of another shape, so a model updated
+        with them never needs this. It is only needed after the parameters have been changed in
+        another way that changes their shapes or batching, e.g. with :func:`equinox.tree_at`,
+        since the solver is built for the shapes and batching of the parameters it was created
+        with.
 
         Returns:
             A new instance of :class:`EquilibriumModel` with a rebuilt solver

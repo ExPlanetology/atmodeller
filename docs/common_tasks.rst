@@ -1,7 +1,7 @@
-Common Tasks
+Common tasks
 ============
 
-If you extend the capabilities of *Atmodeller*, you are encouraged to contribute your modifications to the main repository. For more information, see the :ref:`Developer's Guide <DevelopersGuideFile>`.
+If you extend the capabilities of *Atmodeller*, you are encouraged to contribute your modifications to the main repository. For more information, see the :ref:`Developer's guide <DevelopersGuideFile>`.
 
 .. note::
     *Atmodeller* is built on `JAX <https://docs.jax.dev/en/latest/>`_, so most code must be compatible with JAX throughout the codebase. The main exceptions are components related to pre-processing (e.g., assembly of matrices and vectors) and output generation. However, any data structures or containers that are passed into the JAX-based numerical engine must be JAX-compliant.
@@ -51,7 +51,7 @@ This is the default database, so you can start from ``Database.default()`` and a
 
 Data with only a heat capacity model can be created with ``IntegratedThermodynamicProperties`` in ``atmodeller.thermodata``, which integrates the heat capacity from the enthalpy and entropy at the reference temperature, and added to a database with ``set_end_member``.
 
-The temperature range of the data you add matters for condensates. By default, a pure condensate is not stable outside the temperature range of its data (``temperature_range()``): its Gibbs energy is held at its value at the bound, and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added. This is because the range of a pure phase is often bounded by a phase boundary, such as a melting point. A species of a solution, such as the silicate melt, is instead extended with a constant heat capacity, and gas data are extrapolated in their own form. To change the extrapolation below or above the range, pass ``extrapolate_below`` or ``extrapolate_above`` (``"off"``, ``"data"`` or ``"constant_cp"``) to ``ChemicalSpecies.from_end_member`` or the ``PurePhase`` methods (see :ref:`species-extrapolation`).
+The temperature range of the data you add matters for condensates: by default, a pure condensate is not stable outside the temperature range of its data, since that range is often bounded by a phase boundary, such as a melting point. See :ref:`species-extrapolation` for how each kind of species is extrapolated and how to change it.
 
 Add solubility laws
 -------------------

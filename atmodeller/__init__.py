@@ -123,7 +123,8 @@ def console_logger(level: int = logging.INFO) -> logging.Logger:
 
     Args:
         level: Lowest level of the messages that are shown, e.g. ``logging.DEBUG`` to also show
-            the debug messages. Defaults to ``logging.INFO``.
+            the debug messages. Defaults to ``logging.INFO``. It is set on the package logger, so
+            it can also be changed later with ``setLevel`` on the returned logger.
 
     Returns:
         The package logger
@@ -131,7 +132,8 @@ def console_logger(level: int = logging.INFO) -> logging.Logger:
     package_logger: logging.Logger = logging.getLogger(__name__)
     package_logger.setLevel(level)
     _remove_handlers(package_logger)
-    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), level)
+    # The handler shows everything that the logger passes on, so the level is set in one place
+    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), logging.NOTSET)
 
     return package_logger
 
