@@ -40,15 +40,15 @@ def parameters() -> Parameters:
 
 # Log number of moles of H2O, H2, and O2, followed by their log stabilities
 @pytest.mark.parametrize(
-    "initializer, expected",
+    "initializer_class, expected",
     [
         (
-            HeuristicInitializer(),
+            HeuristicInitializer,
             [52.00350906460628, 52.00350906460628, 46.47935504859353]
             + [-57.55668050046958, -56.17833296373126, -52.03252648445684],
         ),
         (
-            ElementPotentialInitializer(),
+            ElementPotentialInitializer,
             [52.011455888987726, 51.99549858198854, 21.364412924513196]
             + [-57.56462732485103, -56.17032248111352, -26.9175843603765],
         ),
@@ -56,7 +56,14 @@ def parameters() -> Parameters:
     ids=["heuristic", "element_potential"],
 )
 def test_initial_guess(
-    parameters: Parameters, initializer: InitializerProtocol, expected: list[float]
+    parameters: Parameters, initializer_class: type[InitializerProtocol], expected: list[float]
 ) -> None:
-    """The cold initial guess matches the pinned values."""
+    """The cold initial guess matches the pinned values, and the heuristic initializer warns
+    that it is deprecated."""
+    if initializer_class is HeuristicInitializer:
+        with pytest.warns(FutureWarning, match="removed in version 3"):
+            initializer: InitializerProtocol = initializer_class()
+    else:
+        initializer = initializer_class()
+
     np.testing.assert_allclose(initializer.start(parameters), expected, rtol=1e-8)

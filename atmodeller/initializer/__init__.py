@@ -11,7 +11,7 @@ by the solver (see :func:`~atmodeller.initializer.batch.make_batch_initializer`)
 - :class:`~atmodeller.initializer.core.InitializerProtocol`: The interface
 - :class:`~atmodeller.initializer.element_potential.ElementPotentialInitializer`: Solves an
   ideal-gas equilibrium in the element potentials; the default
-- :class:`~atmodeller.initializer.heuristic.HeuristicInitializer`: Allocates element budgets
+- :class:`~atmodeller.initializer.heuristic.HeuristicInitializer`: Deprecated, to be removed in version 3. Allocates element budgets
   heuristically
 - :func:`~atmodeller.initializer.batch.make_batch_initializer`: Completes a batch of initial
   guesses with an initializer's cold guess
