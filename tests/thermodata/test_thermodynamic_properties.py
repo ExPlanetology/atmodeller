@@ -150,9 +150,16 @@ def test_end_members_and_stitching() -> None:
     )
     assert stitch({"graphite": graphite_volume}) is graphite_volume
 
+    # Hematite ends at its melting point, where the liquid begins
     hematite: dict[str, NasaGlennThermodynamicProperties] = glenn_properties["Fe2O3"]
+    stitched_fe2o3 = stitch(hematite)
+    for temperature, name in ((1000.0, "hematite"), (2000.0, "liquid")):
+        np.testing.assert_array_equal(
+            stitched_fe2o3.standard_gibbs_over_RT(temperature),
+            hematite[name].standard_gibbs_over_RT(temperature),
+        )
     with pytest.raises(ValueError, match="overlaps"):
-        stitch(hematite)
+        stitch({"liquid": silica["liquid"], "other": silica["liquid"]})
     with pytest.raises(ValueError, match="gap"):
         stitch({name: silica[name] for name in ("quartz-alpha", "liquid")})
     with pytest.raises(ValueError, match="volume model"):
