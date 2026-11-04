@@ -172,8 +172,9 @@ def test_impose_stable() -> None:
     mole_fractions: dict[str, ArrayLike] = {"H2": 0.5, "N2": 0.5}
 
     parameters: Parameters = Parameters(state, mass_constraints=mole_fractions, mass_units="moles")
+    model: EquilibriumModel = EquilibriumModel(parameters)
 
-    output: Output = EquilibriumModel(parameters).solve_with_default()
+    output: Output = model.solve_with_default()
 
     factsage_result: dict[str, Any] = {
         "gas": {
@@ -190,6 +191,25 @@ def test_impose_stable() -> None:
     }
 
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
+
+    # The amount of the imposed graphite is not solved for, so C cannot have a mass constraint
+    def with_carbon(c_moles: ArrayLike) -> EquilibriumModel:
+        return model.update_constraints(
+            # The same H and N as the mole fractions, as elements
+            mass_constraints={"H": 1.0, "N": 1.0, "C": c_moles},
+            mass_units="moles",
+        )
+
+    with pytest.raises(ValueError, match="elements of the condensates imposed stable"):
+        with_carbon(0.1).solve_with_default()
+
+    # Inside JIT the constraints are traced, so the check is skipped, and the model fails instead
+    @eqx.filter_jit
+    def solve(c_moles: ArrayLike) -> Output:
+        return with_carbon(c_moles).solve_with_default()
+
+    for c_moles, success in ((np.nan, True), (0.1, False)):
+        assert bool(solve(c_moles).to_dict()["solver"]["success"].item()) is success
 
 
 def test_graphite_diamond() -> None:

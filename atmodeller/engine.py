@@ -357,8 +357,15 @@ def objective_function(
     # jax.debug.print("residual = {out}", out=residual)
 
     # A model whose active constraints do not match the unknowns would be solved with rows dropped
-    # or duplicated, so its residual is NaN and it fails instead. EquilibriumModel.solve raises for
-    # this before solving, unless the constraints are traced.
-    residual = jnp.where(jnp.sum(active_mask) == size, residual, jnp.nan)
+    # or duplicated, and a mass constraint on an element of a condensate imposed stable would make
+    # its amount, which is not solved for, an unknown. The residual of such a model is NaN, so it
+    # fails instead. EquilibriumModel.solve raises for these before solving, unless the constraints
+    # are traced.
+    mass_on_imposed: Bool[Array, ""] = jnp.any(
+        jnp.asarray(parameters.mass_constraints.active(), dtype=bool)
+        & parameters.mass_constraints.species.imposed_stable_elements
+    )
+    valid: Bool[Array, ""] = jnp.logical_and(jnp.sum(active_mask) == size, ~mass_on_imposed)
+    residual = jnp.where(valid, residual, jnp.nan)
 
     return residual

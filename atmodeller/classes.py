@@ -143,7 +143,9 @@ class EquilibriumModel(eqx.Module):
         since the activity of each of these is fixed, and the mass constraints must be
         independent. The number of components is fewer than the number of elements when elements
         occur in fixed ratios in every species, e.g. H and O when the only species are ``H2O_g``
-        and ``H2O_l``. Nothing is checked if the constraints are traced (inside JIT).
+        and ``H2O_l``. The elements of a condensate imposed stable cannot have a mass constraint,
+        since its amount is not solved for. Nothing is checked if the constraints are traced
+        (inside JIT), when such a model fails instead.
 
         Raises:
             ValueError: If the constraints of a model do not match the components
@@ -173,6 +175,7 @@ class EquilibriumModel(eqx.Module):
             species_.name for species_ in species.reaction_species if species_.number_solution == 0
         ]
         number_needed: int = number_components - len(imposed)
+        imposed_elements: np.ndarray = species.imposed_stable_elements
 
         # Models with the same active constraints are checked once
         patterns, first_model = np.unique(
@@ -180,6 +183,21 @@ class EquilibriumModel(eqx.Module):
         )
         for pattern, model in zip(patterns, first_model):
             activity_row, mass_row = pattern[: len(species_names)], pattern[len(species_names) :]
+            mass_on_imposed: list[str] = [
+                element
+                for element, active, in_imposed in zip(elements, mass_row, imposed_elements)
+                if active and in_imposed
+            ]
+            if mass_on_imposed:
+                raise ValueError(
+                    f"Model {model} has mass constraints on {mass_on_imposed}, which are elements "
+                    f"of the condensates imposed stable {imposed}. The amount of a condensate "
+                    "imposed stable is not solved for, so its elements cannot have a mass "
+                    "constraint. Either remove these mass constraints, so that the condensate is "
+                    "an unlimited reservoir of its elements, or solve for its stability "
+                    "(solve_for_stability=True), which solves for its amount and whether it is "
+                    "present."
+                )
             constrained: list[str] = [
                 name for name, active in zip(species_names, activity_row) if active
             ] + [element for element, active in zip(elements, mass_row) if active]
@@ -277,7 +295,9 @@ class EquilibriumModel(eqx.Module):
         Args:
             activity_constraints: New activity/fugacity constraint mapping. Defaults to ``None``.
             mass_constraints: New mass-constraint mapping. Defaults to ``None``.
-            mass_units: Units used for ``mass_constraints``. Defaults to ``"mass"``.
+            mass_units: Units of ``mass_constraints``, ``"mass"`` (kg) or ``"moles"``, for this
+                call only: they are not inherited from the units with which the model was created.
+                Defaults to ``"mass"``.
 
         Returns:
             A new model instance with updated parameters

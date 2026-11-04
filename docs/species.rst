@@ -115,7 +115,9 @@ Each model needs as many activity and mass constraints as the species have compo
 
 When elements occur in fixed ratios in every species, fewer constraints are needed. With only H2O_g and liquid H2O, which have one component, H or O is constrained, and the H2O vapour pressure is then the saturation pressure. The mass constraints must also be independent: with H2O_g, liquid H2O and N2, H and O are two constraints, but they constrain the same component.
 
-``EquilibriumModel.solve`` raises an error before solving if the constraints of a model do not match. Inside a JIT-compiled function of your own, the constraints are traced and cannot be checked, so a model whose constraints do not match fails instead.
+A condensate imposed stable has a fixed activity but no unknowns, so its amount is not solved for. Its elements therefore cannot have a mass constraint: the condensate is an unlimited reservoir of its elements, e.g. graphite imposed stable sets the activity of carbon, whatever the amount of carbon. To solve for the amount of a condensate as well, and whether it is present, solve for its stability instead (``solve_for_stability=True``, the default).
+
+``EquilibriumModel.solve`` raises an error before solving if the constraints of a model do not match, or if an element of a condensate imposed stable has a mass constraint. Inside a JIT-compiled function of your own, the constraints are traced and cannot be checked, so a model whose constraints do not match fails instead.
 
 Stitching end-members together
 ------------------------------
