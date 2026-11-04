@@ -117,7 +117,7 @@ When elements occur in fixed ratios in every species, fewer constraints are need
 
 A condensate imposed stable has a fixed activity but no unknowns, so its amount is not solved for. Its elements therefore cannot have a mass constraint: the condensate is an unlimited reservoir of its elements, e.g. graphite imposed stable sets the activity of carbon, whatever the amount of carbon. To solve for the amount of a condensate as well, and whether it is present, solve for its stability instead (``solve_for_stability=True``, the default).
 
-``EquilibriumModel.solve`` raises an error before solving if the constraints of a model do not match, or if an element of a condensate imposed stable has a mass constraint. Inside a JIT-compiled function of your own, the constraints are traced and cannot be checked, so a model whose constraints do not match fails instead.
+``EquilibriumModel.solve`` raises an error before solving if the constraints of a model do not match, or if an element of a condensate imposed stable has a mass constraint. Inside a JIT-compiled function of your own, the constraints are traced and cannot be checked, so such a model is not solved instead, and its ``result`` is ``invalid_model`` (see :ref:`OutputSolver`). The same holds for species dissolved in a melt of zero mass.
 
 Stitching end-members together
 ------------------------------

@@ -224,8 +224,8 @@ def test_impose_stable() -> None:
     def solve(c_moles: ArrayLike) -> Output:
         return with_carbon(c_moles).solve_with_default()
 
-    for c_moles, success in ((np.nan, True), (0.1, False)):
-        assert bool(solve(c_moles).to_dict()["solver"]["success"].item()) is success
+    for c_moles, result in ((np.nan, "successful"), (0.1, "invalid_model")):
+        assert solve(c_moles).to_dict(to_numpy=True)["solver"]["result"].item() == result
 
 
 def test_graphite_diamond() -> None:
@@ -295,5 +295,6 @@ def test_water_one_component() -> None:
             mass_constraints={"H": h_kg, "O": o_kg}
         ).solve_with_default()
 
-    for o_kg, success in ((np.nan, True), (8 * h_kg, False)):
-        assert bool(solve(water_model, o_kg).to_dict()["solver"]["success"].item()) is success
+    for o_kg, result in ((np.nan, "successful"), (8 * h_kg, "invalid_model")):
+        out: Output = solve(water_model, o_kg)
+        assert out.to_dict(to_numpy=True)["solver"]["result"].item() == result

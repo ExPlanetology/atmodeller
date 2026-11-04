@@ -51,6 +51,7 @@ from jaxtyping import Array, Bool, Float, Integer, PRNGKeyArray
 from atmodeller.engine import (
     compute_implied_log_stability,
     get_residual_by_constraint,
+    is_valid_model,
     objective_function,
 )
 from atmodeller.initializer import InitializerProtocol, make_batch_initializer
@@ -58,6 +59,7 @@ from atmodeller.jax_utils import FloatArray, vmap_axes_spec
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.solver_utils import (
+    RESULTS,
     SOLUTION_BATCH_AXIS,
     CheckedSolution,
     checked_root_find,
@@ -87,7 +89,7 @@ def solve_single(initial_guess: FloatArray, parameters: Parameters) -> CheckedSo
     solver_parameters = parameters.solver_parameters
     number_species: int = parameters.species.number_species
 
-    return checked_root_find(
+    checked_sol: CheckedSolution = checked_root_find(
         objective_function,
         initial_guess,
         parameters,
@@ -95,6 +97,13 @@ def solve_single(initial_guess: FloatArray, parameters: Parameters) -> CheckedSo
         lower=solver_parameters.get_lower_bound(number_species),
         upper=solver_parameters.get_upper_bound(number_species),
     )
+
+    # A model that is not well posed can never be solved, which its result reports
+    result: RESULTS = RESULTS.where(
+        is_valid_model(parameters), checked_sol.result, RESULTS.invalid_model
+    )
+
+    return eqx.tree_at(lambda sol: sol.result, checked_sol, result)
 
 
 def make_batch_solver(parameters: Parameters) -> Callable:
@@ -315,6 +324,10 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             implicit_gradient=False,
         )
         first_success: Bool[Array, "..."] = first_sol.success
+        # A model that is not well posed keeps its first result, since a sweep cannot solve it
+        first_final: Bool[Array, "..."] = jnp.logical_or(
+            first_success, first_sol.result == RESULTS.invalid_model
+        )
 
         def run_scan(key: PRNGKeyArray) -> CheckedSolution:
             """Run the full tau sweep scan across all batch elements.
@@ -330,9 +343,10 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             (_, sweep_sol), _ = jax.lax.scan(solve_tau_step, (key, first_sol), varying_schedule)
 
             def keep_first(first: Array, sweep: Array) -> Array:
-                """Selects ``first`` for elements that converged on the first attempt"""
+                """Selects ``first`` for elements that converged on the first attempt, or that are
+                not well posed"""
                 mask: Bool[Array, "..."] = jnp.expand_dims(
-                    first_success, tuple(range(first_success.ndim, first.ndim))
+                    first_final, tuple(range(first_final.ndim, first.ndim))
                 )
                 return jnp.where(mask, first, sweep)
 
@@ -344,7 +358,7 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
             return first_sol
 
         # If all entries converged at the final tau on the first attempt, skip the sweep entirely
-        all_converged: Bool[Array, ""] = jnp.all(first_success)
+        all_converged: Bool[Array, ""] = jnp.all(first_final)
         checked_sol: CheckedSolution = lax.cond(all_converged, run_single_step, run_scan, key)
 
         # The sweep finishes at the final tau, so attach the derivatives of the root there

@@ -30,6 +30,7 @@ Note:
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Integer
 
+from atmodeller.constants import SILICATE_MELT_PHASE_INDEX
 from atmodeller.jax_utils import FloatArray, safe_exp
 from atmodeller.parameters import Parameters
 
@@ -67,6 +68,37 @@ def get_active_mask(parameters: Parameters) -> Bool[Array, " dim"]:
     # jax.debug.print("active_mask = {out}", out=active_mask)
 
     return active_mask
+
+
+def is_valid_model(parameters: Parameters) -> Bool[Array, ""]:
+    """Whether a model is well posed, so that it can be solved.
+
+    A model is not well posed if its active constraints do not match its unknowns, if an element of
+    a condensate imposed stable has a mass constraint (its amount is not solved for), or if it has
+    species dissolved in a silicate melt of zero mass (nothing can dissolve). Such a model can
+    never be solved. :meth:`~atmodeller.classes.EquilibriumModel.solve` raises for these before
+    solving, unless the parameters are traced (inside JIT), when this decides instead.
+
+    Args:
+        parameters: Parameters
+
+    Returns:
+        Whether the model is well posed
+    """
+    size: int = parameters.reaction_system.species.number_solution
+    constraints_match: Bool[Array, ""] = jnp.sum(get_active_mask(parameters)) == size
+    mass_on_imposed: Bool[Array, ""] = jnp.any(
+        jnp.asarray(parameters.mass_constraints.active(), dtype=bool)
+        & parameters.mass_constraints.species.imposed_stable_elements
+    )
+    valid: Bool[Array, ""] = jnp.logical_and(constraints_match, ~mass_on_imposed)
+
+    phases: tuple = parameters.reaction_system.phase_system.phases
+    if len(phases) > SILICATE_MELT_PHASE_INDEX and not phases[SILICATE_MELT_PHASE_INDEX].is_empty:
+        melt_mass: FloatArray = phases[SILICATE_MELT_PHASE_INDEX].background_mass
+        valid = jnp.logical_and(valid, jnp.all(jnp.asarray(melt_mass) > 0))
+
+    return valid
 
 
 def get_min_log_elemental_abundance_per_species(
@@ -356,16 +388,9 @@ def objective_function(
     )
     # jax.debug.print("residual = {out}", out=residual)
 
-    # A model whose active constraints do not match the unknowns would be solved with rows dropped
-    # or duplicated, and a mass constraint on an element of a condensate imposed stable would make
-    # its amount, which is not solved for, an unknown. The residual of such a model is NaN, so it
-    # fails instead. EquilibriumModel.solve raises for these before solving, unless the constraints
-    # are traced.
-    mass_on_imposed: Bool[Array, ""] = jnp.any(
-        jnp.asarray(parameters.mass_constraints.active(), dtype=bool)
-        & parameters.mass_constraints.species.imposed_stable_elements
-    )
-    valid: Bool[Array, ""] = jnp.logical_and(jnp.sum(active_mask) == size, ~mass_on_imposed)
-    residual = jnp.where(valid, residual, jnp.nan)
+    # A model that is not well posed, e.g. whose active constraints do not match the unknowns and
+    # would be solved with rows dropped or duplicated, has a NaN residual, so it fails instead (see
+    # is_valid_model)
+    residual = jnp.where(is_valid_model(parameters), residual, jnp.nan)
 
     return residual
