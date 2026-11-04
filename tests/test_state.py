@@ -37,6 +37,22 @@ def test_thermodynamic_state_update() -> None:
     assert float(state.temperature) == pytest.approx(1000.0)
     assert float(state.pressure) == pytest.approx(2.0)
 
+    # The background masses are kept consistent: melt + solid = mass, split by the melt fraction
+    melt, solid, metal = (
+        state.silicate_melt_phase_index,
+        state.silicate_solid_phase_index,
+        state.metal_phase_index,
+    )
+    updated_state = state.update(mass=4.0, melt_fraction=0.25, background_metal_mass=2.0)
+    phases = updated_state.phase_system.phases
+    assert float(phases[melt].background_mass) == pytest.approx(1.0)
+    assert float(phases[solid].background_mass) == pytest.approx(3.0)
+    assert float(phases[metal].background_mass) == pytest.approx(2.0)
+    # A fraction that is not given keeps its current value
+    phases = updated_state.update(mass=8.0).phase_system.phases
+    assert float(phases[melt].background_mass) == pytest.approx(2.0)
+    assert float(phases[solid].background_mass) == pytest.approx(6.0)
+
 
 def _background_masses(planet: BasePlanet) -> tuple[float, float, float]:
     """Background core, melt and solid masses (kg)"""

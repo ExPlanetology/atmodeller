@@ -343,7 +343,13 @@ class ThermodynamicState(BaseThermodynamicState):
 
     @override
     def update(
-        self, *, temperature: Optional[ArrayLike] = None, pressure: Optional[ArrayLike] = None
+        self,
+        *,
+        mass: Optional[ArrayLike] = None,
+        melt_fraction: Optional[ArrayLike] = None,
+        background_metal_mass: Optional[ArrayLike] = None,
+        temperature: Optional[ArrayLike] = None,
+        pressure: Optional[ArrayLike] = None,
     ) -> Self:
         """Updates the state.
 
@@ -351,7 +357,19 @@ class ThermodynamicState(BaseThermodynamicState):
         leaf shapes stable helps avoid unnecessary JAX recompilation, including in jitted
         workflows.
 
+        Note:
+            As with :meth:`from_species`, ``mass``, ``melt_fraction`` and
+            ``background_metal_mass`` set the *background* (untracked) masses of the phases. The
+            silicate mass and the melt fraction are kept consistent: if either is given, the
+            background melt and solid masses are recomputed as in :meth:`from_species`, and the
+            one that is not given keeps its current value.
+
         Args:
+            mass: Background silicate mass (kg). Defaults to ``None`` (no change).
+            melt_fraction: Melt fraction of the background silicate mass. Defaults to ``None``
+                (no change).
+            background_metal_mass: Background mass of the metal phase (kg). Defaults to ``None``
+                (no change).
             temperature: Temperature (K). Defaults to ``None``.
             pressure: Pressure (bar). Defaults to ``None``.
 
@@ -363,6 +381,59 @@ class ThermodynamicState(BaseThermodynamicState):
         # whole pytree, so doing this one field at a time is wasteful when several fields change
         # together (e.g. in a tight per-timestep update loop).
         updates: list[tuple[Callable[[Self], Any], Any]] = []
+
+        if mass is not None or melt_fraction is not None:
+            old_melt_mass: FloatArray = self.phase_system.phases[
+                self.silicate_melt_phase_index
+            ].background_mass
+            old_solid_mass: FloatArray = self.phase_system.phases[
+                self.silicate_solid_phase_index
+            ].background_mass
+            old_mass: FloatArray = old_melt_mass + old_solid_mass
+
+            new_mass: FloatArray = (
+                old_mass if mass is None else jnp.broadcast_to(as_j64(mass), old_mass.shape)
+            )
+            new_melt_fraction: FloatArray = (
+                jnp.where(old_mass > 0, old_melt_mass / old_mass, 1.0)
+                if melt_fraction is None
+                else jnp.broadcast_to(as_j64(melt_fraction), old_melt_mass.shape)
+            )
+            updates.append(
+                (
+                    lambda s: (
+                        s.reaction_system.phase_system.phases[
+                            self.silicate_melt_phase_index
+                        ].background_mass
+                    ),
+                    new_mass * new_melt_fraction,
+                )
+            )
+            updates.append(
+                (
+                    lambda s: (
+                        s.reaction_system.phase_system.phases[
+                            self.silicate_solid_phase_index
+                        ].background_mass
+                    ),
+                    new_mass * (1 - new_melt_fraction),
+                )
+            )
+
+        if background_metal_mass is not None:
+            old_metal_mass: FloatArray = self.phase_system.phases[
+                self.metal_phase_index
+            ].background_mass
+            updates.append(
+                (
+                    lambda s: (
+                        s.reaction_system.phase_system.phases[
+                            self.metal_phase_index
+                        ].background_mass
+                    ),
+                    jnp.broadcast_to(as_j64(background_metal_mass), old_metal_mass.shape),
+                )
+            )
 
         if temperature is not None:
             temperature = jnp.broadcast_to(as_j64(temperature), self.temperature.shape)
