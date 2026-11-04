@@ -5,9 +5,14 @@
 
 """Tests for the core real gas EOS classes in :mod:`atmodeller.eos.core`"""
 
+from typing import cast
+
+import equinox as eqx
+import numpy as np
 import numpy.testing as nptest
 import pytest
 
+from atmodeller.eos import get_eos_models
 from atmodeller.eos._aggregators import CombinedRealGas, CombinedRealGasFugacity
 from atmodeller.eos._holland_powell import H2O_virial_compensation_holland91, dummy_critical_data
 from atmodeller.eos.core import IdealGas, VirialCompensation
@@ -92,3 +97,18 @@ def test_combined_real_gas_fugacity_last_calibration_without_max() -> None:
     expected: float = 4.605170185988092  # log(100)
 
     nptest.assert_allclose(model.log_fugacity(1000.0, 100.0), expected, rtol=RTOL, atol=ATOL)
+
+
+@pytest.mark.parametrize("name", ["H2_chabrier21", "H2_3000K_chabrier21"])
+def test_combined_real_gas_uses_updated_eos(name: str) -> None:
+    """A combined EOS (CombinedRealGas, CombinedRealGasFugacity) uses its real gases as they are
+    when called, so an updated EOS is used, and its parameters are part of the pytree. Each real
+    gas is replaced by an ideal gas, so the fugacity becomes the pressure."""
+    model = cast(CombinedRealGas | CombinedRealGasFugacity, get_eos_models()[name])
+    ideal = eqx.tree_at(lambda m: m.real_gases, model, tuple(IdealGas() for _ in model.real_gases))
+    temperature, pressure = 3000.0, 1000.0
+
+    assert not np.isclose(
+        float(np.asarray(model.log_fugacity(temperature, pressure))), np.log(pressure)
+    )
+    nptest.assert_allclose(ideal.log_fugacity(temperature, pressure), np.log(pressure), rtol=RTOL)
