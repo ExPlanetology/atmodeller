@@ -44,6 +44,6 @@ The solver detects a NaN
 Additional information
 ~~~~~~~~~~~~~~~~~~~~~~
 
-- To see the solver log, including how many models were solved and how many attempts they needed, call ``atmodeller.debug_logger()`` before solving.
+- To see the solver log, including how many models were solved and how many attempts they needed, call ``atmodeller.debug_logger()`` before solving. For more detail, e.g. the initial guess, call ``atmodeller.debug_logger(logging.DEBUG)``, and to also keep a log file, ``atmodeller.debug_file_logger()``, which writes each run to a new file in ``logs/``.
 
 - To find where a NaN first appears, enable JAX's NaN checking before solving, with ``jax.config.update("jax_debug_nans", True)``. This slows down the calculation, so use it only for debugging.

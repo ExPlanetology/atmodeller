@@ -113,21 +113,25 @@ def _remove_handlers(package_logger: logging.Logger) -> None:
             handler.close()
 
 
-def debug_logger() -> logging.Logger:
-    """Sets up debug logging to the console.
+def debug_logger(level: int = logging.INFO) -> logging.Logger:
+    """Sets up logging to the console.
 
     Calling it again replaces the handlers added by an earlier call to this function or
     :func:`debug_file_logger`, and keeps any handler that you added yourself. Messages also
     propagate to the root logger, so if you have configured root logging as well (e.g. with
     :func:`logging.basicConfig`), they are shown twice.
 
+    Args:
+        level: Lowest level of the messages that are shown, e.g. ``logging.DEBUG`` to also show
+            the debug messages. Defaults to ``logging.INFO``.
+
     Returns:
         The package logger
     """
     package_logger: logging.Logger = logging.getLogger(__name__)
-    package_logger.setLevel(logging.DEBUG)
+    package_logger.setLevel(level)
     _remove_handlers(package_logger)
-    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), logging.DEBUG)
+    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), level)
 
     return package_logger
 
