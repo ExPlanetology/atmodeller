@@ -18,6 +18,7 @@ For questions and ideas, or to share how you are using *Atmodeller*, join the `D
    installation.rst
    examples/index
    species.rst
+   models.rst
    output.rst
    solver.rst
    common_tasks.rst

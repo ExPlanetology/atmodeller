@@ -159,5 +159,15 @@ def _skip_equinox_enumeration_members(app, what, name, obj, skip, options):
     return None
 
 
+def _generate_model_catalogue(app):
+    """Writes the tables of the model catalogue (models.rst) from the model registries"""
+    from pathlib import Path
+
+    import model_catalogue
+
+    model_catalogue.generate(Path(app.srcdir) / "_generated")
+
+
 def setup(app):
     app.connect("autodoc-skip-member", _skip_equinox_enumeration_members)
+    app.connect("builder-inited", _generate_model_catalogue)
