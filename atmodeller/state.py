@@ -129,8 +129,8 @@ class BaseThermodynamicState(eqx.Module):
         ...
 
     @abstractmethod
-    def update(self, *args, **kwargs) -> Self:
-        """Updates the state."""
+    def update(self, **kwargs) -> Self:
+        """Updates the state from keyword arguments."""
         ...
 
     def get_silicate_solid_mass(
@@ -252,8 +252,8 @@ class ThermodynamicState(BaseThermodynamicState):
     def from_species(
         cls,
         gas_species: Iterable[ChemicalSpecies],
-        pressure: ArrayLike,
         *,
+        pressure: ArrayLike,
         mass: ArrayLike = 1.0,
         melt_fraction: ArrayLike = 1.0,
         temperature: ArrayLike = 2000,
@@ -343,7 +343,7 @@ class ThermodynamicState(BaseThermodynamicState):
 
     @override
     def update(
-        self, temperature: Optional[ArrayLike] = None, pressure: Optional[ArrayLike] = None
+        self, *, temperature: Optional[ArrayLike] = None, pressure: Optional[ArrayLike] = None
     ) -> Self:
         """Updates the state.
 
@@ -649,6 +649,7 @@ class BasePlanet(BaseThermodynamicState):
     @override
     def update(
         self,
+        *,
         planet_mass: Optional[ArrayLike] = None,
         core_mass_fraction: Optional[ArrayLike] = None,
         mantle_melt_fraction: Optional[ArrayLike] = None,

@@ -87,7 +87,7 @@ OUTPUT_UNITS: dict[str, str] = {
     "species_number_moles": "mol",
     "species_to_phase_mass_ratio": "kg/kg",
     "stable": "boolean",
-    "steps": "integer",
+    "num_steps": "integer",
     "success": "boolean",
     "successful_attempt": "integer",
     "surface_area": "m^2",
@@ -139,8 +139,10 @@ class Output(eqx.Module):
     def to_dict(
         self,
         output_format: Literal["natural", "named_arrays", "elements_species"] = "named_arrays",
+        *,
         to_numpy: bool = False,
-        **kwargs,
+        expand_to_batch: bool = False,
+        ravel: bool = False,
     ) -> dict[str, Any]:
         """Output as a nested dictionary with JAX or NumPy arrays.
 
@@ -156,23 +158,31 @@ class Output(eqx.Module):
             to_numpy: Whether to convert JAX arrays to NumPy arrays. Defaults to ``False``.
                 Must be ``False`` if used within a jitted context, as NumPy arrays are not
                 compatible with JAX transformations (jit, vmap, etc.).
-            **kwargs: Arbitrary keyword arguments for the output dictionary
+            expand_to_batch: Whether to broadcast every array to the batch size. Defaults to
+                ``False``.
+            ravel: Whether to ravel arrays to 1-D after expanding. Not available for the
+                ``natural`` format. Defaults to ``False``.
 
         Returns:
             Dictionary of the solution with JAX or NumPy arrays in the specified format
+
+        Raises:
+            ValueError: If ``ravel`` is used with the ``natural`` format, or the format is invalid
         """
         if output_format == "natural":
+            if ravel:
+                raise ValueError("ravel is not available for the natural output format")
             return OutputNaturalDict(
                 self.parameters, self.checked_solution, self.initial_guess, self.residual
-            ).to_dict(to_numpy=to_numpy, **kwargs)
+            ).to_dict(to_numpy=to_numpy, expand_to_batch=expand_to_batch)
         elif output_format == "named_arrays":
             return OutputNamedArraysDict(
                 self.parameters, self.checked_solution, self.initial_guess, self.residual
-            ).to_dict(to_numpy=to_numpy, **kwargs)
+            ).to_dict(to_numpy=to_numpy, expand_to_batch=expand_to_batch, ravel=ravel)
         elif output_format == "elements_species":
             return OutputElementsSpeciesDict(
                 self.parameters, self.checked_solution, self.initial_guess, self.residual
-            ).to_dict(to_numpy=to_numpy, **kwargs)
+            ).to_dict(to_numpy=to_numpy, expand_to_batch=expand_to_batch, ravel=ravel)
         else:
             raise ValueError(f"Invalid output format: {output_format}")
 

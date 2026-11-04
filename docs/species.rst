@@ -77,7 +77,7 @@ The same names are used for constraints and in the output, so ``"O2S_g"`` (not `
 Selecting species
 -----------------
 
-Species with thermodynamic data are created from the default database, ``DataBase.default()``, unless another is given with ``database=`` (see :ref:`Add thermodynamic data <CommonTasksThermodynamicData>`).
+Species with thermodynamic data are created from the default database, ``Database.default()``, unless another is given with ``database=`` (see :ref:`Add thermodynamic data <CommonTasksThermodynamicData>`).
 
 - **Gases**: ``ChemicalSpecies.create_gas("H2O")``. The activity defaults to an ideal gas, and can be a real gas equation of state.
 - **One condensed end-member**: ``ChemicalSpecies.from_end_member(end_member, formula=...)``. A mineral fixes its formula, e.g. ``from_end_member("cristobalite-beta")``, whereas ``liquid`` is an end-member of many formulas, so the formula is given, e.g. ``from_end_member("liquid", formula="SiO2")``. The species can be an end-member of a solution, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
@@ -90,7 +90,7 @@ Species with thermodynamic data are created from the default database, ``DataBas
 
 - **Dissolved species**: ``ReservoirSpecies.create_dissolved("H2O", solubility=...)``, which is ``H2O_d``. Its amount follows from a solubility law and the fugacity of its gas, not from thermodynamic data, so it is not created from a database.
 
-To see what can be selected, with ``db = DataBase.default()``, ``db.stitchable_end_members("SiO2")`` gives the condensed end-members of a formula that can be stitched together, in order of temperature, and ``db.end_members(("C", "H", "O"))`` lists the end-members of every formula made of the given elements.
+To see what can be selected, with ``db = Database.default()``, ``db.stitchable_end_members("SiO2")`` gives the condensed end-members of a formula that can be stitched together, in order of temperature, and ``db.end_members(("C", "H", "O"))`` lists the end-members of every formula made of the given elements.
 
 Placing species in phases
 -------------------------

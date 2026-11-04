@@ -21,7 +21,7 @@ from scipy.optimize import brentq
 from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
 from atmodeller.reactions import ReactionNetwork
-from atmodeller.database import DataBase
+from atmodeller.database import Database
 from atmodeller.phases import CondensedPhase, PurePhase
 from atmodeller.sci_utils import GAS_CONSTANT
 from atmodeller.thermodata import (
@@ -146,7 +146,7 @@ def test_end_members_and_stitching() -> None:
     # A single end-member is returned as it is, so graphite keeps its volume
     graphite_volume = cast(
         NasaGlennThermodynamicProperties,
-        DataBase.default().get_end_member("C", "graphite"),
+        Database.default().get_end_member("C", "graphite"),
     )
     assert stitch({"graphite": graphite_volume}) is graphite_volume
 

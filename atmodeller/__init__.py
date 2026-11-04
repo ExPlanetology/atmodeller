@@ -33,9 +33,10 @@ jnp.set_printoptions(precision=15)  # For better clarity in printed output
 # jax.config.update("jax_log_compiles", True)
 
 # This prevents error_if from throwing an error when encountering nan or inf values. To actually
-# find the root cause of nan or inf values, you should set this to "raise" or "breakpoint" as per
-# https://docs.kidger.site/equinox/api/errors/
-os.environ["EQX_ON_ERROR"] = "off"
+# find the root cause of nan or inf values, set EQX_ON_ERROR to "raise" or "breakpoint" before
+# importing atmodeller, as per https://docs.kidger.site/equinox/api/errors/. A value that is already
+# set is kept.
+os.environ.setdefault("EQX_ON_ERROR", "off")
 
 # Suppress warnings (notably from Equinox about static JAX arrays)
 # if not sys.warnoptions:
@@ -123,7 +124,7 @@ from atmodeller.containers import (  # noqa: E402, F401
     SolverParameters,
 )
 from atmodeller.database import (  # noqa: E402, F401
-    DataBase,
+    Database,
 )
 from atmodeller.interfaces import species_name  # noqa: E402, F401
 from atmodeller.output import Output  # noqa: E402, F401
@@ -134,20 +135,48 @@ from atmodeller.sci_utils import (  # noqa: E402, F401
     earth,
     unit_conversion,
 )
+from atmodeller.eos import get_eos_models  # noqa: E402, F401
 from atmodeller.solubility import get_solubility_models  # noqa: E402, F401
 from atmodeller.solver_utils import RESULTS  # noqa: E402, F401
-from atmodeller.solvers import (  # noqa: E402, F401
-    make_solver,
-    make_solver_with_jit,  # Alias for the default solver
-    make_solver_with_jit_batch_only,
-    make_solver_with_jit_dual_path,
-    make_solver_with_jit_single_path,
-)
 from atmodeller.state import (  # noqa: E402, F401
     Planet,
     PressureScalingLawPlanet,
     ThermodynamicState,
     ThinAtmospherePlanet,
 )
-from atmodeller.thermodata._redox_buffers import IronWustiteBuffer  # noqa: E402, F401
-from atmodeller.thermodata.core import ActivityCoefficient  # noqa: E402, F401
+from atmodeller.thermodata import (  # noqa: E402, F401
+    ActivityCoefficient,
+    IronWustiteBuffer,
+    RedoxBuffer,
+)
+
+__all__ = [
+    "ActivityCoefficient",
+    "ChemicalSpecies",
+    "CondensedPhase",
+    "Database",
+    "EquilibriumModel",
+    "FixedActivityConstraint",
+    "GasPhase",
+    "IronWustiteBuffer",
+    "Output",
+    "Parameters",
+    "Planet",
+    "PressureScalingLawPlanet",
+    "PurePhase",
+    "RESULTS",
+    "RedoxBuffer",
+    "ReservoirSpecies",
+    "SolverParameters",
+    "ThermodynamicState",
+    "ThinAtmospherePlanet",
+    "__version__",
+    "bulk_silicate_earth_abundances",
+    "debug_file_logger",
+    "debug_logger",
+    "earth",
+    "get_eos_models",
+    "get_solubility_models",
+    "species_name",
+    "unit_conversion",
+]

@@ -225,5 +225,5 @@ species while reproducing the Gibbs energy of diamond relative to graphite of
 :cite:t:`Gustafson1986` exactly.
 
 For equilibrium between diamond and graphite at high pressure, use graphite with
-:data:`GRAPHITE_VOLUME_GUSTAFSON`, as in :meth:`~atmodeller.database.DataBase.default`. This
+:data:`GRAPHITE_VOLUME_GUSTAFSON`, as in :meth:`~atmodeller.database.Database.default`. This
 reproduces the graphite-diamond transition of :cite:t:`Gustafson1986`."""

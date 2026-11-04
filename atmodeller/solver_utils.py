@@ -126,9 +126,8 @@ class RESULTS(eqx.Enumeration):
         "exceeds the tolerance, and every attempt failed."
     )
     invalid_model = (
-        "The model is not well posed, so it can never be solved and was not retried: its "
-        "constraints do not match its unknowns, an element of a condensate imposed stable has a "
-        "mass constraint, or species are dissolved in a melt of zero mass."
+        "The model is not well posed, so it can never be solved and was not retried. The model's "
+        "own validity check gives the reason."
     )
 
 
@@ -211,7 +210,7 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
         """Converts pertinent solution statistics to a dictionary"""
         return {
             "solver_success": self.solver_success,
-            "steps": self.num_steps,
+            "num_steps": self.num_steps,
             "successful_attempt": self.successful_attempt,
             "success": self.success,
             "result": jnp.broadcast_to(self.result._value, self.batch_shape),  # pyright: ignore
@@ -353,6 +352,7 @@ def perturb_around_converged(
     array: Float[Array, "batch dim"],
     attempt: Integer[Array, " batch"],
     key: PRNGKeyArray,
+    *,
     lower: ArrayLike,
     upper: ArrayLike,
 ) -> Float[Array, "batch dim"]:  # pragma: no cover
@@ -414,7 +414,7 @@ def perturb_around_converged(
 
 
 def implicit_polish(
-    solver_function: Callable,
+    solver_fn: Callable,
     solution: Float[Array, "... solution"],
     success: Bool[Array, "..."],
     parameters: PyTree,
@@ -429,7 +429,7 @@ def implicit_polish(
     such as a :func:`jax.lax.while_loop`, provided they run on inputs with stopped gradients.
 
     Args:
-        solver_function: Callable that performs a single (batched) solve. Must accept an initial
+        solver_fn: Callable that performs a single (batched) solve. Must accept an initial
             guess and a pytree of parameters, and return a :class:`CheckedSolution`.
         solution: Converged solution, which must not carry gradients
         success: Boolean mask of the batch entries that converged. Other entries are returned
@@ -439,13 +439,13 @@ def implicit_polish(
     Returns:
         Solution with derivatives with respect to ``parameters``
     """
-    polished: CheckedSolution = solver_function(solution, parameters)
+    polished: CheckedSolution = solver_fn(solution, parameters)
 
     return cast(Array, jnp.where(success[..., None], polished.value, solution))
 
 
 def make_batch_retry_solver(
-    solver_function: Callable,
+    solver_fn: Callable,
     perturb_fn: Callable[
         [Float[Array, "... solution"], Integer[Array, "..."], PRNGKeyArray, PyTree],
         Float[Array, "... solution"],
@@ -460,16 +460,16 @@ def make_batch_retry_solver(
     how it should be perturbed. See :func:`perturb_around_converged` for a ready-made perturbation
     strategy that can be composed into ``perturb_fn``.
 
-    Each attempt is checked by ``solver_function``, for example a batch of
+    Each attempt is checked by ``solver_fn``, for example a batch of
     :func:`~atmodeller.solver_utils.checked_root_find`, so no objective function is needed here.
     A model that is not solved keeps its best attempt, the one with the smallest ``residual``.
 
-    ``solver_function`` and ``perturb_fn`` must be pure JAX-callable functions compatible with
+    ``solver_fn`` and ``perturb_fn`` must be pure JAX-callable functions compatible with
     :func:`equinox.filter_jit`. They must not close over non-JAX state or produce Python side
     effects.
 
     Args:
-        solver_function: Callable that performs a single (batched) solve. Must accept an initial
+        solver_fn: Callable that performs a single (batched) solve. Must accept an initial
             guess and a pytree of parameters, and return a checked :class:`CheckedSolution` with
             ``residual`` in its ``stats``.
         perturb_fn: Callable ``(solution, attempt, key, parameters) -> perturbed`` returning a
@@ -531,7 +531,7 @@ def make_batch_retry_solver(
                 Value, Optimistix result value, :class:`RESULTS` value, success, number of solver
                 steps and residual for each model
             """
-            sol: CheckedSolution = solver_function(guess, search_parameters)
+            sol: CheckedSolution = solver_fn(guess, search_parameters)
             value: Float[Array, "... solution"] = sol.value
             batch_shape: tuple[int, ...] = value.shape[:-1]
 
@@ -659,7 +659,7 @@ def make_batch_retry_solver(
 
         if implicit_gradient:
             final_solution = implicit_polish(
-                solver_function, final_solution, final_attempt > 0, parameters
+                solver_fn, final_solution, final_attempt > 0, parameters
             )
 
         # The Optimistix solution of the attempt kept for each model. It does not keep the

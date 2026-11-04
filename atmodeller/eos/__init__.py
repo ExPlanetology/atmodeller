@@ -31,3 +31,11 @@ from atmodeller.eos._zhang_duan_base import (  # noqa: E402, F401
 )
 from atmodeller.eos.core import IdealGas, RealGas  # noqa: E402, F401
 from atmodeller.eos.library import get_eos_models  # noqa: E402, F401
+
+__all__ = [
+    "CombinedRealGas",
+    "IdealGas",
+    "RealGas",
+    "ZhangDuanMixture",
+    "get_eos_models",
+]

@@ -301,13 +301,21 @@ class ActivityConstraintSet(eqx.Module):
             An instance with updated activity/fugacity constraints
 
         Raises:
-            ValueError: If a key is not the name of a species in the system
+            ValueError: If a key is not the name of a species in the system, or a constraint
+                changes type
         """
         _validate_activity_constraint_keys(new_constraints, self.species.species_names)
         constraints_dict: dict[str, ActivityConstraintProtocol] = dict(self.constraints_dict)
 
         for species_name, new_value in new_constraints.items():
             original_value: ActivityConstraintProtocol = constraints_dict[species_name]
+            if type(new_value) is not type(original_value):
+                raise ValueError(
+                    f"The constraint on {species_name} cannot change type, from "
+                    f"{type(original_value).__name__} to {type(new_value).__name__}, because an "
+                    "update keeps the structure of the model. Build a new model with the new "
+                    "constraint instead."
+                )
 
             original_dynamic, _ = eqx.partition(original_value, eqx.is_array)
             new_dynamic, new_static = eqx.partition(new_value, eqx.is_array)
@@ -563,6 +571,7 @@ class Parameters(eqx.Module):
     def __init__(
         self,
         state: BaseThermodynamicState,
+        *,
         activity_constraints: Optional[Mapping[str, ActivityConstraintProtocol]] = None,
         mass_constraints: Optional[Mapping[str, ArrayLike]] = None,
         mass_units: Literal["mass", "moles"] = "mass",
@@ -651,20 +660,20 @@ class Parameters(eqx.Module):
 
         return cast(Self, parameters_updated)
 
-    def update_state(self, *args, **kwargs) -> Self:
+    def update_state(self, **kwargs) -> Self:
         """Updates the thermodynamic state of the parameters.
 
         New values are assumed to be broadcastable to the shapes of the existing fields. Keeping
         leaf shapes stable helps avoid unnecessary JAX recompilation.
 
         Args:
-            *args: Positional arguments to pass to the ``update`` method of the thermodynamic state
-            **kwargs: Keyword arguments to pass to the ``update`` method of the thermodynamic state
+            **kwargs: Keyword arguments to pass to the ``update`` method of the thermodynamic
+                state, e.g. ``temperature`` and ``pressure``
 
         Returns:
             Updated parameters
         """
-        state_updated: BaseThermodynamicState = self.state.update(*args, **kwargs)
+        state_updated: BaseThermodynamicState = self.state.update(**kwargs)
         parameters_updated = eqx.tree_at(lambda p: p.state, self, state_updated)
 
         return cast(Self, parameters_updated)

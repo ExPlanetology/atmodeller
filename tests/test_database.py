@@ -13,7 +13,7 @@ import equinox as eqx
 import pytest
 
 from atmodeller.containers import ChemicalSpecies
-from atmodeller.database import DataBase
+from atmodeller.database import Database
 from atmodeller.interfaces import species_name
 from atmodeller.phases import PurePhase
 from atmodeller.thermodata.core import DATA_DIRECTORY
@@ -23,7 +23,7 @@ from atmodeller.thermodata.glenn import THERMODYNAMIC_DATA_SOURCE, glenn_propert
 
 def test_default_database() -> None:
     """The default database gives the same species as creating them without a database"""
-    db: DataBase = DataBase.default()
+    db: Database = Database.default()
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("H2O", database=db), ChemicalSpecies.create_gas("H2O")
@@ -42,11 +42,11 @@ def test_from_file(tmp_path: Path) -> None:
         lines: list[str] = Path(path).read_text().splitlines(keepends=True)
     glenn_file: Path = tmp_path / "glenn.txt"
     glenn_file.write_text("".join(line for line in lines if not line.startswith("gas,H2O,")))
-    db: DataBase = DataBase.from_glenn_file(glenn_file)
+    db: Database = Database.from_glenn_file(glenn_file)
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("CO2", database=db),
-        ChemicalSpecies.create_gas("CO2", database=DataBase(glenn_properties)),
+        ChemicalSpecies.create_gas("CO2", database=Database(glenn_properties)),
     )
     with pytest.raises(KeyError, match="gas is not an end-member of H2O"):
         ChemicalSpecies.create_gas("H2O", database=db)
@@ -54,20 +54,20 @@ def test_from_file(tmp_path: Path) -> None:
     bad_file: Path = tmp_path / "bad.txt"
     bad_file.write_text("end_member,hill_formula,T_min,T_max\n")
     with pytest.raises(ValueError, match="is missing the columns"):
-        DataBase.from_glenn_file(bad_file)
+        Database.from_glenn_file(bad_file)
 
 
 def test_set_end_member() -> None:
     """End-members are added or replaced in this database only, and a replaced
     end-member that the database was created with can still be stitched"""
-    db: DataBase = DataBase(glenn_properties)
+    db: Database = Database(glenn_properties)
     db.set_end_member("SiO2", "test", diamond_gustafson)
     graphite = db.get_end_member("C", "graphite").with_volume(GRAPHITE_VOLUME_GUSTAFSON)
     db.set_end_member("C", "graphite", graphite)
 
     assert ChemicalSpecies.from_end_member("test", database=db).name == "O2Si_test"
     assert "test" not in db.stitchable_end_members("SiO2")
-    assert "test" not in DataBase(glenn_properties).end_members()["O2Si"]
+    assert "test" not in Database(glenn_properties).end_members()["O2Si"]
     assert db.stitchable_end_members("C") == ("graphite",)
     assert eqx.tree_equal(db.stitch("C", ("graphite",)), graphite)
     with pytest.raises(ValueError, match="already given for O2Si"):
@@ -76,7 +76,7 @@ def test_set_end_member() -> None:
 
 def test_custom_database() -> None:
     """A custom database only needs its data"""
-    db: DataBase = DataBase({"H2O": {"gas": glenn_properties["H2O"]["gas"]}})
+    db: Database = Database({"H2O": {"gas": glenn_properties["H2O"]["gas"]}})
 
     assert eqx.tree_equal(
         ChemicalSpecies.create_gas("H2O", database=db), ChemicalSpecies.create_gas("H2O")
@@ -91,7 +91,7 @@ def test_end_members() -> None:
     sio2_s = cast(ChemicalSpecies, PurePhase.from_formula("SiO2", liquid=False).species[0])
     carbon = cast(ChemicalSpecies, PurePhase.from_formula("C").species[0])
 
-    db: DataBase = DataBase.default()
+    db: Database = Database.default()
     assert db.stitchable_end_members("SiO2") == (
         "quartz-alpha",
         "quartz-beta",
@@ -114,7 +114,7 @@ def test_end_members() -> None:
     assert carbon.standard_gibbs_over_RT(1000.0, 1.0e4) == pytest.approx(
         ChemicalSpecies.from_end_member("graphite").standard_gibbs_over_RT(1000.0, 1.0e4)
     )
-    glenn: DataBase = DataBase(glenn_properties)
+    glenn: Database = Database(glenn_properties)
     no_volume = cast(ChemicalSpecies, PurePhase.from_formula("C", database=glenn).species[0])
     assert carbon.standard_gibbs_over_RT(1000.0, 1.0e4) != pytest.approx(
         no_volume.standard_gibbs_over_RT(1000.0, 1.0e4)

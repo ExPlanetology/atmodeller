@@ -405,7 +405,7 @@ output can be used inside JIT, and their names (e.g. ``objective_check_failed``)
      - Whether the solver terminated successfully according to its internal criteria. For a model
        that was not solved, this is the status of its best attempt, the one with the smallest
        residual, so it can be true even if ``success`` is false
-   * - steps
+   * - num_steps
      - integer
      - Number of iterations taken during the successful attempt. Zero if the model was not solved
    * - successful_attempt

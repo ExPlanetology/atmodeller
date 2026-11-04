@@ -74,7 +74,7 @@ from atmodeller.constants import (
     EXTRAPOLATION_OFF,
     Extrapolation,
 )
-from atmodeller.database import DataBase
+from atmodeller.database import Database
 from atmodeller.interfaces import (
     ActivityProtocol,
     RedoxBufferProtocol,
@@ -986,7 +986,7 @@ class PurePhase(CondensedPhase):
         formula: str,
         *,
         liquid: bool = True,
-        database: DataBase | None = None,
+        database: Database | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
@@ -996,9 +996,9 @@ class PurePhase(CondensedPhase):
         """Creates a pure phase from all the condensed end-members of a formula
 
         The condensed end-members that can be stitched together
-        (:meth:`~atmodeller.database.DataBase.stitchable_end_members`), e.g. quartz to
+        (:meth:`~atmodeller.database.Database.stitchable_end_members`), e.g. quartz to
         cristobalite to liquid for ``SiO2``, are stitched together in order of temperature
-        (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
+        (:meth:`~atmodeller.database.Database.stitch`), and the species is named with
         :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``. Without the liquid,
         only the solids are stitched together, e.g. quartz to cristobalite for ``SiO2``, and the
         species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``. See
@@ -1046,7 +1046,7 @@ class PurePhase(CondensedPhase):
         *,
         suffix: str,
         formula: str | None = None,
-        database: DataBase | None = None,
+        database: Database | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
@@ -1057,7 +1057,7 @@ class PurePhase(CondensedPhase):
 
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` gives
         ``O2Si_quartz``. The end-members must be of one chemical formula, and are stitched together
-        in order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). See
+        in order of temperature (:meth:`~atmodeller.database.Database.stitch`). See
         :meth:`~atmodeller.containers.ChemicalSpecies.from_end_members`.
 
         Args:
@@ -1105,7 +1105,7 @@ class PurePhase(CondensedPhase):
         end_member: str,
         *,
         formula: str | None = None,
-        database: DataBase | None = None,
+        database: Database | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,

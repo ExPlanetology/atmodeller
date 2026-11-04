@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from jaxtyping import ArrayLike
 
-from atmodeller import debug_logger
+from atmodeller import IronWustiteBuffer, debug_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.engine import is_valid_model
@@ -224,6 +224,10 @@ def test_impose_stable() -> None:
     # test_water_one_component checks through a solve)
     assert bool(is_valid_model(with_carbon(np.nan).parameters))
     assert not bool(is_valid_model(with_carbon(0.1).parameters))
+
+    # An update keeps the structure of the model, so a constraint cannot change type
+    with pytest.raises(ValueError, match="cannot change type"):
+        model.update_constraints(activity_constraints={"H2_g": IronWustiteBuffer()})
 
 
 def test_graphite_diamond() -> None:
