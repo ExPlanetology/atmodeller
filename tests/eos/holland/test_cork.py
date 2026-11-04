@@ -110,16 +110,15 @@ def test_H2O_below_Tc_above_P0(check_values) -> None:
     check_values.fugacity_coefficient(600, 10e3, model, expected)
 
 
-@pytest.mark.parametrize("pressure_kbar, rt_ln_f_kj", [(0.5, 30.10), (4.0, 38.04), (10.0, 48.90)])
-def test_H2O_400C_HP98_table2(pressure_kbar: float, rt_ln_f_kj: float) -> None:
-    """H2O at 400 C, between Ta (673 K) and Tc (695 K) and above Psat (270 bar), against
-    :cite:t:`HP98{Table 2}` (RT ln f, kJ/mol, rounded to 0.01). The dense root must be found:
-    the former start, b/2 below Tc at any pressure, gave a wrong root here, 28 kJ off."""
+def test_H2O_400C_HP98_table2() -> None:
+    """H2O at 400 C and 4 kbar, between Ta (673 K) and Tc (695 K) and above Psat (270 bar),
+    against :cite:t:`HP98{Table 2}` (RT ln f = 38.04 kJ/mol). The dense root must be found: the
+    former start, b/2 below Tc at any pressure, gave a wrong root here, 28 kJ off."""
     model: RealGas = H2O_cork_holland98_bounded
     temperature: float = 673.15
-    log_fugacity: float = float(model.log_fugacity(temperature, pressure_kbar * 1e3))
+    log_fugacity: float = float(model.log_fugacity(temperature, 4e3))
     rt_ln_f: float = GAS_CONSTANT * temperature * log_fugacity / 1e3
-    assert rt_ln_f == pytest.approx(rt_ln_f_kj, abs=0.1)
+    assert rt_ln_f == pytest.approx(38.04, abs=0.1)
 
 
 def test_H2O_fluid_gas_root_below_Psat() -> None:

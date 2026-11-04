@@ -19,6 +19,7 @@ from jaxtyping import ArrayLike
 from atmodeller import debug_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies
+from atmodeller.engine import is_valid_model
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.phases import PurePhase
@@ -219,13 +220,10 @@ def test_impose_stable() -> None:
     with pytest.raises(ValueError, match="elements of the condensates imposed stable"):
         with_carbon(0.1).solve_with_default()
 
-    # Inside JIT the constraints are traced, so the check is skipped, and the model fails instead
-    @eqx.filter_jit
-    def solve(c_moles: ArrayLike) -> Output:
-        return with_carbon(c_moles).solve_with_default()
-
-    for c_moles, result in ((np.nan, "successful"), (0.1, "invalid_model")):
-        assert solve(c_moles).to_dict(to_numpy=True)["solver"]["result"].item() == result
+    # Inside JIT, where this is not checked, such a model is not well posed (invalid_model, which
+    # test_water_one_component checks through a solve)
+    assert bool(is_valid_model(with_carbon(np.nan).parameters))
+    assert not bool(is_valid_model(with_carbon(0.1).parameters))
 
 
 def test_graphite_diamond() -> None:

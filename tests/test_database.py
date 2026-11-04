@@ -134,8 +134,8 @@ def test_end_members() -> None:
 
     with pytest.raises(KeyError, match="Fe has no solid end-members"):
         PurePhase.from_formula("Fe", liquid=False)
-    with pytest.raises(ValueError, match="hematite .* overlaps liquid"):
-        PurePhase.from_formula("Fe2O3")
+    # Hematite ends at its melting point, where the liquid begins, so the two stitch together
+    assert PurePhase.from_formula("Fe2O3").name == "Fe2O3_cd"
     with pytest.raises(ValueError, match="give the formula"):
         PurePhase.from_end_member("liquid")
     with pytest.raises(ValueError, match="not a condensed end-member"):
