@@ -26,7 +26,7 @@ Typical usage:
 
 import logging
 from collections.abc import Callable, Mapping
-from typing import Literal, Self, cast
+from typing import Any, Literal, Self, cast
 
 import equinox as eqx
 import jax
@@ -34,6 +34,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
+from atmodeller.constants import SILICATE_MELT_PHASE_INDEX
 from atmodeller.containers import SolverParameters, SpeciesCollection, get_formula_matrix
 from atmodeller.initializer import ElementPotentialInitializer, InitializerProtocol
 from atmodeller.interfaces import ActivityConstraintProtocol
@@ -131,6 +132,7 @@ class EquilibriumModel(eqx.Module):
             An :class:`~atmodeller.output.Output` instance
         """
         self._check_constraints()
+        self._check_melt()
         self._log_initial_guess(base_solution_array)
 
         return self.solver(self.parameters, self.key, base_solution_array)
@@ -221,6 +223,45 @@ class EquilibriumModel(eqx.Module):
                     "independent, since some of these elements occur in fixed ratios in every "
                     "species. Constrain only one element of each fixed ratio."
                 )
+
+    def _check_melt(self) -> None:
+        """Checks that each model with species dissolved in the silicate melt has melt
+
+        A melt of zero mass, e.g. with ``mantle_melt_fraction=0``, cannot dissolve anything: the
+        dissolved amounts would have to be exactly zero, which the solver cannot reach, so such a
+        model cannot be solved. A tiny melt mass is not a substitute, since the solubility laws
+        then put unphysical amounts into it. Nothing is checked if the melt mass is traced (inside
+        JIT), when such a model fails instead.
+
+        Raises:
+            ValueError: If a model has species dissolved in the silicate melt but no melt
+        """
+        phases: tuple = self.parameters.reaction_system.phase_system.phases
+        if len(phases) <= SILICATE_MELT_PHASE_INDEX:
+            return
+        melt: Any = phases[SILICATE_MELT_PHASE_INDEX]
+        if melt.is_empty:
+            return
+
+        try:
+            melt_mass: np.ndarray = np.ravel(np.asarray(melt.background_mass, dtype=float))
+        except jax.errors.TracerArrayConversionError:
+            return
+
+        no_melt: np.ndarray = np.flatnonzero(~(melt_mass > 0))
+        if no_melt.size:
+            models: str = (
+                "Every model has"
+                if melt_mass.size == 1
+                else f"Models {no_melt[:10].tolist()} have"
+            )
+            raise ValueError(
+                f"{models} species dissolved in the silicate melt {melt.species_names} but "
+                "no melt (a melt mass of 0, e.g. mantle_melt_fraction=0). Nothing can dissolve "
+                "without melt, and a tiny melt fraction is not a substitute, since the solubility "
+                "laws then put unphysical amounts into the melt. For stages without melt, use a "
+                "model without silicate_melt_species."
+            )
 
     def _log_initial_guess(self, base_solution_array: ArrayLike) -> None:
         """Logs how many models start from the initializer's cold guess and how many from the

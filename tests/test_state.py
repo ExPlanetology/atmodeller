@@ -7,9 +7,10 @@
 
 import logging
 
+import numpy as np
 import pytest
 
-from atmodeller import debug_logger
+from atmodeller import EquilibriumModel, Planet, debug_logger
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.phases import PurePhase
 from atmodeller.solubility import get_solubility_models
@@ -72,7 +73,8 @@ def test_base_planet_update() -> None:
 
 
 def test_dissolved_species_raise() -> None:
-    """A dissolved species raises without its gas species, or outside the silicate melt"""
+    """A dissolved species raises without its gas species, outside the silicate melt, or when a
+    model has no melt to dissolve in"""
     H2O_d: ReservoirSpecies = ReservoirSpecies.create_dissolved(
         "H2O", solubility=get_solubility_models()["H2O_basalt_dixon95"]
     )
@@ -84,6 +86,17 @@ def test_dissolved_species_raise() -> None:
         ValueError, match=r"metal phase cannot have dissolved species.*H2O_d \(dissolved\)"
     ):
         BasePlanet.from_species((H2O_g,), metal_species=(H2O_d,))
+
+    # The second model has no melt, which is checked before solving
+    planet: Planet = Planet.from_species(
+        (H2O_g, H2_g), silicate_melt_species=(H2O_d,), mantle_melt_fraction=np.array([1.0, 0.0])
+    )
+    model: EquilibriumModel = EquilibriumModel.from_state(
+        planet,
+        mass_constraints={"H": 1.0e20, "O": 1.0e21},
+    )
+    with pytest.raises(ValueError, match=r"Models \[1\] have species dissolved .* but no melt"):
+        model.solve_with_default()
 
 
 def test_duplicate_names_raise() -> None:

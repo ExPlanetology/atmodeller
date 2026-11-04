@@ -98,7 +98,7 @@ Placing species in phases
 ``ThermodynamicState.from_species`` and ``Planet.from_species`` take the species of each phase:
 
 - ``gas_species``: gases only, from ``ChemicalSpecies.create_gas``;
-- ``silicate_melt_species``: condensed species, from ``ChemicalSpecies.from_end_member`` or, for a pseudo end-member, ``from_formula`` and ``from_end_members``, and dissolved species, since the silicate melt is the solvent of the solubility laws;
+- ``silicate_melt_species``: condensed species, from ``ChemicalSpecies.from_end_member`` or, for a pseudo end-member, ``from_formula`` and ``from_end_members``, and dissolved species, since the silicate melt is the solvent of the solubility laws. The melt must then have mass, e.g. ``mantle_melt_fraction`` greater than 0, since nothing can dissolve without melt; for stages without melt, such as a solid planet, use a model without ``silicate_melt_species``;
 - ``silicate_solid_species`` and ``metal_species``: condensed species only, with an activity model if needed;
 - ``condensates``: pure phases, from the methods of ``PurePhase``.
 
