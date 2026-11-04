@@ -321,6 +321,10 @@ def test_to_dataframes(cho_output: Output) -> None:
     """Dataframes in both formats, and dropping unsuccessful solves"""
     dataframes: dict[str, pd.DataFrame] = cho_output.to_dataframes()
     assert all(isinstance(df, pd.DataFrame) for df in dataframes.values())
+    assert all(df.index.name == "model" for df in dataframes.values())
+    # Gas species have no stability, so there are no stability columns
+    for sheet in ("solution", "initial_guess"):
+        assert not any("stability" in column for column in dataframes[sheet].columns)
     assert any(col.startswith("species.partial_pressure") for col in dataframes["gas"].columns)
 
     assert isinstance(
@@ -355,6 +359,12 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
     assert np.all(np.asarray(output.checked_solution.solver_success))
     assert "residual" in RESULTS[output.checked_solution.result]  # pyright: ignore
 
+    # The exported output names the result codes, which stay integers in the JAX output
+    assert output.to_dict()["solver"]["result"].tolist() == [0, 2]
+    solver_df: pd.DataFrame = output.to_dataframes()["solver"]
+    assert solver_df["result"].tolist() == ["successful", "objective_check_failed"]
+    assert solver_df["optimistix_result"].tolist() == ["successful", "successful"]
+
     for df in output.to_dataframes(drop_unsuccessful_solves=True).values():
         assert df.index.tolist() == [0]
 
@@ -363,7 +373,8 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
         output.to_excel(
             file_prefix=tmp_path / "out", drop_unsuccessful_solves=drop, append_version=False
         )
-        for sheet in load_workbook(tmp_path / "out.xlsx").worksheets:
+        # The info sheet describes the run, so it has no rows of models
+        for sheet in load_workbook(tmp_path / "out.xlsx").worksheets[1:]:
             highlighted_rows: list[int] = [
                 number
                 for number, row in enumerate(sheet.iter_rows(), start=1)
@@ -399,6 +410,13 @@ def test_exports(
     """File names with and without the version, an existing extension, and a relative prefix"""
     export(cho_output, file_prefix=tmp_path / "out")
     assert "gas" in read_back(tmp_path / f"out_v{__version__}.{extension}")
+    if extension == "xlsx":
+        workbook = load_workbook(tmp_path / f"out_v{__version__}.xlsx")
+        assert workbook.sheetnames[0] == "info"
+        assert workbook["gas"].freeze_panes == "B2"
+        info: pd.DataFrame = cho_output.info()
+        assert set(info["section"]) == {"run", "solver", "reactions", "units", "species"}
+        assert info.loc[info["name"] == "max_starts", "value"].item() == 10
 
     export(cho_output, file_prefix=tmp_path / "no_version", append_version=False)
     assert (tmp_path / f"no_version.{extension}").exists()
@@ -432,6 +450,8 @@ def test_metallicity(
         assert np.isclose(gas["metals_to_hydrogen"], metals_to_hydrogen)
         assert np.isclose(gas["metals_to_hydrogen_by_mass"], (m["C"] + m["O"]) / m["H"])
         assert np.isclose(gas["M_H"], np.log10(metals_to_hydrogen / solar_metals_to_hydrogen))
+        assert np.isclose(gas["C_to_O"], n["C"] / n["O"])
+        assert np.isclose(gas["C_to_H"], n["C"] / n["H"])
 
         # Only H, so no metals and [M/H] is undefined
         gas = _gas_phase(h_only_dicts[fmt])
