@@ -28,7 +28,7 @@ import pytest
 from equinox._enum import EnumerationItem
 from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.containers import ChemicalSpecies, SolverParameters
 from atmodeller.interfaces import ActivityConstraintProtocol
 from atmodeller.solver_utils import (
@@ -50,7 +50,7 @@ from atmodeller.solvers import (
 from atmodeller.state import BaseThermodynamicState, Planet
 from atmodeller.thermodata import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.WARNING)
 
 # Gas species shared by all parameter sets below (mirrors tests/test_condensates.py)

@@ -13,12 +13,12 @@ import numpy.testing as nptest
 import pytest
 from jaxtyping import Array, ArrayLike
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.eos import RealGas, get_eos_models
 from atmodeller.eos.core import RealGasBase
 from atmodeller.jax_utils import as_j64
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 # logger.setLevel(logging.INFO)
 
 # Tolerances to compare the test results with target output.

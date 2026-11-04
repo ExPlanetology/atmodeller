@@ -217,7 +217,7 @@ class Output(eqx.Module):
         """Quick look at the output.
 
         The output is logged at the ``INFO`` level of ``logger_``, so it is shown only if logging
-        is set up, e.g. with :func:`atmodeller.debug_logger`. It is also returned, so in a
+        is set up, e.g. with :func:`atmodeller.console_logger`. It is also returned, so in a
         notebook the returned dictionary is displayed in any case.
 
         .. warning::

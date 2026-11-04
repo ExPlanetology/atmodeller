@@ -76,7 +76,7 @@ def simple_formatter() -> logging.Formatter:
 
 
 _HANDLER_MARKER: str = "_atmodeller_debug_handler"
-"""Attribute that marks the handlers added by :func:`debug_logger` and :func:`debug_file_logger`"""
+"""Attribute that marks the handlers added by :func:`console_logger` and :func:`file_logger`"""
 
 
 def _add_handler(
@@ -113,11 +113,11 @@ def _remove_handlers(package_logger: logging.Logger) -> None:
             handler.close()
 
 
-def debug_logger(level: int = logging.INFO) -> logging.Logger:
+def console_logger(level: int = logging.INFO) -> logging.Logger:
     """Sets up logging to the console.
 
     Calling it again replaces the handlers added by an earlier call to this function or
-    :func:`debug_file_logger`, and keeps any handler that you added yourself. Messages also
+    :func:`file_logger`, and keeps any handler that you added yourself. Messages also
     propagate to the root logger, so if you have configured root logging as well (e.g. with
     :func:`logging.basicConfig`), they are shown twice.
 
@@ -136,12 +136,12 @@ def debug_logger(level: int = logging.INFO) -> logging.Logger:
     return package_logger
 
 
-def debug_file_logger(log_directory: str | Path = "logs") -> logging.Logger:
+def file_logger(log_directory: str | Path = "logs") -> logging.Logger:
     """Sets up info logging to the console and debug logging to a file.
 
     Each call writes to a new file, ``atmodeller_<date>_<time>.log``, in ``log_directory``, which
     is created if needed, so earlier logs are kept. Calling it again replaces the handlers added
-    by an earlier call to this function or :func:`debug_logger`, and keeps any handler that you
+    by an earlier call to this function or :func:`console_logger`, and keeps any handler that you
     added yourself. Messages also propagate to the root logger, so if you have configured root
     logging as well (e.g. with :func:`logging.basicConfig`), they are shown twice.
 
@@ -201,32 +201,32 @@ from atmodeller.thermodata import (  # noqa: E402, F401
 )
 
 __all__ = [
+    "__version__",
     "ActivityCoefficient",
+    "bulk_silicate_earth_abundances",
     "ChemicalSpecies",
     "CondensedPhase",
+    "console_logger",
     "Database",
+    "earth",
     "EquilibriumModel",
+    "file_logger",
     "FixedActivityConstraint",
     "GasPhase",
+    "get_eos_models",
+    "get_solubility_models",
     "IronWustiteBuffer",
     "Output",
     "Parameters",
     "Planet",
     "PressureScalingLawPlanet",
     "PurePhase",
-    "RESULTS",
     "RedoxBuffer",
     "ReservoirSpecies",
+    "RESULTS",
     "SolverParameters",
+    "species_name",
     "ThermodynamicState",
     "ThinAtmospherePlanet",
-    "__version__",
-    "bulk_silicate_earth_abundances",
-    "debug_file_logger",
-    "debug_logger",
-    "earth",
-    "get_eos_models",
-    "get_solubility_models",
-    "species_name",
     "unit_conversion",
 ]

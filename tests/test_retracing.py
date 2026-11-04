@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 from jaxtyping import Array, ArrayLike
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol, SolubilityProtocol, SpeciesProtocol
@@ -32,7 +32,7 @@ from atmodeller.solubility.library import get_solubility_models
 from atmodeller.state import Planet
 from atmodeller.thermodata._redox_buffers import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.DEBUG)
 
 solubility_models: Mapping[str, SolubilityProtocol] = get_solubility_models()

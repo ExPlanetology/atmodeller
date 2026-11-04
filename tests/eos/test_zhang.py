@@ -13,7 +13,7 @@ import numpy as np
 import numpy.testing as nptest
 from scipy.constants import kilo
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.eos import ZhangDuanMixture, get_eos_models
 from atmodeller.eos._zhang_duan import H2O_zhang09
 from atmodeller.eos.core import RealGas
@@ -29,7 +29,7 @@ MODEL_SUFFIX: str = "zhang09"
 
 ZHANG_DUAN_DIRECTORY: Path = Path("zhang_duan_2009")
 
-debug_logger()
+console_logger()
 
 
 def test_H2O_vol_low_TP(check_values) -> None:

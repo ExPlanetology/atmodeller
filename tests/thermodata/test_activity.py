@@ -15,7 +15,7 @@ import pytest
 from jaxtyping import ArrayLike
 from pytest import approx
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.eos.library import get_eos_models
@@ -34,7 +34,7 @@ from atmodeller.state import Planet
 from atmodeller.thermodata._redox_buffers import IronWustiteBuffer
 from atmodeller.thermodata.activity_models import Si_iron_badro15
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.DEBUG)
 
 RTOL: float = 1.0e-6

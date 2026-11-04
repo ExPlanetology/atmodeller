@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from jaxtyping import ArrayLike
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.eos.library import get_eos_models
@@ -31,7 +31,7 @@ from atmodeller.solubility import get_solubility_models
 from atmodeller.state import BaseThermodynamicState, Planet
 from atmodeller.thermodata import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.DEBUG)
 
 RTOL: float = 1.0e-6

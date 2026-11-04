@@ -61,13 +61,13 @@ from atmodeller import (
     Parameters,
     Planet,
     ReservoirSpecies,
-    debug_logger,
+    console_logger,
     earth,
     get_solubility_models,
 )
 
 # Log to the console (use logging.DEBUG for more output)
-logger = debug_logger()
+logger = console_logger()
 logger.setLevel(logging.INFO)
 
 # Get the available solubility models

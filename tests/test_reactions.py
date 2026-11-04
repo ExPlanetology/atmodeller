@@ -9,10 +9,10 @@ import logging
 
 import numpy as np
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.reactions import left_null_space
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.WARNING)
 
 

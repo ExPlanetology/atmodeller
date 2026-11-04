@@ -10,14 +10,14 @@ import logging
 import numpy as np
 import pytest
 
-from atmodeller import EquilibriumModel, Planet, debug_logger
+from atmodeller import EquilibriumModel, Planet, console_logger
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.engine import is_valid_model
 from atmodeller.phases import PurePhase
 from atmodeller.solubility import get_solubility_models
 from atmodeller.state import BasePlanet, PressureScalingLawPlanet, ThermodynamicState
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.WARNING)
 
 H2O_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O")

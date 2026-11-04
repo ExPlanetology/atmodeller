@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from jaxtyping import ArrayLike
 
-from atmodeller import IronWustiteBuffer, debug_logger
+from atmodeller import IronWustiteBuffer, console_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.engine import is_valid_model
@@ -26,7 +26,7 @@ from atmodeller.phases import PurePhase
 from atmodeller.sci_utils import earth
 from atmodeller.state import BaseThermodynamicState, Planet, ThermodynamicState
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.DEBUG)
 
 TOLERANCE: float = 5.0e-2

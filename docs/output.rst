@@ -7,7 +7,7 @@ dataframes (:meth:`~atmodeller.output.Output.to_dataframes`), an Excel file
 (:meth:`~atmodeller.output.Output.to_excel`), or a pickle file
 (:meth:`~atmodeller.output.Output.to_pickle`). For a quick look at the output, use
 :meth:`~atmodeller.output.Output.quick_look`, which returns the dictionary and logs it at the
-``INFO`` level (shown once logging is set up, e.g. with ``debug_logger()``).
+``INFO`` level (shown once logging is set up, e.g. with ``console_logger()``).
 
 All quantities are arrays with the batch dimension first, so a batch of models is returned in a
 single output. For dataframes and Excel, each top-level dictionary key becomes a dataframe (or
