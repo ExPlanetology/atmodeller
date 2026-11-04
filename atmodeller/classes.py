@@ -38,6 +38,7 @@ from atmodeller.constants import SILICATE_MELT_PHASE_INDEX
 from atmodeller.containers import SolverParameters, SpeciesCollection, get_formula_matrix
 from atmodeller.initializer import ElementPotentialInitializer, InitializerProtocol
 from atmodeller.interfaces import ActivityConstraintProtocol
+from atmodeller.jax_utils import as_j64
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.solvers import make_solver_with_jit
@@ -141,6 +142,10 @@ class EquilibriumModel(eqx.Module):
         """
         self._check_constraints()
         self._check_melt()
+        # A strongly typed float64 array, so that the compiled solver is reused whatever the
+        # source of the guess: a weakly typed guess (e.g. jnp.full with a Python float) would
+        # otherwise compile the solver again
+        initial_guess = as_j64(initial_guess)
         self._log_initial_guess(initial_guess)
 
         return self.solver(self.parameters, self.key, initial_guess)
@@ -311,6 +316,7 @@ class EquilibriumModel(eqx.Module):
                 self.parameters.reaction_system.species.number_species * 2,
             ),
             jnp.nan,
+            dtype=jnp.float64,
         )
 
         return self.solve(initial_guess)

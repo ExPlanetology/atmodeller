@@ -1,7 +1,7 @@
 Species
 =======
 
-This page defines the terms used for species and phases, and explains how species are named, selected from the thermodynamic data, placed in phases, stitched together and extrapolated.
+This page defines the terms used for species and phases, and explains how species are named, selected from the thermodynamic data, placed in phases, constrained, stitched together and extrapolated, and how a model is updated.
 
 Terminology
 -----------
@@ -118,6 +118,30 @@ When elements occur in fixed ratios in every species, fewer constraints are need
 A condensate imposed stable has a fixed activity but no unknowns, so its amount is not solved for. Its elements therefore cannot have a mass constraint: the condensate is an unlimited reservoir of its elements, e.g. graphite imposed stable sets the activity of carbon, whatever the amount of carbon. To solve for the amount of a condensate as well, and whether it is present, solve for its stability instead (``solve_for_stability=True``, the default).
 
 ``EquilibriumModel.solve`` raises an error before solving if the constraints of a model do not match, or if an element of a condensate imposed stable has a mass constraint. Inside a JIT-compiled function of your own, the constraints are traced and cannot be checked, so such a model is not solved instead, and its ``result`` is ``invalid_model`` (see :ref:`OutputSolver`). The same holds for species dissolved in a melt of zero mass.
+
+.. _species-updating:
+
+Updating a model
+----------------
+
+A model is compiled the first time it is solved, which takes seconds, and later solves of a model with the same structure take milliseconds. To solve the same model for other inputs, e.g. in a loop over the steps of an evolution, change it with its update methods rather than building it again. Each takes keyword arguments and returns a new model with the same structure, so the compiled solver is reused. The updates also work with traced values, inside ``jax.jit`` or ``jax.lax.scan``.
+
+- ``model.update_state(...)`` changes the thermodynamic state:
+
+  - ``temperature`` and ``pressure``;
+  - for a ``Planet``: ``planet_mass``, ``core_mass_fraction``, ``mantle_melt_fraction`` and ``surface_radius``, with the background masses of the core, melt and solid recomputed together;
+  - for a ``ThermodynamicState``: ``mass``, ``melt_fraction`` and ``background_metal_mass``, with the background melt and solid masses recomputed together.
+
+- ``model.update_constraints(...)`` changes the constraints:
+
+  - ``mass_constraints``, keyed by element (e.g. ``{"H": mass}``), in the units of ``mass_units`` (``"mass"``, the default, or ``"moles"``) of that call;
+  - the values of ``activity_constraints``, e.g. ``{"O2_g": IronWustiteBuffer(log10_shift=1.0)}``.
+
+  A constraint is switched off with ``NaN`` and on with a finite value. A constraint cannot change its type, e.g. from a fixed fugacity to a buffer, which raises an error.
+
+Updated values must keep the shapes of the values they replace, e.g. one value per model of the batch, since a new shape compiles the solver again. Anything else, such as the species, their equations of state or solubility laws, the background molar masses or the solver settings, needs a new model, which is compiled again.
+
+The example :doc:`examples/updating_models` follows the loss of hydrogen from an atmosphere in a loop, with timings, and shows how to start each solve from the previous solution and how to compile the whole loop with ``jax.lax.scan``.
 
 Stitching end-members together
 ------------------------------

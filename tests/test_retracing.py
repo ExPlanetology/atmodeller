@@ -211,6 +211,19 @@ def test_repeated_jitted_workflow_calls_do_not_retrace(
         assert jitted_value_update_workflow(equilibrium_model)
 
 
+def test_warm_start_reuses_compiled_solver(equilibrium_model: EquilibriumModel) -> None:
+    """A cold start, a warm start from the output and a weakly typed guess share one compilation
+
+    The guess of ``solve_with_default`` was weakly typed, so a warm start from ``output.solution``
+    compiled the solver again. This reads the cache of Equinox's JIT wrapper, a private attribute.
+    """
+    output: Output = equilibrium_model.solve_with_default()
+    equilibrium_model.solve(output.solution)
+    equilibrium_model.solve(jnp.full(output.solution.shape, jnp.nan))
+
+    assert equilibrium_model.solver._cached._cache_size() == 1  # pyright: ignore
+
+
 def test_unknown_constraints_raise(equilibrium_model: EquilibriumModel) -> None:
     """Constraints on species or elements not in the system raise when the parameters are built
     (and on update, within the workflows above)"""
