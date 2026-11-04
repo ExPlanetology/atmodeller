@@ -195,11 +195,14 @@ class BaseOutputDict(eqx.Module):
         checked_solution: Checked solution of the solve
         initial_guess: Initial guess the solver started from, i.e. log number of moles and log
             stability
+        residual: Residual of every constraint at the solution, NaN for inactive constraints.
+            Defaults to ``None``, in which case the output has no ``residual`` section.
     """
 
     parameters: Parameters
     checked_solution: CheckedSolution
     initial_guess: Float[Array, "n_batch twice_species"]
+    residual: Float[Array, "n_batch dim"] | None = None
 
     @abstractmethod
     def _phase_output_to_dict(self, phase_output: PhaseOutput[BasePhase]) -> dict[str, Any]:
@@ -497,6 +500,32 @@ class BaseOutputDict(eqx.Module):
             "species_to_phase_mass_ratio": phase_output.species_to_phase_mass_ratio,
         }
 
+    def residual_to_dict(self) -> dict[str, ArrayLike]:
+        """Gets the residual of every constraint at the solution.
+
+        The residual is in the units of the objective function: the log activity
+        (``<species>_activity``), the log equilibrium constant of each reaction
+        (``reaction_<index>``, the reactions of
+        ``model.parameters.reaction_system.get_reaction_dictionary()``), the ratio of the element moles to the mass constraint minus one (``<element>_mass``) and the
+        log stability (``<species>_stability``). Inactive constraints are NaN.
+
+        Returns:
+            Dictionary mapping each constraint to its residual, or an empty dictionary if there is
+            no residual
+        """
+        if self.residual is None:
+            return {}
+
+        species_names: tuple[str, ...] = tuple(self.parameters.species.species_names)
+        names: list[str] = (
+            [f"{name}_activity" for name in species_names]
+            + [f"reaction_{jj}" for jj in range(self.parameters.reaction_system.number_reactions)]
+            + [f"{name}_mass" for name in self.parameters.mass_constraints.species.unique_elements]
+            + [f"{name}_stability" for name in species_names]
+        )
+
+        return {name: self.residual[..., nn] for nn, name in enumerate(names)}
+
     def solver_to_dict(self) -> dict[str, ArrayLike]:
         """Solver information such as success flags and number of iterations"""
         return self.checked_solution.asdict()
@@ -584,6 +613,8 @@ class OutputNaturalDict(BaseOutputDict):
         out["solution"] = self.solution_to_dict()
         out["initial_guess"] = self.initial_guess_to_dict()
         out["solver"] = self.solver_to_dict()
+        if self.residual is not None:
+            out["residual"] = self.residual_to_dict()
         out["state"] = self.state_to_dict()
 
         # Order of operations matters here: expansion must be done before conversion to NumPy
@@ -778,6 +809,8 @@ class OutputNamedArraysDict(BaseOutputDict):
         out["solution"] = self.solution_to_dict()
         out["initial_guess"] = self.initial_guess_to_dict()
         out["solver"] = self.solver_to_dict()
+        if self.residual is not None:
+            out["residual"] = self.residual_to_dict()
         out["state"] = self.state_to_dict()
 
         # Order of operations matters here: expansion must be done before ravel, and both before
@@ -1014,6 +1047,8 @@ class OutputElementsSpeciesDict(BaseOutputDict):
         out["solution"] = self.solution_to_dict()
         out["initial_guess"] = self.initial_guess_to_dict()
         out["solver"] = self.solver_to_dict()
+        if self.residual is not None:
+            out["residual"] = self.residual_to_dict()
         out["state"] = self.state_to_dict()
 
         if expand_to_batch:

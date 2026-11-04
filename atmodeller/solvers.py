@@ -48,7 +48,11 @@ import jax.numpy as jnp
 from jax import lax
 from jaxtyping import Array, Bool, Float, Integer, PRNGKeyArray
 
-from atmodeller.engine import compute_implied_log_stability, objective_function
+from atmodeller.engine import (
+    compute_implied_log_stability,
+    get_residual_by_constraint,
+    objective_function,
+)
 from atmodeller.initializer import InitializerProtocol, make_batch_initializer
 from atmodeller.jax_utils import FloatArray, vmap_axes_spec
 from atmodeller.output import Output
@@ -127,6 +131,25 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         return solver_function_vmapped(solution, parameters)
 
     return batch_single_pass_solver
+
+
+def make_batch_residual(parameters: Parameters) -> Callable:
+    """Gets a vmapped residual of every constraint, for the output.
+
+    Wraps :func:`~atmodeller.engine.get_residual_by_constraint` with :func:`equinox.filter_vmap`.
+    The vmapping axes are fixed from ``parameters`` at construction time, as for
+    :func:`make_batch_solver`, since they cannot be derived from traced parameters.
+
+    Args:
+        parameters: Parameters used to derive the vmapping axes at construction time
+
+    Returns:
+        Callable ``(solution, parameters) -> residual`` with the residual of every constraint for
+        each model, NaN for inactive constraints
+    """
+    return eqx.filter_vmap(
+        get_residual_by_constraint, in_axes=(SOLUTION_BATCH_AXIS, vmap_axes_spec(parameters))
+    )
 
 
 def perturb_log_number_moles(
@@ -364,6 +387,7 @@ def make_solver(
         Callable that returns a :class:`~atmodeller.output.Output` object
     """
     batch_initializer: Callable = make_batch_initializer(parameters, initializer)
+    batch_residual: Callable = make_batch_residual(parameters)
     batch_retry_solver: Callable = make_batch_retry_solver_from_parameters(parameters)
     tau_sweep_solver: Callable = make_tau_sweep_solver(
         batch_retry_solver, make_batch_solver(parameters)
@@ -416,7 +440,12 @@ def make_solver(
         checked_sol = lax.cond(
             condition, solve_with_stability, solve_without_stability, operand=key
         )
-        output: Output = Output(parameters, checked_sol, base_solution_array)
+        output: Output = Output(
+            parameters,
+            checked_sol,
+            base_solution_array,
+            batch_residual(checked_sol.value, parameters),
+        )
 
         return output
 
@@ -475,6 +504,7 @@ def make_solver_with_jit_single_path(
         JIT-compiled callable that returns a :class:`~atmodeller.output.Output` object
     """
     batch_initializer: Callable = make_batch_initializer(parameters, initializer)
+    batch_residual: Callable = make_batch_residual(parameters)
     batch_retry_solver: Callable = make_batch_retry_solver_from_parameters(parameters)
     tau_sweep_solver: Callable = make_tau_sweep_solver(
         batch_retry_solver, make_batch_solver(parameters)
@@ -495,7 +525,12 @@ def make_solver_with_jit_single_path(
         _, subkey = jax.random.split(key)
         base_solution_array = batch_initializer(parameters, base_solution_array)
         checked_sol = tau_sweep_solver(base_solution_array, parameters, subkey)
-        return Output(parameters, checked_sol, base_solution_array)
+        return Output(
+            parameters,
+            checked_sol,
+            base_solution_array,
+            batch_residual(checked_sol.value, parameters),
+        )
 
     @eqx.filter_jit
     def solver_without_stability(
@@ -512,7 +547,12 @@ def make_solver_with_jit_single_path(
             subkey,
             parameters.solver_parameters.max_starts,
         )
-        return Output(parameters, checked_sol, base_solution_array)
+        return Output(
+            parameters,
+            checked_sol,
+            base_solution_array,
+            batch_residual(checked_sol.value, parameters),
+        )
 
     # Return the appropriate pre-compiled solver based on the construction-time check.
     return solver_with_stability if has_active_stability else solver_without_stability
@@ -542,6 +582,7 @@ def make_solver_with_jit_batch_only(
     """
     batch_initializer: Callable = make_batch_initializer(parameters, initializer)
     batch_solver: Callable = make_batch_solver(parameters)
+    batch_residual: Callable = make_batch_residual(parameters)
 
     @eqx.filter_jit
     def batch_only_solver(
@@ -559,7 +600,12 @@ def make_solver_with_jit_batch_only(
         base_solution_array = batch_initializer(parameters, base_solution_array)
         checked_sol: CheckedSolution = batch_solver(base_solution_array, parameters)
 
-        return Output(parameters, checked_sol, base_solution_array)
+        return Output(
+            parameters,
+            checked_sol,
+            base_solution_array,
+            batch_residual(checked_sol.value, parameters),
+        )
 
     return batch_only_solver
 
