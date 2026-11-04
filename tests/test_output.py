@@ -321,6 +321,7 @@ def test_to_dataframes(cho_output: Output) -> None:
     """Dataframes in both formats, and dropping unsuccessful solves"""
     dataframes: dict[str, pd.DataFrame] = cho_output.to_dataframes()
     assert all(isinstance(df, pd.DataFrame) for df in dataframes.values())
+    assert all(df.index.name == "model" for df in dataframes.values())
     assert any(col.startswith("species.partial_pressure") for col in dataframes["gas"].columns)
 
     assert isinstance(
@@ -354,6 +355,12 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
     )
     assert np.all(np.asarray(output.checked_solution.solver_success))
     assert "residual" in RESULTS[output.checked_solution.result]  # pyright: ignore
+
+    # The exported output names the result codes, which stay integers in the JAX output
+    assert output.to_dict()["solver"]["result"].tolist() == [0, 2]
+    solver_df: pd.DataFrame = output.to_dataframes()["solver"]
+    assert solver_df["result"].tolist() == ["successful", "objective_check_failed"]
+    assert solver_df["optimistix_result"].tolist() == ["successful", "successful"]
 
     for df in output.to_dataframes(drop_unsuccessful_solves=True).values():
         assert df.index.tolist() == [0]
@@ -432,6 +439,8 @@ def test_metallicity(
         assert np.isclose(gas["metals_to_hydrogen"], metals_to_hydrogen)
         assert np.isclose(gas["metals_to_hydrogen_by_mass"], (m["C"] + m["O"]) / m["H"])
         assert np.isclose(gas["M_H"], np.log10(metals_to_hydrogen / solar_metals_to_hydrogen))
+        assert np.isclose(gas["C_to_O"], n["C"] / n["O"])
+        assert np.isclose(gas["C_to_H"], n["C"] / n["H"])
 
         # Only H, so no metals and [M/H] is undefined
         gas = _gas_phase(h_only_dicts[fmt])

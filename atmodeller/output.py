@@ -217,6 +217,7 @@ class Output(eqx.Module):
                 result[top_key] = pd.DataFrame(flat)
             else:
                 result[top_key] = pd.DataFrame({top_key: value})
+            result[top_key].index.name = "model"
 
         if drop_unsuccessful_solves:
             logger.info("Dropping unsuccessful solves from output")

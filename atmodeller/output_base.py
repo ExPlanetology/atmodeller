@@ -23,15 +23,16 @@ from typing import Any, cast
 import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
+import optimistix as optx
 from jax.tree_util import tree_map
 from jaxtyping import Array, ArrayLike, Bool, Float, PyTree
 
 from atmodeller import override
 from atmodeller.jax_utils import FloatArray, NpBool, NpFloat, stack_broadcast
 from atmodeller.parameters import ActivityConstraintSet, MassConstraintSet, Parameters
-from atmodeller.phases import BasePhase, GasPhaseOutput, PhaseOutput
+from atmodeller.phases import BasePhase, GasPhaseOutput, PhaseOutput, PurePhase
 from atmodeller.sci_utils import solar
-from atmodeller.solver_utils import CheckedSolution
+from atmodeller.solver_utils import RESULTS, CheckedSolution
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -154,6 +155,32 @@ def convert_jax_arrays_in_pytree_to_numpy(pytree: PyTree) -> PyTree:
     return tree_map(lambda x: np.asarray(x) if isinstance(x, jnp.ndarray) else x, pytree)
 
 
+def name_result_codes(solver: dict[str, Any]) -> dict[str, Any]:
+    """Replaces the integer result codes of the solver output with their names.
+
+    ``result`` is named by :class:`~atmodeller.solver_utils.RESULTS` and ``optimistix_result`` by
+    :class:`optimistix.RESULTS`, e.g. ``objective_check_failed`` or
+    ``nonlinear_max_steps_reached``. The codes must be concrete, so this is applied only to output
+    converted to NumPy, which is never inside a :func:`jax.jit` context.
+
+    Args:
+        solver: Solver output with NumPy integer codes
+
+    Returns:
+        Solver output with the codes replaced by their names
+    """
+    out: dict[str, Any] = dict(solver)
+    for key, enumeration in (("result", RESULTS), ("optimistix_result", optx.RESULTS)):
+        if key in out:
+            names: dict[int, str] = {
+                int(item._value): name  # pyright: ignore
+                for name, item in enumeration._name_to_item.items()  # pyright: ignore
+            }
+            out[key] = np.vectorize(names.__getitem__, otypes=[object])(out[key])
+
+    return out
+
+
 def log_epsilon(
     element_number_moles: Float[Array, "... n_elements"], hydrogen_index: int
 ) -> Float[Array, "... n_elements"]:
@@ -261,6 +288,11 @@ class BaseOutputDict(eqx.Module):
         """Solution array for all species i.e. log number of moles and log stability"""
         return self.checked_solution.value
 
+    @property
+    def tau(self) -> Array:
+        """Tau of the solve, which sets the boundary between stable and unstable species"""
+        return jnp.asarray(self.parameters.solver_parameters.tau)
+
     def _solution_array_to_dict(
         self, solution_array: Float[Array, "n_batch twice_species"], suffix: str = ""
     ) -> dict[str, ArrayLike]:
@@ -367,6 +399,31 @@ class BaseOutputDict(eqx.Module):
 
         return {"log_epsilon": gas_log_epsilon, "X_H": gas_log_epsilon - solar_log_epsilon}
 
+    def gas_element_ratios(self) -> dict[str, Float[Array, "#n_batch 1"]]:
+        r"""Ratios of the number of moles (atoms) of elements in the gas phase.
+
+        - ``"C_to_O"``: :math:`N_\mathrm{C} / N_\mathrm{O}`, if C and O are in the gas phase
+        - ``"C_to_H"``: :math:`N_\mathrm{C} / N_\mathrm{H}`, if C and H are in the gas phase
+
+        Returns:
+            Ratios by key
+        """
+        unique_elements: tuple[str, ...] = self.gas.phase.species.unique_elements
+        element_number_moles: Float[Array, "#n_batch n_elements"] = self.gas.element_number_moles
+
+        def number_moles(element: str) -> Float[Array, "#n_batch 1"]:
+            index: int = unique_elements.index(element)
+            return element_number_moles[..., index : index + 1]
+
+        out: dict[str, Float[Array, "#n_batch 1"]] = {}
+        for numerator, denominator in (("C", "O"), ("C", "H")):
+            if numerator in unique_elements and denominator in unique_elements:
+                out[f"{numerator}_to_{denominator}"] = number_moles(numerator) / number_moles(
+                    denominator
+                )
+
+        return out
+
     def gas_metallicity(self) -> dict[str, Float[Array, "#n_batch 1"]]:
         r"""Metallicity of the gas phase, where metals are all elements other than H and He.
 
@@ -442,9 +499,34 @@ class BaseOutputDict(eqx.Module):
         """
         phase_slice: slice = self.parameters.reaction_system.phase_system.phase_slice(phase_index)
         phase: BasePhase = self.parameters.reaction_system.phase_system.phases[phase_index]
+        log_number_moles: Float[Array, "#n_batch n_species"] = self.log_number_moles[
+            ..., phase_slice
+        ]
+
+        # A pure phase imposed as stable has no unknowns. Its number of moles enters only the mass
+        # balance of its elements, so it is determined only if one of them has a mass constraint,
+        # and is otherwise left at the initial guess. Its amount is then reported as NaN.
+        if isinstance(phase, PurePhase):
+            species_: Any = next(iter(phase.species))
+            if species_.number_solution == 0:
+                elements: tuple[str, ...] = (
+                    self.parameters.mass_constraints.species.unique_elements
+                )
+                indices: list[int] = [
+                    elements.index(element)
+                    for element in species_.data.composition
+                    if element in elements
+                ]
+                mass_active: Bool[Array, "... n_elements"] = jnp.asarray(
+                    self.parameters.mass_constraints.active()
+                )
+                determined: Bool[Array, "... 1"] = jnp.any(
+                    mass_active[..., indices], axis=-1, keepdims=True
+                )
+                log_number_moles = jnp.where(determined, log_number_moles, jnp.nan)
 
         phase_output: PhaseOutput = phase.output(
-            self.log_number_moles[..., phase_slice],
+            log_number_moles,
             self.log_stability[..., phase_slice],
             self._temperature,
             self._pressure,
@@ -566,6 +648,8 @@ class OutputNaturalDict(BaseOutputDict):
             "mole_fraction": phase_output.species_mole_fraction,
             "include_in_phase_mass": phase_output.include_in_phase_mass,
         }
+        if not isinstance(phase_output, GasPhaseOutput):
+            out["species"]["stable"] = phase_output.species_stable(self.tau)
 
         return out
 
@@ -591,6 +675,7 @@ class OutputNaturalDict(BaseOutputDict):
             out[phase_name]["phase"]["log10dIW_P"] = self.gas.log10dIW_P
             out[phase_name]["phase"]["pressure"] = self.gas.pressure
             out[phase_name]["phase"] |= self.gas_metallicity()
+            out[phase_name]["phase"] |= self.gas_element_ratios()
 
             out[phase_name]["elements"] |= self.gas_abundances_relative_to_hydrogen()
 
@@ -624,6 +709,7 @@ class OutputNaturalDict(BaseOutputDict):
 
         if to_numpy:
             out = convert_jax_arrays_in_pytree_to_numpy(out)
+            out["solver"] = name_result_codes(out["solver"])
 
         return out
 
@@ -714,6 +800,10 @@ class OutputNamedArraysDict(BaseOutputDict):
         self._split_by_species_and_add(
             phase_output, phase_output.species_mole_fraction, species_out, "mole_fraction"
         )
+        if not isinstance(phase_output, GasPhaseOutput):
+            self._split_by_species_and_add(
+                phase_output, phase_output.species_stable(self.tau), species_out, "stable"
+            )
         self._split_by_species_and_add(
             phase_output, phase_output.include_in_phase_mass, species_out, "include_in_phase_mass"
         )
@@ -766,6 +856,7 @@ class OutputNamedArraysDict(BaseOutputDict):
             out[self.gas.phase.name]["phase"]["log10dIW_P"] = self.gas.log10dIW_P
             out[self.gas.phase.name]["phase"]["pressure"] = self.gas.pressure
             out[self.gas.phase.name]["phase"] |= self.gas_metallicity()
+            out[self.gas.phase.name]["phase"] |= self.gas_element_ratios()
 
             for key, value in self.gas_abundances_relative_to_hydrogen().items():
                 self._split_by_elements_and_add(
@@ -823,6 +914,7 @@ class OutputNamedArraysDict(BaseOutputDict):
 
         if to_numpy:
             out = convert_jax_arrays_in_pytree_to_numpy(out)
+            out["solver"] = name_result_codes(out["solver"])
 
         return out
 
@@ -954,6 +1046,11 @@ class OutputElementsSpeciesDict(BaseOutputDict):
         include_in_mass_phase: list[Array] = self._split_array_by_names(
             species_names, phase_output.include_in_phase_mass
         )
+        species_stable: list[Array] | None = (
+            None
+            if isinstance(phase_output, GasPhaseOutput)
+            else self._split_array_by_names(species_names, phase_output.species_stable(self.tau))
+        )
 
         for nn, species in enumerate(species_names):
             species_dict: dict[str, Any] = out.setdefault(species, {})
@@ -964,6 +1061,8 @@ class OutputElementsSpeciesDict(BaseOutputDict):
             phase_dict["number_moles"] = species_number_moles[nn]
             phase_dict["mole_fraction"] = species_mole_fraction[nn]
             phase_dict["include_in_phase_mass"] = include_in_mass_phase[nn]
+            if species_stable is not None:
+                phase_dict["stable"] = species_stable[nn]
 
         return out
 
@@ -1005,6 +1104,7 @@ class OutputElementsSpeciesDict(BaseOutputDict):
             out[self.gas.phase.name]["phase"]["pressure"] = self.gas.pressure
 
             out[self.gas.phase.name]["phase"] |= self.gas_metallicity()
+            out[self.gas.phase.name]["phase"] |= self.gas_element_ratios()
 
             # Abundances relative to H
             gas_unique_elements: tuple[str, ...] = self.gas.phase.species.unique_elements
@@ -1059,5 +1159,6 @@ class OutputElementsSpeciesDict(BaseOutputDict):
 
         if to_numpy:
             out = convert_jax_arrays_in_pytree_to_numpy(out)
+            out["solver"] = name_result_codes(out["solver"])
 
         return out

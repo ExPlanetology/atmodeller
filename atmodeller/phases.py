@@ -704,11 +704,40 @@ class PhaseOutput(eqx.Module, Generic[TPhase_co]):
         return jnp.exp(log_species_to_phase_mass_ratio)
 
     # Species outputs
+    def species_stable(self, tau: ArrayLike) -> Bool[Array, "#n_batch n_species"]:
+        r"""Whether each species is stable, i.e. present rather than at a trace amount.
+
+        The stability :math:`\sigma` of a species satisfies :math:`\sigma n = \tau N`, where
+        :math:`n` is its number of moles and :math:`N` the abundance of its least abundant element
+        :cite:p:`LKK16`. Its activity is that of its activity model reduced by the factor
+        :math:`e^{-\sigma}`. A stable species has :math:`\sigma \approx \tau`, so its activity is
+        that of its activity model (1 for an ideal pure phase), and an unstable species has
+        :math:`\sigma` of order 1 or larger and :math:`n \approx \tau N / \sigma`. The boundary
+        between the two is :math:`\sigma = \sqrt{\tau}`, i.e. an activity within about
+        :math:`\sqrt{\tau}` of that of the activity model and :math:`n \approx \sqrt{\tau} N`. A
+        species without an active stability, i.e. imposed as stable, has :math:`\sigma = 0` and is
+        stable.
+
+        Args:
+            tau: Tau of the solve, i.e. ``solver_parameters.tau``
+
+        Returns:
+            Whether each species is stable
+        """
+        log_threshold: Array = 0.5 * jnp.log(jnp.reshape(jnp.asarray(tau), (-1, 1)))
+
+        return self.log_stability < log_threshold
+
     @property
     def species_activity(self) -> Float[Array, "#n_batch n_species"]:
+        # The number of moles is NaN only for a pure phase imposed as stable whose amount is not
+        # determined, and the mole fraction of a pure phase is 1 for any number of moles
+        log_number_moles: Float[Array, "#n_batch n_species"] = jnp.where(
+            jnp.isnan(self.log_number_moles), 0.0, self.log_number_moles
+        )
         log_activity: Float[Array, "#n_batch n_species"] = (
             self.phase.get_log_activity_with_stability(
-                self.log_number_moles, self.log_stability, self._temperature, self._pressure
+                log_number_moles, self.log_stability, self._temperature, self._pressure
             )
         )
         return jnp.exp(log_activity)
