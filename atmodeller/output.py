@@ -212,12 +212,13 @@ class Output(eqx.Module):
     def quick_look(
         self,
         output_format: Literal["natural", "named_arrays", "elements_species"] = "named_arrays",
+        logger_: logging.Logger = logger,
     ) -> dict[str, Any]:
         """Quick look at the output.
 
-        The output is logged at the ``INFO`` level of the ``atmodeller.output`` logger, so it is
-        shown only if logging is set up, e.g. with :func:`atmodeller.debug_logger`. It is also
-        returned, so in a notebook the returned dictionary is displayed in any case.
+        The output is logged at the ``INFO`` level of ``logger_``, so it is shown only if logging
+        is set up, e.g. with :func:`atmodeller.debug_logger`. It is also returned, so in a
+        notebook the returned dictionary is displayed in any case.
 
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
@@ -227,13 +228,14 @@ class Output(eqx.Module):
                 output format based on the arrays used internally, ``named_arrays`` for an
                 alternative format with named arrays, or ``elements_species`` for an alternative
                 format grouped by element and species names. Defaults to ``named_arrays``.
+            logger_: Logger to write the output to. Defaults to the ``atmodeller.output`` logger.
 
         Returns:
             The output dictionary with NumPy arrays, as from :meth:`to_dict` with
             ``to_numpy=True``
         """
         out: dict[str, Any] = self.to_dict(output_format=output_format, to_numpy=True)
-        logger.info("Quick look output:\n%s", pformat(out, sort_dicts=False))
+        logger_.info("Quick look output:\n%s", pformat(out, sort_dicts=False))
 
         return out
 
