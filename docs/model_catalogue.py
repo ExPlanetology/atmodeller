@@ -108,7 +108,12 @@ def _calibrated_range(model: Any) -> tuple[str, str]:
 
 def _table(title: str, header: list[str], rows: list[list[str]], widths: str) -> str:
     """A reST list-table"""
-    lines: list[str] = [f".. list-table:: {title}", f"   :widths: {widths}", "   :header-rows: 1", ""]
+    lines: list[str] = [
+        f".. list-table:: {title}",
+        f"   :widths: {widths}",
+        "   :header-rows: 1",
+        "",
+    ]
     for row in [header] + rows:
         lines.append(f"   * - {row[0]}")
         lines.extend(f"     - {cell}" for cell in row[1:])
@@ -122,7 +127,9 @@ def eos_table() -> str:
     rows: list[list[str]] = []
     for key, model in sorted(get_eos_models().items(), key=lambda item: item[0].lower()):
         temperature, pressure = _calibrated_range(model)
-        rows.append([f"``{key}``", key.split("_")[0], temperature, pressure, _source(model, docstrings)])
+        rows.append(
+            [f"``{key}``", key.split("_")[0], temperature, pressure, _source(model, docstrings)]
+        )
 
     return _table(
         "Real-gas equations of state (``get_eos_models()``)",
