@@ -9,9 +9,10 @@ __version__: str = "2.0.0"
 
 import logging
 import os
+from datetime import datetime
+from pathlib import Path
 
 import jax
-import jax.numpy as jnp
 
 # from beartype.claw import beartype_this_package
 # beartype_this_package()
@@ -24,7 +25,6 @@ except ImportError:
 override = _override
 
 jax.config.update("jax_enable_x64", True)
-jnp.set_printoptions(precision=15)  # For better clarity in printed output
 
 # For debugging
 # jax.config.update("jax_debug_nans", True)
@@ -75,44 +75,90 @@ def simple_formatter() -> logging.Formatter:
     return formatter
 
 
+_HANDLER_MARKER: str = "_atmodeller_debug_handler"
+"""Attribute that marks the handlers added by :func:`debug_logger` and :func:`debug_file_logger`"""
+
+
+def _add_handler(
+    package_logger: logging.Logger,
+    handler: logging.Handler,
+    formatter: logging.Formatter,
+    level: int,
+) -> None:
+    """Adds a handler to the package logger, marked as added by the debug helpers.
+
+    Args:
+        package_logger: The package logger
+        handler: The handler to add
+        formatter: The formatter of the handler
+        level: The level of the handler
+    """
+    handler.setFormatter(formatter)
+    handler.setLevel(level)
+    setattr(handler, _HANDLER_MARKER, True)
+    package_logger.addHandler(handler)
+
+
+def _remove_handlers(package_logger: logging.Logger) -> None:
+    """Removes and closes the handlers added earlier by the debug helpers.
+
+    Handlers that the user added are kept.
+
+    Args:
+        package_logger: The package logger
+    """
+    for handler in list(package_logger.handlers):
+        if getattr(handler, _HANDLER_MARKER, False):
+            package_logger.removeHandler(handler)
+            handler.close()
+
+
 def debug_logger() -> logging.Logger:
     """Sets up debug logging to the console.
 
+    Calling it again replaces the handlers added by an earlier call to this function or
+    :func:`debug_file_logger`, and keeps any handler that you added yourself. Messages also
+    propagate to the root logger, so if you have configured root logging as well (e.g. with
+    :func:`logging.basicConfig`), they are shown twice.
+
     Returns:
-        A logger
+        The package logger
     """
     package_logger: logging.Logger = logging.getLogger(__name__)
     package_logger.setLevel(logging.DEBUG)
-    package_logger.handlers = []
-    console_handler: logging.Handler = logging.StreamHandler()
-    console_formatter: logging.Formatter = simple_formatter()
-    console_handler.setFormatter(console_formatter)
-    package_logger.addHandler(console_handler)
+    _remove_handlers(package_logger)
+    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), logging.DEBUG)
 
     return package_logger
 
 
-def debug_file_logger() -> logging.Logger:
+def debug_file_logger(log_directory: str | Path = "logs") -> logging.Logger:
     """Sets up info logging to the console and debug logging to a file.
 
+    Each call writes to a new file, ``atmodeller_<date>_<time>.log``, in ``log_directory``, which
+    is created if needed, so earlier logs are kept. Calling it again replaces the handlers added
+    by an earlier call to this function or :func:`debug_logger`, and keeps any handler that you
+    added yourself. Messages also propagate to the root logger, so if you have configured root
+    logging as well (e.g. with :func:`logging.basicConfig`), they are shown twice.
+
+    Args:
+        log_directory: Directory of the log files. Defaults to ``logs`` in the current working
+            directory.
+
     Returns:
-        A logger
+        The package logger
     """
-    # Console logger
     package_logger: logging.Logger = logging.getLogger(__name__)
     package_logger.setLevel(logging.DEBUG)
-    package_logger.handlers = []
-    console_handler: logging.Handler = logging.StreamHandler()
-    console_formatter: logging.Formatter = simple_formatter()
-    console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.INFO)
-    package_logger.addHandler(console_handler)
-    # File logger
-    file_handler: logging.Handler = logging.FileHandler(f"{__package__}.log")
-    file_formatter: logging.Formatter = complex_formatter()
-    file_handler.setFormatter(file_formatter)
-    file_handler.setLevel(logging.DEBUG)
-    package_logger.addHandler(file_handler)
+    _remove_handlers(package_logger)
+    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), logging.INFO)
+
+    log_path: Path = Path(log_directory)
+    log_path.mkdir(parents=True, exist_ok=True)
+    timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file: Path = log_path / f"{__package__}_{timestamp}.log"
+    _add_handler(package_logger, logging.FileHandler(log_file), complex_formatter(), logging.DEBUG)
+    package_logger.info("Writing the debug log to %s", log_file)
 
     return package_logger
 
