@@ -311,6 +311,13 @@ class RedlichKwongImplicitDenseFluidABC(RedlichKwongImplicitABC):
         r"""Initial guess volume to ensure convergence to the correct root
 
         For the dense fluid phase a suitably low value must be chosen :cite:p:`HP91{Appendix}`.
+        The start is :math:`b`, the smallest physical volume. The cubic in volume
+        :cite:p:`HP91{Equation A.1}` is :math:`-2RTb^2 < 0` at :math:`b`, so :math:`b` is always
+        below the smallest physical root, which Newton's method then reaches from below. The
+        value suggested by :cite:t:`HP91{Appendix}`, :math:`b/2`, is valid within their
+        calibration (to 50 kbar), but it lies below :math:`b`, from where Newton's method can reach
+        a root with :math:`V < b` when extrapolated to higher pressure (e.g. above about 77 kbar
+        for H2O near 673 K). Starting at :math:`b` keeps the extrapolation reasonable.
 
         Args:
             temperature: Temperature (K)
@@ -322,7 +329,7 @@ class RedlichKwongImplicitDenseFluidABC(RedlichKwongImplicitABC):
         del temperature
         del pressure
 
-        initial_volume: ArrayLike = self.b() / 2
+        initial_volume: ArrayLike = self.b()
 
         return initial_volume
 

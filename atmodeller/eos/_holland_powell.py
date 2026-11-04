@@ -6,6 +6,7 @@
 """Real gas EOS from :cite:t:`HP91,HP98,HP11`"""
 
 from abc import abstractmethod
+from collections.abc import Callable
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -359,6 +360,27 @@ r"""Temperature at which :math:`a_{\mathrm gas} = a` for H2O by fitting :cite:p:
 b0_H2O: float = FullUnitConverter.convert_b_coefficient(1.465)
 """b parameter value which is the same across all H2O phases :cite:p:`HP91`"""
 
+
+def psat_H2O_HP91(temperature: ArrayLike) -> FloatArray:
+    """Saturation pressure of H2O for the MRK/CORK model :cite:p:`HP91{Equation 5}`
+
+    Compared to :cite:t:`HP91` the pressure is returned in bar, as required by Atmodeller. Valid
+    for temperatures below the critical temperature (695 K).
+
+    Args:
+        temperature: Temperature (K)
+
+    Returns:
+        Saturation pressure (bar)
+    """
+    return (
+        -13.627
+        + 7.29395e-4 * jnp.square(temperature)
+        - 2.34622e-6 * jnp.power(temperature, 3)
+        + 4.83607e-12 * jnp.power(temperature, 5)
+    )
+
+
 H2OMrkGasHolland91: MRKImplicitGasHP91 = MRKImplicitGasHP91(
     FullUnitConverter.convert_a_coefficients((1113.4, 5.8487, -2.1370e-2, 6.8133e-5)),
     b0_H2O,
@@ -386,7 +408,20 @@ H2OMrkLiquidHolland91: MRKImplicitLiquidHP91 = MRKImplicitLiquidHP91(
 
 
 class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFluidABC):
-    """MRK for supercritical fluid :cite:p:`HP91{Equation 6}`"""
+    """MRK for supercritical fluid :cite:p:`HP91{Equation 6}`
+
+    Args:
+        a_coefficients: :math:`a` coefficients
+        b: :math:`b` coefficient
+        Ta: Temperature (K) at which the :math:`a` parameter is equal for the dense fluid and gas
+        Tc: Critical temperature (K)
+        psat: Saturation pressure (bar) as a function of temperature (K), which chooses the root
+            below the critical temperature. Defaults to ``None``, i.e. no saturation curve, so the
+            gaseous root is sought (e.g. for CO2, whose critical temperature is below the
+            calibrated range).
+    """
+
+    _psat: Callable[[ArrayLike], ArrayLike] | None = None
 
     @override
     def delta_temperature_for_a(self, temperature: ArrayLike) -> ArrayLike:
@@ -396,10 +431,15 @@ class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFlu
     def initial_volume(self, temperature: ArrayLike, pressure: ArrayLike) -> ArrayLike:
         r"""Initial guess volume to ensure convergence to the correct root
 
-        See :cite:t:`HP91{Appendix}`. It appears that there is only ever a single root, even if
-        Ta < temperature < Tc. Holland and Powell state that a single root exists if
-        temperature > Tc, but this appears to be true if temperature > Ta. Nevertheless, the
-        initial guess is changed accordingly.
+        Below the critical temperature the MRK has up to three real roots near the saturation
+        curve, and :cite:t:`HP91{p. 268}` seek the smallest (dense fluid) if the pressure is
+        above the saturation pressure and the largest (gas) otherwise. Above the critical
+        temperature there is a single root. The start therefore depends on the saturation
+        pressure: :math:`b` (see
+        :meth:`~atmodeller.eos.redlich_kwong.RedlichKwongImplicitDenseFluidABC.initial_volume`) for the
+        dense root, and :math:`RT/P + b` otherwise :cite:p:`HP91{Appendix}`. Without the
+        saturation pressure, the dense start below the critical temperature fails to converge or
+        converges to the wrong root, e.g. for H2O between 673 and 695 K.
 
         Args:
             temperature: Temperature (K)
@@ -409,15 +449,15 @@ class MRKImplicitFluidHP91(MRKImplicitHP91ABCMixin, RedlichKwongImplicitDenseFlu
             Initial volume (:math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`)
         """
 
-        def low_temperature_case() -> ArrayLike:
-            return self.b() / 2
+        gas_start: ArrayLike = GAS_CONSTANT_BAR * temperature / pressure + self.b()
+        if self._psat is None:
+            return gas_start
 
-        def high_temperature_case() -> ArrayLike:
-            return GAS_CONSTANT_BAR * temperature / pressure + self.b()
-
-        initial_volume: Array = jnp.where(
-            temperature < jnp.array(self._Tc), low_temperature_case(), high_temperature_case()
+        dense: Array = jnp.logical_and(
+            jnp.asarray(temperature) < self._Tc,
+            jnp.asarray(pressure) > jnp.asarray(self._psat(temperature)),
         )
+        initial_volume: Array = jnp.where(dense, self.b(), gas_start)
 
         return initial_volume
 
@@ -427,6 +467,7 @@ H2OMrkFluidHolland91: MRKImplicitFluidHP91 = MRKImplicitFluidHP91(
     b0_H2O,
     Ta_H2O,
     Tc_H2O,
+    psat_H2O_HP91,
 )
 """H2O MRK for fluid phase :cite:p:`HP91`"""
 
@@ -617,14 +658,7 @@ class H2OMrkHP91(RealGas):
         Returns:
             Saturation curve pressure (bar)
         """
-        Psat: FloatArray = (
-            -13.627
-            + 7.29395e-4 * jnp.square(temperature)
-            - 2.34622e-6 * jnp.power(temperature, 3)
-            + 4.83607e-12 * jnp.power(temperature, 5)
-        )
-
-        return Psat
+        return psat_H2O_HP91(temperature)
 
     def _select_condition(self, temperature: ArrayLike, pressure: ArrayLike) -> Array:
         """Selects the condition
@@ -925,7 +959,15 @@ H2O_cork_gas_fluid_holland91: RealGas = CORK(
 H2O_cork_gas_fluid_holland91_bounded: RealGas = CombinedRealGas.create(
     [H2O_cork_gas_fluid_holland91], [experimental_calibration_holland91]
 )
-"""H2O cork for the gas and supercritical fluid bounded :cite:p:`HP91`"""
+"""H2O cork for the gas and supercritical fluid bounded :cite:p:`HP91`
+
+This is the model of the library (``H2O_cork_holland91``). It has no liquid branch: the EOS is
+for the gas species H2O_g, and liquid water is the condensate H2O_l, with its own thermodynamic
+data and stability, so a liquid fugacity here would count condensation twice. Below the critical
+temperature and above the saturation pressure it therefore differs from the liquid fugacity of
+:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid branch is
+``H2O_cork_holland91`` in this module.
+"""
 
 CO2_virial_compensation_holland98: VirialCompensation = VirialCompensation(
     FullUnitConverter.convert_virial_coefficients((5.40776e-3, -1.59046e-6), 1),
@@ -965,7 +1007,15 @@ H2O_cork_gas_fluid_holland98: RealGas = CORK(
 H2O_cork_gas_fluid_holland98_bounded: RealGas = CombinedRealGas.create(
     [H2O_cork_gas_fluid_holland98], [experimental_calibration_holland98]
 )
-"""H2O cork for the gas and supercritical fluid bounded :cite:p:`HP98`"""
+"""H2O cork for the gas and supercritical fluid bounded :cite:p:`HP98`
+
+This is the model of the library (``H2O_cork_holland98``). It has no liquid branch: the EOS is
+for the gas species H2O_g, and liquid water is the condensate H2O_l, with its own thermodynamic
+data and stability, so a liquid fugacity here would count condensation twice. Below the critical
+temperature and above the saturation pressure it therefore differs from the liquid fugacity of
+:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid branch is
+``H2O_cork_holland98`` in this module.
+"""
 
 
 def get_holland_eos_models() -> dict[str, RealGas]:
