@@ -234,9 +234,9 @@ Species outputs are under ``out[<phase>]["species"][<quantity>][<species>]`` (``
    * - number_moles
      - mol
      - Number of moles. For a pure condensate imposed as stable (``solve_for_stability=False``),
-       the amount is determined only through the mass balance of its elements, so it and the
-       quantities derived from it (e.g. ``mass``) are ``NaN`` unless one of its elements has a
-       mass constraint. Its activity is still given by its activity model
+       the amount is not solved for, since its elements cannot have a mass constraint (see
+       :ref:`species-constraints`), so it and the quantities derived from it (e.g. ``mass``) are
+       ``NaN``. Its activity is still given by its activity model
 
 Gas species have the following additional output:
 

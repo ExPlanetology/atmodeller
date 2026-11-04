@@ -42,7 +42,7 @@ from atmodeller.interfaces import (
     SpeciesProtocol,
     TSpecies_co,
 )
-from atmodeller.jax_utils import NpFloat, NpInt, as_j64
+from atmodeller.jax_utils import NpBool, NpFloat, NpInt, as_j64
 from atmodeller.solver_utils import RootFindParameters
 from atmodeller.sci_utils import unit_conversion
 from atmodeller.solubility.core import NoSolubility
@@ -553,6 +553,24 @@ class SpeciesCollection(eqx.Module, Generic[TSpecies_co]):
         logger.debug(
             "Creating %s: %s", self.__class__.__name__, tuple(str(species) for species in self)
         )
+
+    @property
+    def imposed_stable_elements(self) -> NpBool:
+        """Whether each element occurs in a condensate that is imposed stable
+
+        A condensate imposed stable (``solve_for_stability=False``) has no unknowns, so its amount
+        is not solved for, and its elements cannot have a mass constraint. The elements are in the
+        order of :attr:`unique_elements`.
+        """
+        imposed: NpBool = np.array(
+            [
+                isinstance(species_, ChemicalSpecies) and species_.number_solution == 0
+                for species_ in self
+            ],
+            dtype=bool,
+        )
+
+        return np.any(get_formula_matrix(self)[:, imposed] > 0, axis=1)
 
     @property
     def active_stability(self) -> Bool[Array, " n_species"]:

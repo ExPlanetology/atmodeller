@@ -518,27 +518,13 @@ class BaseOutputDict(eqx.Module):
             ..., phase_slice
         ]
 
-        # A pure phase imposed as stable has no unknowns. Its number of moles enters only the mass
-        # balance of its elements, so it is determined only if one of them has a mass constraint,
-        # and is otherwise left at the initial guess. Its amount is then reported as NaN.
+        # A pure phase imposed as stable has no unknowns, and its elements cannot have a mass
+        # constraint, so its number of moles is not determined and is left at the initial guess.
+        # Its amount is reported as NaN.
         if isinstance(phase, PurePhase):
             species_: Any = next(iter(phase.species))
             if species_.number_solution == 0:
-                elements: tuple[str, ...] = (
-                    self.parameters.mass_constraints.species.unique_elements
-                )
-                indices: list[int] = [
-                    elements.index(element)
-                    for element in species_.data.composition
-                    if element in elements
-                ]
-                mass_active: Bool[Array, "... n_elements"] = jnp.asarray(
-                    self.parameters.mass_constraints.active()
-                )
-                determined: Bool[Array, "... 1"] = jnp.any(
-                    mass_active[..., indices], axis=-1, keepdims=True
-                )
-                log_number_moles = jnp.where(determined, log_number_moles, jnp.nan)
+                log_number_moles = jnp.full_like(log_number_moles, jnp.nan)
 
         phase_output: PhaseOutput = phase.output(
             log_number_moles,

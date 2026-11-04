@@ -622,7 +622,9 @@ class Parameters(eqx.Module):
         Args:
             activity_constraints: New activity/fugacity constraints. Defaults to ``None``.
             mass_constraints: New mass constraints. Defaults to ``None``.
-            mass_units: Units of ``mass_constraints``. Defaults to ``mass``.
+            mass_units: Units of ``mass_constraints``, ``"mass"`` (kg) or ``"moles"``, for this
+                call only: they are not inherited from the units with which the model was created.
+                Defaults to ``"mass"``.
 
         Returns:
             Updated parameters
