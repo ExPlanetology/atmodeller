@@ -17,7 +17,7 @@ from jaxtyping import Array, ArrayLike
 
 from atmodeller import override
 from atmodeller.eos.core import IdealGas, RealGas, RealGasBase
-from atmodeller.jax_utils import FloatArray, as_j64, to_hashable, to_native_floats
+from atmodeller.jax_utils import FloatArray, as_j64, to_native_floats
 from atmodeller.sci_utils import GAS_CONSTANT_BAR, ExperimentalCalibration
 
 
@@ -41,8 +41,6 @@ class CombinedRealGas(RealGas):
     """Experimental calibrations"""
     upper_pressure_bounds: tuple[float, ...] = eqx.field(converter=to_native_floats)
     """Upper pressure bounds"""
-    _volume_functions: tuple[Callable, ...]
-    _volume_integral_functions: tuple[Callable, ...]
 
     def __init__(
         self, real_gases: tuple[RealGas, ...], calibrations: tuple[ExperimentalCalibration, ...]
@@ -50,10 +48,6 @@ class CombinedRealGas(RealGas):
         self.real_gases = real_gases
         self.calibrations = calibrations
         self.upper_pressure_bounds = self._get_upper_pressure_bounds(calibrations)
-        self._volume_functions = tuple(to_hashable(eos.volume) for eos in self.real_gases)
-        self._volume_integral_functions = tuple(
-            to_hashable(eos.volume_integral) for eos in self.real_gases
-        )
 
     @classmethod
     def create(
@@ -187,8 +181,12 @@ class CombinedRealGas(RealGas):
         indices: Array = self._get_index(pressure)
         # jax.debug.print("indices = {out}", out=indices)
 
+        # The EOS are read from real_gases when called, so their parameters are part of the pytree
+        # and an updated EOS is used
+        volume_functions: tuple[Callable, ...] = tuple(eos.volume for eos in self.real_gases)
+
         def apply_volume(index: ArrayLike, temperature, pressure, mole_fractions) -> FloatArray:
-            return lax.switch(index, self._volume_functions, temperature, pressure, mole_fractions)
+            return lax.switch(index, volume_functions, temperature, pressure, mole_fractions)
 
         vmap_volume: Callable = eqx.filter_vmap(apply_volume, in_axes=(0, 0, 0, None))
         volume: FloatArray = vmap_volume(indices, temperature, pressure, mole_fractions)
@@ -202,6 +200,11 @@ class CombinedRealGas(RealGas):
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
         index: Array = self._get_index(pressure)
+        # The EOS are read from real_gases when called, so their parameters are part of the pytree
+        # and an updated EOS is used
+        volume_integral_functions: tuple[Callable, ...] = tuple(
+            eos.volume_integral for eos in self.real_gases
+        )
 
         def compute_integral(
             i: Array,
@@ -221,13 +224,13 @@ class CombinedRealGas(RealGas):
                 Volume integral
             """
             volume_integral_high: FloatArray = lax.switch(
-                i, self._volume_integral_functions, temperature, pressure_high, mole_fractions
+                i, volume_integral_functions, temperature, pressure_high, mole_fractions
             )
             # jax.debug.print(
             #    "compute_integral: volume_integral_high = {out}", out=volume_integral_high
             # )
             volume_integral_low: FloatArray = lax.switch(
-                i, self._volume_integral_functions, temperature, pressure_low, mole_fractions
+                i, volume_integral_functions, temperature, pressure_low, mole_fractions
             )
             # jax.debug.print(
             #    "compute_integral: volume_integral_low = {out}", out=volume_integral_low
@@ -286,15 +289,15 @@ class CombinedRealGas(RealGas):
                 Total integral with the first integral contribution added
             """
             # If the index is 0, then the first integral is the only one that is added.
-            integral: FloatArray = lax.switch(
-                0, self._volume_integral_functions, temperature, pressure, mole_fractions
+            integral: FloatArray = self.real_gases[0].volume_integral(
+                temperature, pressure, mole_fractions
             )
             # Otherwise, the first integral is added to the total integral.
             pressure_max: FloatArray = lax.dynamic_index_in_dim(
                 jnp.array(self.upper_pressure_bounds), 0, keepdims=False
             )
-            integral2: FloatArray = lax.switch(
-                0, self._volume_integral_functions, temperature, pressure_max, mole_fractions
+            integral2: FloatArray = self.real_gases[0].volume_integral(
+                temperature, pressure_max, mole_fractions
             )
 
             # jax.debug.print("add_only_first_integral: integral = {out}", out=integral)
@@ -453,7 +456,6 @@ class CombinedRealGasFugacity(RealGasBase):
     """Experimental calibrations"""
     upper_pressure_bounds: tuple[float, ...] = eqx.field(converter=to_native_floats)
     """Upper pressure bounds"""
-    _log_fugacity_coefficient_functions: tuple[Callable, ...]
     min_log_fugacity_coefficient: float | None
     """Minimum log fugacity coefficient to avoid numerical issues"""
     max_log_fugacity_coefficient: float | None
@@ -469,9 +471,6 @@ class CombinedRealGasFugacity(RealGasBase):
         self.real_gases = real_gases
         self.calibrations = calibrations
         self.upper_pressure_bounds = self._get_upper_pressure_bounds(calibrations)
-        self._log_fugacity_coefficient_functions = tuple(
-            to_hashable(eos.log_fugacity_coefficient) for eos in self.real_gases
-        )
         self.min_log_fugacity_coefficient = min_log_fugacity_coefficient
         self.max_log_fugacity_coefficient = max_log_fugacity_coefficient
 
@@ -532,12 +531,18 @@ class CombinedRealGasFugacity(RealGasBase):
         indices: Array = self._get_index(pressure)
         # jax.debug.print("indices = {out}", out=indices)
 
+        # The EOS are read from real_gases when called, so their parameters are part of the pytree
+        # and an updated EOS is used
+        log_fugacity_coefficient_functions: tuple[Callable, ...] = tuple(
+            eos.log_fugacity_coefficient for eos in self.real_gases
+        )
+
         def apply_log_fugacity_coefficient(
             index: ArrayLike, temperature, pressure, mole_fractions
         ) -> FloatArray:
             return lax.switch(
                 index,
-                self._log_fugacity_coefficient_functions,
+                log_fugacity_coefficient_functions,
                 temperature,
                 pressure,
                 mole_fractions,
