@@ -10,9 +10,15 @@ dataframes (:meth:`~atmodeller.output.Output.to_dataframes`), an Excel file
 
 All quantities are arrays with the batch dimension first, so a batch of models is returned in a
 single output. For dataframes and Excel, each top-level dictionary key becomes a dataframe (or
-sheet) with one row per model, and the nested keys are joined by ``.`` to form the column names
-(e.g. ``species.partial_pressure.H2O_g`` in the ``gas`` dataframe). In Excel, rows of models that
-were not solved successfully are highlighted.
+sheet) with one row per model, indexed by ``model``, and the nested keys are joined by ``.`` to
+form the column names (e.g. ``species.partial_pressure.H2O_g`` in the ``gas`` dataframe). In Excel,
+rows of models that were not solved successfully are highlighted.
+
+The Excel file also starts with an ``info`` sheet, which describes the run rather than the models:
+the *Atmodeller* version and the date, the solver settings, the equation of each reaction whose
+residual is ``reaction_<index>`` (see :ref:`OutputResidual`), the units of the output quantities,
+and the configuration of each species. The same table is returned by
+:meth:`~atmodeller.output.Output.info`.
 
 Output formats
 --------------
@@ -138,6 +144,14 @@ The gas phase has the following additional phase-level outputs:
        solar abundance, so metals that are not modelled do not contribute to the solar sum. For
        example, :math:`[\mathrm{M}/\mathrm{H}] = 2` is 100 times solar. ``NaN`` if there are no
        such metals. Only present if H is in the gas phase
+   * - C_to_O
+     - mol mol\ :math:`^{-1}`
+     - Number of moles of C relative to O (atoms), :math:`N_\mathrm{C}/N_\mathrm{O}`. Only present
+       if C and O are in the gas phase
+   * - C_to_H
+     - mol mol\ :math:`^{-1}`
+     - Number of moles of C relative to H (atoms), :math:`N_\mathrm{C}/N_\mathrm{H}`. Only present
+       if C and H are in the gas phase
 
 Elements
 --------
@@ -219,7 +233,10 @@ Species outputs are under ``out[<phase>]["species"][<quantity>][<species>]`` (``
      - Mole fraction in the phase
    * - number_moles
      - mol
-     - Number of moles
+     - Number of moles. For a pure condensate imposed as stable (``solve_for_stability=False``),
+       the amount is not solved for, since its elements cannot have a mass constraint (see
+       :ref:`species-constraints`), so it and the quantities derived from it (e.g. ``mass``) are
+       ``NaN``. Its activity is still given by its activity model
 
 Gas species have the following additional output:
 
@@ -233,6 +250,27 @@ Gas species have the following additional output:
    * - partial_pressure
      - bar
      - Partial pressure
+
+Species of condensed phases have the following additional output:
+
+.. list-table:: Additional outputs for species of condensed phases
+   :widths: 30 20 50
+   :header-rows: 1
+
+   * - Name
+     - Units
+     - Description
+   * - stable
+     - boolean
+     - Whether the species is stable, i.e. present rather than at a trace amount. With the
+       stability :math:`\sigma` of the species, which satisfies :math:`\sigma n = \tau N`
+       :cite:p:`LKK16`, a species is stable if :math:`\sigma < \sqrt{\tau}`. The activity is that
+       of the activity model of the species reduced by the factor :math:`e^{-\sigma}`, so a stable
+       species has the activity of its activity model to within about :math:`\sqrt{\tau}` (1 for
+       an ideal pure phase). A stable species has :math:`\sigma \approx \tau` and an unstable one
+       has :math:`\sigma` of order 1 or larger, so the two are separated by many orders of
+       magnitude. A species imposed as stable (``solve_for_stability=False``) has
+       :math:`\sigma = 0` and is stable
 
 Constraints
 -----------
@@ -347,6 +385,10 @@ The solver statistics are under the ``solver`` key. A model is solved if ``succe
 is the flag used to drop unsuccessful solves (``drop_unsuccessful_solves``), to highlight rows in
 Excel, and to count the successful models in the solver log.
 
+The result codes ``result`` and ``optimistix_result`` are integers in ``to_dict()``, so that the
+output can be used inside JIT, and their names (e.g. ``objective_check_failed``) in
+``to_dict(to_numpy=True)``, the dataframes, Excel and pickle.
+
 .. list-table:: Outputs for solver
    :widths: 30 20 50
    :header-rows: 1
@@ -371,11 +413,16 @@ Excel, and to count the successful models in the solver log.
      - Attempt on which the model was solved (e.g. in a multistart procedure). Zero if no attempt
        succeeded
    * - result
-     - integer
+     - integer or text
      - Why the model was or was not solved, as a value of ``atmodeller.RESULTS``: ``successful``,
        ``solver_failed`` or ``objective_check_failed``, describing the best attempt of a model
        that was not solved. The message of each model is
        ``atmodeller.RESULTS[output.checked_solution.result]``
+   * - optimistix_result
+     - integer or text
+     - Why the solver stopped on that attempt, as a value of ``optimistix.RESULTS``, e.g.
+       ``successful``, ``nonlinear_max_steps_reached`` or ``nonlinear_divergence``. The message of
+       each model is ``optimistix.RESULTS[output.checked_solution.optimistix_result]``
    * - residual
      - float
      - Largest absolute residual of the objective function (infinity norm) on the attempt kept for
@@ -388,7 +435,9 @@ Solution and initial guess
 
 The ``solution`` key contains the raw solution from the solver for each species: the natural
 logarithm of the number of moles (``<species>``) and the natural logarithm of the stability
-(``<species>_stability``). For a model that was not solved, this is the point closest to a root
+(``<species>_stability``). The stability is included only for species whose stability is solved
+for (``solve_for_stability``), which is fixed by the species, so it is not output for gas species or
+condensates imposed as stable. For a model that was not solved, this is the point closest to a root
 over all its attempts, by the residual of the objective function, which may be the initial guess.
 
 The ``initial_guess`` key compares the solution with the initial guess the solver started from,
@@ -399,9 +448,12 @@ warm start from a previous solution):
 - ``<species>_solution`` and ``<species>_stability_solution``: the solution, as in ``solution``
 - ``<species>_guess`` and ``<species>_stability_guess``: the initial guess
 - ``<species>_log_error`` and ``<species>_stability_log_error``: absolute difference between the
-  guess and the solution (``NaN`` for inactive stabilities)
+  guess and the solution
 - ``log_error_mae`` and ``log_error_rmse``: mean absolute error and root-mean-square error of the
   guess across all solution quantities
+
+As in ``solution``, the stability entries are included only for species whose stability is solved
+for.
 
 .. _OutputResidual:
 
@@ -416,10 +468,12 @@ satisfy, and how far each constraint of a solved model is from exact:
 - ``reaction_<index>``: residual of each reaction, in units of the log equilibrium constant. The
   reaction of each index is given by ``model.parameters.reaction_system.get_reaction_dictionary()``.
 - ``<element>_mass``: ratio of the number of moles of the element to its mass constraint, minus one
-- ``<species>_stability``: log stability minus the log stability implied by the number of moles
+- ``<species>_stability``: log stability minus the log stability implied by the number of moles,
+  only for species whose stability is solved for
 
 Inactive constraints are ``NaN``, e.g. a species without an activity constraint or an element whose
-mass constraint is switched off with ``NaN``. The residual is evaluated at the reported solution,
+mass constraint is switched off with ``NaN``. These are kept so that the columns are the same for
+every model, whatever its constraints. The residual is evaluated at the reported solution,
 which for a solved model comes from the final solve that attaches derivatives, so it can be smaller
 than ``residual`` under the ``solver`` key, which the solver used to decide whether the model is
 solved.

@@ -209,6 +209,10 @@ class CheckedSolution(eqx.Module):  # pragma: no cover
             "successful_attempt": self.successful_attempt,
             "success": self.success,
             "result": jnp.broadcast_to(self.result._value, self.batch_shape),  # pyright: ignore
+            "optimistix_result": jnp.broadcast_to(
+                self.optimistix_result._value,  # pyright: ignore
+                self.batch_shape,
+            ),
             "residual": self.residual,
         }
 

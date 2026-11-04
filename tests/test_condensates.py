@@ -113,6 +113,15 @@ def test_graphite_water_stable(graphite_water_model: EquilibriumModel) -> None:
     }
 
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
+    assert _stable(output) == {"C_graphite": True, "H2O_l": True}
+
+
+def _stable(output: Output) -> dict[str, bool]:
+    """Whether each condensate of the graphite-water model is stable"""
+    out: dict[str, Any] = output.to_dict()
+    return {
+        name: bool(out[name]["species"]["stable"][name].item()) for name in ("C_graphite", "H2O_l")
+    }
 
 
 def test_graphite_water_oxidised(graphite_water_model: EquilibriumModel) -> None:
@@ -152,6 +161,7 @@ def test_graphite_water_oxidised(graphite_water_model: EquilibriumModel) -> None
 
     assert bool(np.all(output.checked_solution.success))
     assert output.compare(target, log=True, rtol=TOLERANCE, atol=TOLERANCE)
+    assert _stable(output) == {"C_graphite": False, "H2O_l": True}
 
 
 def test_impose_stable() -> None:
@@ -191,6 +201,12 @@ def test_impose_stable() -> None:
     }
 
     assert output.compare(factsage_result, log=True, rtol=TOLERANCE, atol=TOLERANCE)
+
+    # Without a mass constraint on C, the amount of the imposed graphite is not determined
+    graphite: dict[str, Any] = output.to_dict()["C_graphite"]["species"]
+    assert bool(graphite["stable"]["C_graphite"].item())
+    assert np.isnan(graphite["number_moles"]["C_graphite"]).all()
+    assert np.isnan(graphite["mass"]["C_graphite"]).all()
 
     # The amount of the imposed graphite is not solved for, so C cannot have a mass constraint
     def with_carbon(c_moles: ArrayLike) -> EquilibriumModel:
