@@ -15,6 +15,7 @@ Each update method takes keyword arguments and returns a new model with the same
   - ``temperature`` and ``pressure``;
   - for a ``Planet``: ``planet_mass``, ``core_mass_fraction``, ``mantle_melt_fraction`` and ``surface_radius``, with the background masses of the core, melt and solid recomputed together;
   - for a ``ThermodynamicState``: ``mass``, ``melt_fraction`` and ``background_metal_mass``, with the background melt and solid masses recomputed together.
+  - ``background_silicate_molar_mass``, for the silicate melt and solid, and ``background_metal_molar_mass``.
 
 - ``model.update_constraints(...)`` changes the constraints:
 
@@ -23,7 +24,7 @@ Each update method takes keyword arguments and returns a new model with the same
 
   A constraint is switched off with ``NaN`` and on with a finite value. A constraint cannot change its type, e.g. from a fixed fugacity to a buffer, which raises an error.
 
-Updated values must keep the shapes of the values they replace, e.g. one value per model of the batch, since a new shape compiles the solver again. Anything else, such as the species, their equations of state or solubility laws, the background molar masses or the solver settings, needs a new model, which is compiled again.
+Updated values must keep the shapes of the values they replace, e.g. one value per model of the batch, since a new shape compiles the solver again. Anything else, such as the species, their equations of state or solubility laws, or the solver settings, needs a new model, which is compiled again.
 
 Performance in loops
 --------------------

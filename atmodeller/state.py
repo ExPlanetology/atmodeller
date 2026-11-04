@@ -133,6 +133,45 @@ class BaseThermodynamicState(eqx.Module):
         """Updates the state from keyword arguments."""
         ...
 
+    def _molar_mass_updates(
+        self,
+        background_silicate_molar_mass: Optional[ArrayLike],
+        background_metal_molar_mass: Optional[ArrayLike],
+    ) -> list[tuple[Callable[[Self], Any], Any]]:
+        """Gets the updates of the background molar masses, as (selector, new value) pairs.
+
+        The silicate molar mass applies to both the silicate melt and the silicate solid.
+
+        Args:
+            background_silicate_molar_mass: Background molar mass of the silicate phases
+                (kg mol\\ :sup:`-1`), or ``None`` for no change
+            background_metal_molar_mass: Background molar mass of the metal phase
+                (kg mol\\ :sup:`-1`), or ``None`` for no change
+
+        Returns:
+            The updates, for :func:`equinox.tree_at`
+        """
+        updates: list[tuple[Callable[[Self], Any], Any]] = []
+        phase_indices: list[tuple[int, Optional[ArrayLike]]] = [
+            (self.silicate_melt_phase_index, background_silicate_molar_mass),
+            (self.silicate_solid_phase_index, background_silicate_molar_mass),
+            (self.metal_phase_index, background_metal_molar_mass),
+        ]
+        for index, molar_mass in phase_indices:
+            if molar_mass is None:
+                continue
+            old_molar_mass: FloatArray = self.phase_system.phases[index].background_molar_mass
+            updates.append(
+                (
+                    lambda s, index=index: (
+                        s.reaction_system.phase_system.phases[index].background_molar_mass
+                    ),
+                    jnp.broadcast_to(as_j64(molar_mass), jnp.shape(old_molar_mass)),
+                )
+            )
+
+        return updates
+
     def get_silicate_solid_mass(
         self, log_number_moles: Float[Array, "... n_species"]
     ) -> FloatArray:
@@ -348,6 +387,8 @@ class ThermodynamicState(BaseThermodynamicState):
         mass: Optional[ArrayLike] = None,
         melt_fraction: Optional[ArrayLike] = None,
         background_metal_mass: Optional[ArrayLike] = None,
+        background_silicate_molar_mass: Optional[ArrayLike] = None,
+        background_metal_molar_mass: Optional[ArrayLike] = None,
         temperature: Optional[ArrayLike] = None,
         pressure: Optional[ArrayLike] = None,
     ) -> Self:
@@ -370,6 +411,10 @@ class ThermodynamicState(BaseThermodynamicState):
                 (no change).
             background_metal_mass: Background mass of the metal phase (kg). Defaults to ``None``
                 (no change).
+            background_silicate_molar_mass: Background molar mass of the silicate phases
+                (kg mol\\ :sup:`-1`). Defaults to ``None`` (no change).
+            background_metal_molar_mass: Background molar mass of the metal phase
+                (kg mol\\ :sup:`-1`). Defaults to ``None`` (no change).
             temperature: Temperature (K). Defaults to ``None``.
             pressure: Pressure (bar). Defaults to ``None``.
 
@@ -434,6 +479,10 @@ class ThermodynamicState(BaseThermodynamicState):
                     jnp.broadcast_to(as_j64(background_metal_mass), old_metal_mass.shape),
                 )
             )
+
+        updates.extend(
+            self._molar_mass_updates(background_silicate_molar_mass, background_metal_molar_mass)
+        )
 
         if temperature is not None:
             temperature = jnp.broadcast_to(as_j64(temperature), self.temperature.shape)
@@ -725,6 +774,8 @@ class BasePlanet(BaseThermodynamicState):
         core_mass_fraction: Optional[ArrayLike] = None,
         mantle_melt_fraction: Optional[ArrayLike] = None,
         surface_radius: Optional[ArrayLike] = None,
+        background_silicate_molar_mass: Optional[ArrayLike] = None,
+        background_metal_molar_mass: Optional[ArrayLike] = None,
         temperature: Optional[ArrayLike] = None,
         pressure: Optional[ArrayLike] = None,
     ) -> Self:
@@ -757,6 +808,10 @@ class BasePlanet(BaseThermodynamicState):
             mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass.
                 Defaults to ``None`` (no change).
             surface_radius: Radius of the planetary surface (m). Defaults to ``None``.
+            background_silicate_molar_mass: Background molar mass of the silicate phases
+                (kg mol\\ :sup:`-1`). Defaults to ``None`` (no change).
+            background_metal_molar_mass: Background molar mass of the metal phase
+                (kg mol\\ :sup:`-1`). Defaults to ``None`` (no change).
             temperature: Temperature (K). Defaults to ``None``.
             pressure: Pressure (bar). Defaults to ``None``.
 
@@ -847,6 +902,10 @@ class BasePlanet(BaseThermodynamicState):
                     new_mantle_mass * (1 - melt_fraction),
                 )
             )
+
+        updates.extend(
+            self._molar_mass_updates(background_silicate_molar_mass, background_metal_molar_mass)
+        )
 
         if surface_radius is not None:
             surface_radius = jnp.broadcast_to(as_j64(surface_radius), self.surface_radius.shape)
