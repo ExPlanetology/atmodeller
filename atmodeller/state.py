@@ -493,7 +493,8 @@ class BasePlanet(BaseThermodynamicState):
                 untracked core mass at all (see the note above) — the metal phase's background
                 mass is then exactly zero, and ``planet_mass`` sizes only the mantle background.
             mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass
-                (kg kg\\ :sup:`-1`). Defaults to ``1.0``.
+                (kg kg\\ :sup:`-1`). With ``silicate_melt_species`` it must be greater than 0,
+                since nothing can dissolve without melt. Defaults to ``1.0``.
             surface_radius: Radius of the planetary surface (m). Defaults to Earth.
             temperature: Temperature (K). Defaults to ``2000``.
             pressure: Pressure (bar). Defaults to ``NaN`` to solve for the mechanical pressure
