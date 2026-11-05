@@ -26,6 +26,7 @@ For questions and ideas, or to share how you are using *Atmodeller*, join the `D
    development.rst
    troubleshooting.rst
    usedin.rst
+   changelog.md
 
 .. only:: html
 

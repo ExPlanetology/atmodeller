@@ -1,6 +1,7 @@
 * **Please check if the PR fulfills these requirements** (see [CONTRIBUTING.md](../CONTRIBUTING.md); the development team is happy to help with any of these)
 - [ ] Tests for the changes have been added (for bug fixes / features)
 - [ ] Docs have been added / updated (for bug fixes / features)
+- [ ] Changes that matter to users are added to `CHANGELOG.md` under Unreleased
 - [ ] All tests pass (`pytest`)
 - [ ] The pre-commit checks pass (`pre-commit run --all-files`)
 - [ ] At least 80% of the changed lines in `atmodeller/` are covered by tests (`diff-cover`)
