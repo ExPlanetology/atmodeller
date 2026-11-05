@@ -28,7 +28,7 @@ from openpyxl import load_workbook
 from atmodeller import RESULTS, __version__, console_logger
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol
-from atmodeller.output import Output
+from atmodeller.output import _excel_sheet_names, Output
 from atmodeller.output_base import flatten_dictionary, log_epsilon, recursively_merge_dictionaries
 from atmodeller.parameters import Parameters
 from atmodeller.sci_utils import earth, solar
@@ -382,6 +382,19 @@ def test_unsuccessful_solves(cho_output: Output, tmp_path: Path) -> None:
                 if row[0].fill.fgColor.rgb == "00FFFF00"
             ]
             assert highlighted_rows == expected_rows
+
+
+def test_excel_sheet_names() -> None:
+    """Excel sheet names are shortened to 31 characters and stay unique, ignoring case"""
+    long: str = "O2Si_a_very_long_custom_suffix"
+    names: list[str] = ["gas", f"{long}_one", f"{long}_two", "Info", "a/b"]
+    sheet_names: dict[str, str] = _excel_sheet_names(names, reserved=("info",))
+
+    assert sheet_names["gas"] == "gas"
+    assert sheet_names["a/b"] == "a_b"
+    assert all(len(name) <= 31 for name in sheet_names.values())
+    lowered: list[str] = [name.lower() for name in sheet_names.values()] + ["info"]
+    assert len(lowered) == len(set(lowered))
 
 
 def _read_excel(path: Path) -> dict[str, pd.DataFrame]:

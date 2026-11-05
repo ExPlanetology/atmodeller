@@ -6,7 +6,7 @@ Developer's guide
 Introduction
 ------------
 
-Community development of *Atmodeller* is strongly encouraged, and bug fixes and new features are welcome. *Atmodeller* uses JAX so familiarise yourself with `How to think in JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ and `JAX - The Sharp Bits <https://docs.jax.dev/en/latest/notebooks/Common_Gotchas_in_JAX.html>`_, as well as other resources offered on the JAX site and the web in general. You are welcome to enquire about the reasoning behind the structure and design of the code with the development team.
+Community development of *Atmodeller* is strongly encouraged, and bug fixes and new features are welcome. *Atmodeller* uses JAX so familiarise yourself with `How to think in JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ and `JAX - The Sharp Bits <https://docs.jax.dev/en/latest/notebooks/Common_Gotchas_in_JAX.html>`_, as well as other resources offered on the JAX site and the web in general. *Atmodeller* also uses Equinox :cite:p:`kidger2021equinox` heavily to support an object-oriented design: its species, phases, models and outputs are Equinox modules, immutable classes whose arrays JAX can transform directly, so the code can be organised into classes and still be compiled, vectorised and differentiated. See the `Equinox documentation <https://docs.kidger.site/equinox/>`_, in particular its filtered transformations such as ``equinox.filter_jit``. You are welcome to enquire about the reasoning behind the structure and design of the code with the development team.
 
 Contributing
 ------------
