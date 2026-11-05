@@ -7,7 +7,7 @@ under **Unreleased**, which becomes the next version when it is released.
 
 ## [Unreleased]
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-11-05
 
 Version 2 is a substantial rewrite of version 1, which was a prototype. The interface has changed
 throughout, so code written for version 1 needs updating; see the documentation and the example
