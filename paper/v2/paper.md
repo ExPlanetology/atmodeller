@@ -222,12 +222,13 @@ be pure and branching that breaks or obscures gradients must be avoided, whereas
 `Equinox`'s filtered transformations separate static configuration from traced
 arrays automatically. Array shapes must also be fixed at compile time, which
 determines how phase stability is treated. Many equilibrium codes add and remove
-condensates during the solve, which changes the size of the system. `Atmodeller` instead includes every
-candidate species throughout and assigns each a stability variable [@Leal2016],
-so the system has a fixed size. It is larger, but it is compiled once, can be
-vectorised over conditions with different stable phase assemblages, and can be
-differentiated through. Because JAX handles compilation, `Atmodeller` itself is
-pure Python, installs with `pip`, and runs on Linux, macOS, and Windows.
+condensates during the solve, which changes the size of the system. `Atmodeller`
+instead includes every candidate species throughout and assigns each a stability
+variable [@Leal2016], so the system has a fixed size. It is larger, but it is
+compiled once, can be vectorised over conditions with different stable phase
+assemblages, and can be differentiated through. Because JAX handles compilation,
+`Atmodeller` itself is pure Python, installs with `pip`, and runs on Linux,
+macOS, and Windows.
 
 # Research impact statement
 
