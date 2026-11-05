@@ -5,13 +5,11 @@
 
 """Tests for the alternate solver constructors in :mod:`atmodeller.solvers`.
 
-:func:`atmodeller.solvers.make_solver_with_jit_single_path` is exercised elsewhere (e.g.
-``tests/test_retracing.py`` via :class:`~atmodeller.classes.EquilibriumModel`), but the other
-public constructors (:func:`~atmodeller.solvers.make_solver`,
-:func:`~atmodeller.solvers.make_solver_with_jit_dual_path`, and
-:func:`~atmodeller.solvers.make_solver_with_jit_batch_only`) are not. This module exercises those
+:func:`atmodeller.solvers.make_solver` is exercised elsewhere (e.g.
+``tests/test_retracing.py`` via :class:`~atmodeller.classes.EquilibriumModel`), but
+:func:`~atmodeller.solvers.make_solver_batch_only` is not. This module exercises it
 directly, bypassing :class:`~atmodeller.classes.EquilibriumModel` since it is hardwired to
-:data:`atmodeller.solvers.make_solver_with_jit`. The result reported by the tau sweep is tested
+:func:`atmodeller.solvers.make_solver`. The result reported by the tau sweep is tested
 with a stub retry solver.
 """
 
@@ -42,9 +40,7 @@ from atmodeller.parameters import Parameters
 from atmodeller.phases import PurePhase
 from atmodeller.sci_utils import earth
 from atmodeller.solvers import (
-    make_solver,
-    make_solver_with_jit_batch_only,
-    make_solver_with_jit_dual_path,
+    make_solver_batch_only,
     make_tau_sweep_solver,
 )
 from atmodeller.state import BaseThermodynamicState, Planet
@@ -123,48 +119,8 @@ def _assert_valid_output(output: Output, parameters: Parameters) -> None:
     assert jnp.all(jnp.nanmax(jnp.abs(output.residual[solved]), axis=-1) < atol)
 
 
-def test_make_solver() -> None:
-    """Exercises `make_solver` without JIT, executing the batch-retry branch of `dispatch_solver`.
-
-    With no active-stability species the generic batch-retry path is used. The tau-sweep branch is
-    executed under JIT by `test_make_solver_with_jit_dual_path`. `lax.cond` traces both branches
-    in either case.
-    """
-    parameters: Parameters = _build_parameters(with_condensate=False)
-    assert not bool(jnp.any(parameters.reaction_system.species.active_stability).item())
-
-    dispatch_solver: Callable = make_solver(parameters)
-    key: PRNGKeyArray = jax.random.PRNGKey(0)
-    base_solution_array: Array = _base_solution_array(parameters)
-
-    output: Output = dispatch_solver(parameters, key, base_solution_array)
-
-    _assert_valid_output(output, parameters)
-    assert jnp.all(output.checked_solution.success)
-
-
-def test_make_solver_with_jit_dual_path() -> None:
-    """Exercises `make_solver_with_jit_dual_path`, which JIT-compiles both dispatch branches.
-
-    `make_solver_with_jit_dual_path` is `eqx.filter_jit(make_solver(parameters))`. With a graphite
-    condensate present (`solve_for_stability=True` by default) the tau-sweep branch is executed,
-    complementing `test_make_solver`, which executes the batch-retry branch without JIT.
-    """
-    parameters: Parameters = _build_parameters(with_condensate=True)
-    assert bool(jnp.any(parameters.reaction_system.species.active_stability).item())
-
-    solver: Callable = make_solver_with_jit_dual_path(parameters)
-    key: PRNGKeyArray = jax.random.PRNGKey(0)
-    base_solution_array: Array = _base_solution_array(parameters)
-
-    output: Output = solver(parameters, key, base_solution_array)
-
-    _assert_valid_output(output, parameters)
-    assert jnp.all(output.checked_solution.success)
-
-
-def test_make_solver_with_jit_batch_only() -> None:
-    """Exercises `make_solver_with_jit_batch_only` with an explicitly batched Parameters.
+def test_make_solver_batch_only() -> None:
+    """Exercises `make_solver_batch_only` with an explicitly batched Parameters.
 
     This constructor uses only the vmapped single-pass batch solver (no retry, no tau sweep), so
     an explicit batch dimension (mirroring the convention in
@@ -175,7 +131,7 @@ def test_make_solver_with_jit_batch_only() -> None:
     parameters: Parameters = _build_parameters(with_condensate=False, batch_size=batch_size)
     assert parameters.batch_size == batch_size
 
-    solver: Callable = make_solver_with_jit_batch_only(parameters)
+    solver: Callable = make_solver_batch_only(parameters)
     key: PRNGKeyArray = jax.random.PRNGKey(0)
     base_solution_array: Array = _base_solution_array(parameters)
 
