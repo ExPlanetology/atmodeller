@@ -6,7 +6,7 @@ Atmodeller documentation
 | Department of Earth and Planetary Sciences
 | ETH Zurich, Switzerland
 
-*Atmodeller* is available at https://github.com/ExPlanetology/atmodeller. If you use *Atmodeller* please cite :cite:t:`BTH25`.
+*Atmodeller* is available at https://github.com/ExPlanetology/atmodeller. If you use *Atmodeller* please cite :cite:t:`BTH25`, and if you use version 2, also :cite:t:`Bower2026`.
 
 For questions and ideas, or to share how you are using *Atmodeller*, join the `Discussions <https://github.com/ExPlanetology/atmodeller/discussions>`__ on GitHub. To report a bug or request a feature, please open an `issue <https://github.com/ExPlanetology/atmodeller/issues>`__.
 
