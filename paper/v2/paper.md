@@ -218,10 +218,10 @@ JAX was chosen because models can be written in Python yet run as fast compiled
 code that can also be vectorised and differentiated. Compilation takes time,
 however, and can dominate the total run time of a small model that is solved
 only once. A further cost is a discipline that shapes the design: functions must
-be pure, static configuration must be kept apart from traced quantities,
-branching that breaks or obscures gradients must be avoided, and array shapes
-must be fixed at compile time. The last determines how phase stability is
-treated. Many equilibrium codes add and remove condensates during the solve,
+be pure and branching that breaks or obscures gradients must be avoided, whereas
+`Equinox`'s filtered transformations separate static configuration from traced
+arrays automatically. Array shapes must also be fixed at compile time, which
+determines how phase stability is treated. Many equilibrium codes add and remove condensates during the solve,
 which changes the size of the system. `Atmodeller` instead includes every
 candidate species throughout and assigns each a stability variable [@Leal2016],
 so the system has a fixed size. It is larger, but it is compiled once, can be
