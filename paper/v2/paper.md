@@ -128,9 +128,9 @@ therefore built natively in JAX. Its thermodynamic library is currently smaller
 than those of some other codes but can be extended from standard thermochemical
 tables.
 
-# New features in version 2.0.0
+# New features in version 2
 
-`Atmodeller` v2.0.0 extends the capabilities of v1.0.0 [@Bower2025]:
+Version 2 of `Atmodeller` extends the capabilities of version 1 [@Bower2025]:
 
 1. **Thermodynamic phases.** The gas, silicate melt, silicate solid, metal, and
    pure condensed phases are represented explicitly. This enables mole fractions
