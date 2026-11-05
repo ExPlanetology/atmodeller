@@ -41,7 +41,7 @@ from atmodeller.interfaces import ActivityConstraintProtocol
 from atmodeller.jax_utils import as_j64
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
-from atmodeller.solvers import make_solver_with_jit
+from atmodeller.solvers import make_solver
 from atmodeller.state import BaseThermodynamicState
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class EquilibriumModel(eqx.Module):
     def __init__(self, parameters: Parameters, *, initializer: InitializerProtocol | None = None):
         self.parameters = parameters
         self.initializer = ElementPotentialInitializer() if initializer is None else initializer
-        self.solver = make_solver_with_jit(parameters, self.initializer)
+        self.solver = make_solver(parameters, self.initializer)
         self.key = jax.random.PRNGKey(0)
 
     @classmethod
@@ -121,7 +121,7 @@ class EquilibriumModel(eqx.Module):
         Note:
             This method is intentionally a thin Python wrapper. The heavy numerical path is
             compiled inside ``self.solver``
-            (created by :func:`~atmodeller.solvers.make_solver_with_jit`).
+            (created by :func:`~atmodeller.solvers.make_solver`).
             The same key is reused for repeat calls, so stochastic branches remain deterministic.
 
         Args:
@@ -334,7 +334,7 @@ class EquilibriumModel(eqx.Module):
         Returns:
             A new instance of :class:`EquilibriumModel` with a rebuilt solver
         """
-        solver_rebuilt: SolverCallable = make_solver_with_jit(self.parameters, self.initializer)
+        solver_rebuilt: SolverCallable = make_solver(self.parameters, self.initializer)
         model_rebuilt: EquilibriumModel = eqx.tree_at(lambda m: m.solver, self, solver_rebuilt)
 
         return cast(Self, model_rebuilt)
