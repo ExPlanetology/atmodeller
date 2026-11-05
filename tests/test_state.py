@@ -10,14 +10,14 @@ import logging
 import numpy as np
 import pytest
 
-from atmodeller import EquilibriumModel, Planet, debug_logger
+from atmodeller import EquilibriumModel, Planet, console_logger
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.engine import is_valid_model
 from atmodeller.phases import PurePhase
 from atmodeller.solubility import get_solubility_models
 from atmodeller.state import BasePlanet, PressureScalingLawPlanet, ThermodynamicState
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.WARNING)
 
 H2O_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O")
@@ -36,6 +36,29 @@ def test_thermodynamic_state_update() -> None:
     # Original state is unaffected (immutability)
     assert float(state.temperature) == pytest.approx(1000.0)
     assert float(state.pressure) == pytest.approx(2.0)
+
+    # The background masses are kept consistent: melt + solid = mass, split by the melt fraction
+    melt, solid, metal = (
+        state.silicate_melt_phase_index,
+        state.silicate_solid_phase_index,
+        state.metal_phase_index,
+    )
+    updated_state = state.update(mass=4.0, melt_fraction=0.25, background_metal_mass=2.0)
+    phases = updated_state.phase_system.phases
+    assert float(phases[melt].background_mass) == pytest.approx(1.0)
+    assert float(phases[solid].background_mass) == pytest.approx(3.0)
+    assert float(phases[metal].background_mass) == pytest.approx(2.0)
+    # A fraction that is not given keeps its current value
+    phases = updated_state.update(mass=8.0).phase_system.phases
+    assert float(phases[melt].background_mass) == pytest.approx(2.0)
+    assert float(phases[solid].background_mass) == pytest.approx(6.0)
+    # The silicate molar mass applies to the melt and the solid
+    phases = state.update(
+        background_silicate_molar_mass=0.1, background_metal_molar_mass=0.05
+    ).phase_system.phases
+    assert float(phases[melt].background_molar_mass) == pytest.approx(0.1)
+    assert float(phases[solid].background_molar_mass) == pytest.approx(0.1)
+    assert float(phases[metal].background_molar_mass) == pytest.approx(0.05)
 
 
 def _background_masses(planet: BasePlanet) -> tuple[float, float, float]:
@@ -71,6 +94,12 @@ def test_base_planet_update() -> None:
     check(planet.update(mantle_melt_fraction=0.9), mass, 0.3, 0.9)
     # All together
     check(planet.update(planet_mass=6.0e24, core_mass_fraction=0.2), 6.0e24, 0.2, 0.4)
+    # The molar masses change without changing the masses
+    updated: BasePlanet = planet.update(background_silicate_molar_mass=0.1)
+    check(updated, mass, 0.3, 0.4)
+    assert float(
+        updated.phase_system.phases[planet.silicate_solid_phase_index].background_molar_mass
+    ) == pytest.approx(0.1)
 
 
 def test_dissolved_species_raise() -> None:

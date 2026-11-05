@@ -10,11 +10,11 @@ which the data refer, keyed by Hill formula and then end-member. Species are cre
 database by :meth:`~atmodeller.containers.ChemicalSpecies.create_gas`,
 :meth:`~atmodeller.containers.ChemicalSpecies.from_end_member` and the methods of
 :class:`~atmodeller.phases.PurePhase`, which use the default database
-(:meth:`DataBase.default`) unless another is given, for example:
+(:meth:`Database.default`) unless another is given, for example:
 
 .. code-block:: python
 
-    db: DataBase = DataBase.from_glenn_file("my_glenn_coefficients.txt")
+    db: Database = Database.from_glenn_file("my_glenn_coefficients.txt")
     db.stitchable_end_members("SiO2")  # quartz-alpha, quartz-beta, cristobalite-beta, liquid
 
     h2o_g: ChemicalSpecies = ChemicalSpecies.create_gas("H2O", database=db)
@@ -41,7 +41,7 @@ _SHARED_END_MEMBERS: tuple[str, ...] = (GAS_END_MEMBER, LIQUID_END_MEMBER)
 """End-members that are shared by all formulas, unlike a mineral"""
 
 
-class DataBase:
+class Database:
     """Thermodynamic database of end-members
 
     The thermodynamic data are keyed by Hill formula and then end-member, e.g.
@@ -50,8 +50,8 @@ class DataBase:
     whereas end-members added later, such as diamond, can only be selected on their own.
     The default database is :meth:`default`, and a file of NASA Glenn coefficients is read with
     :meth:`from_glenn_file`. Data from any source can be given, e.g.
-    ``DataBase({"H2O": {"gas": ..., "liquid": ...}})``, and
-    ``DataBase(glenn_properties)`` (:data:`~atmodeller.thermodata.glenn.glenn_properties`) is the
+    ``Database({"H2O": {"gas": ..., "liquid": ...}})``, and
+    ``Database(glenn_properties)`` (:data:`~atmodeller.thermodata.glenn.glenn_properties`) is the
     packaged NASA Glenn coefficients without the changes of the default database.
 
     Args:

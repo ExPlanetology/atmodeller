@@ -1,14 +1,14 @@
 Species
 =======
 
-This page defines the terms used for species and phases, and explains how species are named, selected from the thermodynamic data, placed in phases, stitched together and extrapolated.
+This page defines the terms used for species and phases, and explains how species are named, selected from the thermodynamic data, placed in phases, constrained, stitched together and extrapolated.
 
 Terminology
 -----------
 
 - A **species** is a chemically distinct entity characterised by its composition, charge, structure and state, to which thermodynamic properties can be assigned. Each end-member is created from the thermodynamic data, whereas a species that dissolves in silicate melt is not described by thermodynamic data but rather by an experimentally calibrated solubility law that relates its amount in the melt to the fugacity of its gas.
 - An **end-member** is a species with its own thermodynamic data, and every end-member can also exist as a phase, so it can be modelled as a pure phase, e.g. graphite or liquid H2O. A condensed end-member is selected as a pure phase with ``PurePhase.from_end_member``. In the data, each end-member is listed under its chemical formula and named as the ``gas``, the ``liquid``, or a mineral such as ``quartz-alpha`` or ``graphite``; a mineral belongs to one chemical formula only, whereas the gas and liquid are shared by all formulas.
-- A **phase** is a physically homogeneous part of the system. A pure phase has a single end-member or pseudo end-member (see below); a condensed pure phase has unit activity by default. *Atmodeller* also accommodates solutions---phases that contain several end-members and, in the silicate melt, dissolved species---which can be used to model the silicate melt, the silicate solid and the metal. An activity model describes the non-ideal mixing of the end-members of a solution; by default, mixing is ideal, so the activity of each end-member is its mole fraction. The gas phase is also a solution, of gas end-members, although it is pure if it consists of only one. Unlike a condensed pure phase, which forms only where it is stable, the silicate melt, silicate solid and metal are prescribed: they exist with the background mass that is given, and *Atmodeller* does not test whether such a solution as a whole is stable, e.g. whether a melt should crystallise or not exist at all. The result is the equilibrium given that these solutions exist.
+- A **phase** is a physically homogeneous part of the system. A pure phase has a single end-member or pseudo end-member (see below); a condensed pure phase has unit activity by default. A condensed pure phase, e.g. graphite or liquid water, is called a **condensate**, and is given to a model with ``condensates=``. *Atmodeller* also accommodates solutions---phases that contain several end-members and, in the silicate melt, dissolved species---which can be used to model the silicate melt, the silicate solid and the metal. An activity model describes the non-ideal mixing of the end-members of a solution; by default, mixing is ideal, so the activity of each end-member is its mole fraction. The gas phase is also a solution, of gas end-members, although it is pure if it consists of only one. Unlike a condensed pure phase, which forms only where it is stable, the silicate melt, silicate solid and metal are prescribed: they exist with the background mass that is given, and *Atmodeller* does not test whether such a solution as a whole is stable, e.g. whether a melt should crystallise or not exist at all. The result is the equilibrium given that these solutions exist.
 - A **component** defines a vector of chemical variation: the components are the minimum set of independent chemical coordinates of the system, in which the composition of every species can be expressed. Their number is the rank of the formula matrix, which is at most the number of elements, including the electron for ions. It equals the number of elements when the formula matrix has full rank, and is fewer when the matrix is rank deficient, i.e. when elements occur in fixed ratios in every species: with only H2O_g and liquid H2O, for example, H and O vary together, so there is a single component. The components are not set by the user but are determined from the species of the model. Their number is nonetheless important to appreciate, since it partly determines the number of constraints that a model needs (see :ref:`species-constraints`).
 
 The term **end-member** follows the petrological convention of :cite:t:`HP11`. *Atmodeller* additionally introduces a **pseudo end-member**, which stitches together the end-members of one chemical formula, and whose Gibbs energy at each temperature is that of the end-member whose temperature range contains it, i.e. the end-member that is stable at 1 bar, so that it can be treated as a single species in the model across polymorphic and melting transitions. For example, ``PurePhase.from_formula("SiO2")`` stitches together quartz-alpha, quartz-beta, cristobalite-beta and liquid SiO2, in order of temperature, to give ``O2Si_cd``. A pseudo end-member is neither a true end-member nor strictly a species, since its structure, and possibly its state, changes with temperature, but it is used in the same way: as the species of a pure phase, or as an end-member of a solution, e.g. the stitched solids ``O2Si_s`` in the silicate solid. A pseudo end-member is convenient when the structure does not matter, e.g. when only whether condensed SiO2 forms is of interest. In the code, an end-member or a pseudo end-member is a ``ChemicalSpecies``, which takes part in reactions through its thermodynamic data, whereas a dissolved species is a ``ReservoirSpecies``, which exchanges with its gas through a solubility law.
@@ -77,7 +77,7 @@ The same names are used for constraints and in the output, so ``"O2S_g"`` (not `
 Selecting species
 -----------------
 
-Species with thermodynamic data are created from the default database, ``DataBase.default()``, unless another is given with ``database=`` (see :ref:`Add thermodynamic data <CommonTasksThermodynamicData>`).
+Species with thermodynamic data are created from the default database, ``Database.default()``, unless another is given with ``database=`` (see :ref:`Add thermodynamic data <CommonTasksThermodynamicData>`).
 
 - **Gases**: ``ChemicalSpecies.create_gas("H2O")``. The activity defaults to an ideal gas, and can be a real gas equation of state.
 - **One condensed end-member**: ``ChemicalSpecies.from_end_member(end_member, formula=...)``. A mineral fixes its formula, e.g. ``from_end_member("cristobalite-beta")``, whereas ``liquid`` is an end-member of many formulas, so the formula is given, e.g. ``from_end_member("liquid", formula="SiO2")``. The species can be an end-member of a solution, such as liquid SiO2 in the silicate melt or liquid Si in the metal with an activity model, or the species of a pure phase.
@@ -90,7 +90,7 @@ Species with thermodynamic data are created from the default database, ``DataBas
 
 - **Dissolved species**: ``ReservoirSpecies.create_dissolved("H2O", solubility=...)``, which is ``H2O_d``. Its amount follows from a solubility law and the fugacity of its gas, not from thermodynamic data, so it is not created from a database.
 
-To see what can be selected, with ``db = DataBase.default()``, ``db.stitchable_end_members("SiO2")`` gives the condensed end-members of a formula that can be stitched together, in order of temperature, and ``db.end_members(("C", "H", "O"))`` lists the end-members of every formula made of the given elements.
+To see what can be selected, with ``db = Database.default()``, ``db.stitchable_end_members("SiO2")`` gives the condensed end-members of a formula that can be stitched together, in order of temperature, and ``db.end_members(("C", "H", "O"))`` lists the end-members of every formula made of the given elements.
 
 Placing species in phases
 -------------------------
@@ -110,6 +110,8 @@ The phase also decides how the data of a condensed species are extrapolated outs
 
 Constraints
 -----------
+
+An activity constraint fixes the activity of a species. For a gas, the activity is the fugacity relative to the 1 bar standard state, so an activity constraint on a gas, such as a redox buffer on O2_g, is a fugacity constraint. A mass constraint fixes the total amount of an element in the system.
 
 Each model needs as many activity and mass constraints as the species have components, less the condensates that are imposed stable (``solve_for_stability=False``), since the fixed activity of each of these acts as a constraint. This is usually one constraint per element, e.g. H and O, or H and an O2 fugacity, for H2, H2O and O2. A mass constraint given for a species, e.g. ``{"H2O": mass}``, constrains each of its elements, and a constraint that is ``NaN`` is inactive, so the constraints can differ between the models of a batch.
 
@@ -136,7 +138,7 @@ To let different end-members compete at a given temperature and pressure instead
 Temperature range and extrapolation
 -----------------------------------
 
-The thermodynamic data of each end-member cover a temperature range (``temperature_range()``), which for a condensate is often bounded by a phase boundary, such as a melting point. Outside the range, each side of the data has its own extrapolation, set with ``extrapolate_below`` and ``extrapolate_above``:
+The thermodynamic data of each end-member cover a temperature range (e.g. ``species.thermo.temperature_range()`` for a ``ChemicalSpecies``, 1996–6000 K for liquid SiO2), which for a condensate is often bounded by a phase boundary, such as a melting point. Outside the range, each side of the data has its own extrapolation, set with ``extrapolate_below`` and ``extrapolate_above``:
 
 - ``"off"``: the species is not stable there. Its Gibbs energy is held at its value at the bound and a large penalty (``NO_DATA_GIBBS_OVER_RT`` in ``atmodeller.constants``) is added.
 - ``"data"``: the data are evaluated in their own form, e.g. the nearest NASA Glenn polynomial.
@@ -167,7 +169,7 @@ The default extrapolation of a species follows its role, i.e. whether it is a ga
      - ``"constant_cp"``
      - ``"constant_cp"``
 
-An extrapolation that is set explicitly when the species is created takes precedence over the default. The defaults are chosen as follows:
+An extrapolation that is set explicitly when a condensed species is created (with ``ChemicalSpecies.from_end_member``, ``from_formula`` or ``from_end_members``, or the ``PurePhase`` methods of the same names) takes precedence over the default. The data of a gas are always extrapolated in their own form. The defaults are chosen as follows:
 
 - **Gases** use ``"data"``, because the range of a gas is not bounded by a phase boundary, so its data are continued in their own form, and the range is usually wide (typically 200 to 6000 K).
 - **Pure phases** use ``"off"``, because the range of a pure condensate is its stable range at 1 bar. SiO2 is liquid above its melting point and solid below it, so the same condensates can be included at any temperature. To extend a pure phase where the bound is only the end of the data, set the extrapolation on that side, e.g. ``PurePhase.from_end_member("ice", extrapolate_below="data")`` for ice below 200 K.
@@ -186,6 +188,7 @@ The constant heat capacity extension allows solutions to be modelled from end-me
         ChemicalSpecies.from_end_member("liquid", formula=formula)
         for formula in ("SiO2", "MgO", "FeO")
     )
+    gas_species = tuple(ChemicalSpecies.create_gas(formula) for formula in ("O2", "SiO", "Mg"))
     # In the silicate melt, they are extended to lower temperatures with a constant heat capacity
     planet = Planet.from_species(gas_species, silicate_melt_species=melt_species, temperature=1500)
 

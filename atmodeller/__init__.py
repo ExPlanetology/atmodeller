@@ -9,9 +9,10 @@ __version__: str = "2.0.0"
 
 import logging
 import os
+from datetime import datetime
+from pathlib import Path
 
 import jax
-import jax.numpy as jnp
 
 # from beartype.claw import beartype_this_package
 # beartype_this_package()
@@ -24,7 +25,6 @@ except ImportError:
 override = _override
 
 jax.config.update("jax_enable_x64", True)
-jnp.set_printoptions(precision=15)  # For better clarity in printed output
 
 # For debugging
 # jax.config.update("jax_debug_nans", True)
@@ -33,9 +33,10 @@ jnp.set_printoptions(precision=15)  # For better clarity in printed output
 # jax.config.update("jax_log_compiles", True)
 
 # This prevents error_if from throwing an error when encountering nan or inf values. To actually
-# find the root cause of nan or inf values, you should set this to "raise" or "breakpoint" as per
-# https://docs.kidger.site/equinox/api/errors/
-os.environ["EQX_ON_ERROR"] = "off"
+# find the root cause of nan or inf values, set EQX_ON_ERROR to "raise" or "breakpoint" before
+# importing atmodeller, as per https://docs.kidger.site/equinox/api/errors/. A value that is already
+# set is kept.
+os.environ.setdefault("EQX_ON_ERROR", "off")
 
 # Suppress warnings (notably from Equinox about static JAX arrays)
 # if not sys.warnoptions:
@@ -74,44 +75,96 @@ def simple_formatter() -> logging.Formatter:
     return formatter
 
 
-def debug_logger() -> logging.Logger:
-    """Sets up debug logging to the console.
+_HANDLER_MARKER: str = "_atmodeller_debug_handler"
+"""Attribute that marks the handlers added by :func:`console_logger` and :func:`file_logger`"""
+
+
+def _add_handler(
+    package_logger: logging.Logger,
+    handler: logging.Handler,
+    formatter: logging.Formatter,
+    level: int,
+) -> None:
+    """Adds a handler to the package logger, marked as added by the debug helpers.
+
+    Args:
+        package_logger: The package logger
+        handler: The handler to add
+        formatter: The formatter of the handler
+        level: The level of the handler
+    """
+    handler.setFormatter(formatter)
+    handler.setLevel(level)
+    setattr(handler, _HANDLER_MARKER, True)
+    package_logger.addHandler(handler)
+
+
+def _remove_handlers(package_logger: logging.Logger) -> None:
+    """Removes and closes the handlers added earlier by the debug helpers.
+
+    Handlers that the user added are kept.
+
+    Args:
+        package_logger: The package logger
+    """
+    for handler in list(package_logger.handlers):
+        if getattr(handler, _HANDLER_MARKER, False):
+            package_logger.removeHandler(handler)
+            handler.close()
+
+
+def console_logger(level: int = logging.INFO) -> logging.Logger:
+    """Sets up logging to the console.
+
+    Calling it again replaces the handlers added by an earlier call to this function or
+    :func:`file_logger`, and keeps any handler that you added yourself. Messages also
+    propagate to the root logger, so if you have configured root logging as well (e.g. with
+    :func:`logging.basicConfig`), they are shown twice.
+
+    Args:
+        level: Lowest level of the messages that are shown, e.g. ``logging.DEBUG`` to also show
+            the debug messages. Defaults to ``logging.INFO``. It is set on the package logger, so
+            it can also be changed later with ``setLevel`` on the returned logger.
 
     Returns:
-        A logger
+        The package logger
     """
     package_logger: logging.Logger = logging.getLogger(__name__)
-    package_logger.setLevel(logging.DEBUG)
-    package_logger.handlers = []
-    console_handler: logging.Handler = logging.StreamHandler()
-    console_formatter: logging.Formatter = simple_formatter()
-    console_handler.setFormatter(console_formatter)
-    package_logger.addHandler(console_handler)
+    package_logger.setLevel(level)
+    _remove_handlers(package_logger)
+    # The handler shows everything that the logger passes on, so the level is set in one place
+    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), logging.NOTSET)
 
     return package_logger
 
 
-def debug_file_logger() -> logging.Logger:
+def file_logger(log_directory: str | Path = "logs") -> logging.Logger:
     """Sets up info logging to the console and debug logging to a file.
 
+    Each call writes to a new file, ``atmodeller_<date>_<time>.log``, in ``log_directory``, which
+    is created if needed, so earlier logs are kept. Calling it again replaces the handlers added
+    by an earlier call to this function or :func:`console_logger`, and keeps any handler that you
+    added yourself. Messages also propagate to the root logger, so if you have configured root
+    logging as well (e.g. with :func:`logging.basicConfig`), they are shown twice.
+
+    Args:
+        log_directory: Directory of the log files. Defaults to ``logs`` in the current working
+            directory.
+
     Returns:
-        A logger
+        The package logger
     """
-    # Console logger
     package_logger: logging.Logger = logging.getLogger(__name__)
     package_logger.setLevel(logging.DEBUG)
-    package_logger.handlers = []
-    console_handler: logging.Handler = logging.StreamHandler()
-    console_formatter: logging.Formatter = simple_formatter()
-    console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.INFO)
-    package_logger.addHandler(console_handler)
-    # File logger
-    file_handler: logging.Handler = logging.FileHandler(f"{__package__}.log")
-    file_formatter: logging.Formatter = complex_formatter()
-    file_handler.setFormatter(file_formatter)
-    file_handler.setLevel(logging.DEBUG)
-    package_logger.addHandler(file_handler)
+    _remove_handlers(package_logger)
+    _add_handler(package_logger, logging.StreamHandler(), simple_formatter(), logging.INFO)
+
+    log_path: Path = Path(log_directory)
+    log_path.mkdir(parents=True, exist_ok=True)
+    timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file: Path = log_path / f"{__package__}_{timestamp}.log"
+    _add_handler(package_logger, logging.FileHandler(log_file), complex_formatter(), logging.DEBUG)
+    package_logger.info("Writing the debug log to %s", log_file)
 
     return package_logger
 
@@ -123,7 +176,7 @@ from atmodeller.containers import (  # noqa: E402, F401
     SolverParameters,
 )
 from atmodeller.database import (  # noqa: E402, F401
-    DataBase,
+    Database,
 )
 from atmodeller.interfaces import species_name  # noqa: E402, F401
 from atmodeller.output import Output  # noqa: E402, F401
@@ -134,20 +187,48 @@ from atmodeller.sci_utils import (  # noqa: E402, F401
     earth,
     unit_conversion,
 )
+from atmodeller.eos import get_eos_models  # noqa: E402, F401
 from atmodeller.solubility import get_solubility_models  # noqa: E402, F401
 from atmodeller.solver_utils import RESULTS  # noqa: E402, F401
-from atmodeller.solvers import (  # noqa: E402, F401
-    make_solver,
-    make_solver_with_jit,  # Alias for the default solver
-    make_solver_with_jit_batch_only,
-    make_solver_with_jit_dual_path,
-    make_solver_with_jit_single_path,
-)
 from atmodeller.state import (  # noqa: E402, F401
     Planet,
     PressureScalingLawPlanet,
     ThermodynamicState,
     ThinAtmospherePlanet,
 )
-from atmodeller.thermodata._redox_buffers import IronWustiteBuffer  # noqa: E402, F401
-from atmodeller.thermodata.core import ActivityCoefficient  # noqa: E402, F401
+from atmodeller.thermodata import (  # noqa: E402, F401
+    ActivityCoefficient,
+    IronWustiteBuffer,
+    RedoxBuffer,
+)
+
+__all__ = [
+    "__version__",
+    "ActivityCoefficient",
+    "bulk_silicate_earth_abundances",
+    "ChemicalSpecies",
+    "CondensedPhase",
+    "console_logger",
+    "Database",
+    "earth",
+    "EquilibriumModel",
+    "file_logger",
+    "FixedActivityConstraint",
+    "GasPhase",
+    "get_eos_models",
+    "get_solubility_models",
+    "IronWustiteBuffer",
+    "Output",
+    "Parameters",
+    "Planet",
+    "PressureScalingLawPlanet",
+    "PurePhase",
+    "RedoxBuffer",
+    "ReservoirSpecies",
+    "RESULTS",
+    "SolverParameters",
+    "species_name",
+    "ThermodynamicState",
+    "ThinAtmospherePlanet",
+    "unit_conversion",
+]

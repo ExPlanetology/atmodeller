@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 from jaxtyping import Array, ArrayLike
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.classes import EquilibriumModel
 from atmodeller.containers import ChemicalSpecies, ReservoirSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol, SolubilityProtocol, SpeciesProtocol
@@ -32,7 +32,7 @@ from atmodeller.solubility.library import get_solubility_models
 from atmodeller.state import Planet
 from atmodeller.thermodata._redox_buffers import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.DEBUG)
 
 solubility_models: Mapping[str, SolubilityProtocol] = get_solubility_models()
@@ -209,6 +209,19 @@ def test_repeated_jitted_workflow_calls_do_not_retrace(
     for i in range(10):
         logger.debug("Loop iteration %d", i)
         assert jitted_value_update_workflow(equilibrium_model)
+
+
+def test_warm_start_reuses_compiled_solver(equilibrium_model: EquilibriumModel) -> None:
+    """A cold start, a warm start from the output and a weakly typed guess share one compilation
+
+    The guess of ``solve_with_default`` was weakly typed, so a warm start from ``output.solution``
+    compiled the solver again. This reads the cache of Equinox's JIT wrapper, a private attribute.
+    """
+    output: Output = equilibrium_model.solve_with_default()
+    equilibrium_model.solve(output.solution)
+    equilibrium_model.solve(jnp.full(output.solution.shape, jnp.nan))
+
+    assert equilibrium_model.solver._cached._cache_size() == 1  # pyright: ignore
 
 
 def test_unknown_constraints_raise(equilibrium_model: EquilibriumModel) -> None:

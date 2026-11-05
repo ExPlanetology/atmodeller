@@ -83,7 +83,7 @@ dmypy.json
 *.pkl
 *.xlsx
 *.log
+logs/
 
 # Local work that is not part of the package (sandboxes and figure scripts)
 dev/
-plot/

@@ -33,7 +33,7 @@ from atmodeller.constants import (
     TAU_NUM,
     Extrapolation,
 )
-from atmodeller.database import DataBase
+from atmodeller.database import Database
 from atmodeller.eos.core import IdealGas
 from atmodeller.interfaces import (
     ActivityProtocol,
@@ -135,7 +135,7 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
-        database: DataBase | None = None,
+        database: Database | None = None,
         extrapolate_below: Extrapolation | None = None,
         extrapolate_above: Extrapolation | None = None,
     ) -> Self:
@@ -164,7 +164,7 @@ class ChemicalSpecies(eqx.Module):
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database
-                (:meth:`~atmodeller.database.DataBase.default`).
+                (:meth:`~atmodeller.database.Database.default`).
             extrapolate_below: Extrapolation of the thermodynamic data below their temperature
                 range (``"off"``, ``"data"`` or ``"constant_cp"``). Defaults to ``None``, which
                 is decided by the phase.
@@ -181,7 +181,7 @@ class ChemicalSpecies(eqx.Module):
         """
         if end_member == GAS_END_MEMBER:
             raise ValueError("The gas is not a condensed end-member. Create it with create_gas.")
-        database = database or DataBase.default()
+        database = database or Database.default()
         if formula is None:
             formula = database.formula_of(end_member)
 
@@ -202,7 +202,7 @@ class ChemicalSpecies(eqx.Module):
         formula: str,
         *,
         liquid: bool = True,
-        database: DataBase | None = None,
+        database: Database | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
@@ -212,9 +212,9 @@ class ChemicalSpecies(eqx.Module):
         """Creates a condensed species from all the condensed end-members of a formula
 
         The condensed end-members that can be stitched together
-        (:meth:`~atmodeller.database.DataBase.stitchable_end_members`), e.g. quartz to
+        (:meth:`~atmodeller.database.Database.stitchable_end_members`), e.g. quartz to
         cristobalite to liquid for ``SiO2``, are stitched together in order of temperature
-        (:meth:`~atmodeller.database.DataBase.stitch`), and the species is named with
+        (:meth:`~atmodeller.database.Database.stitch`), and the species is named with
         :data:`~atmodeller.constants.CONDENSED_SUFFIX`, e.g. ``O2Si_cd``. Without the liquid,
         only the solids are stitched together, e.g. quartz to cristobalite for ``SiO2``, and the
         species is named with :data:`~atmodeller.constants.SOLID_SUFFIX`, e.g. ``O2Si_s``.
@@ -246,7 +246,7 @@ class ChemicalSpecies(eqx.Module):
                 without the liquid
             ValueError: If the end-members cannot be stitched together
         """
-        database = database or DataBase.default()
+        database = database or Database.default()
         end_members: tuple[str, ...] = database.stitchable_end_members(formula)
         if not liquid:
             end_members = tuple(
@@ -277,7 +277,7 @@ class ChemicalSpecies(eqx.Module):
         *,
         suffix: str,
         formula: str | None = None,
-        database: DataBase | None = None,
+        database: Database | None = None,
         activity: ActivityProtocol = ActivityCoefficient(),
         solve_for_stability: bool = True,
         include_in_phase_mass: bool = True,
@@ -288,7 +288,7 @@ class ChemicalSpecies(eqx.Module):
 
         For example, ``from_end_members(("quartz-alpha", "quartz-beta"), suffix="quartz")`` gives
         ``O2Si_quartz``. The end-members must be of one chemical formula, and are stitched together
-        in order of temperature (:meth:`~atmodeller.database.DataBase.stitch`). Like
+        in order of temperature (:meth:`~atmodeller.database.Database.stitch`). Like
         :meth:`from_formula`, the species is a pseudo end-member, which can be the species of a
         pure phase or an end-member of a solution, and by default the extrapolation is decided by
         the phase.
@@ -318,7 +318,7 @@ class ChemicalSpecies(eqx.Module):
             ValueError: If the end-members cannot be stitched together, or no formula is
                 given for end-members that are shared by several formulas
         """
-        database = database or DataBase.default()
+        database = database or Database.default()
         end_members = tuple(end_members)
         if formula is None:
             formula = database.formula_of(*end_members)
@@ -378,7 +378,7 @@ class ChemicalSpecies(eqx.Module):
         activity: ActivityProtocol = IdealGas(),
         solve_for_stability: bool = False,
         include_in_phase_mass: bool = True,
-        database: DataBase | None = None,
+        database: Database | None = None,
     ) -> Self:
         """Creates a gas species with some default values.
 
@@ -389,7 +389,7 @@ class ChemicalSpecies(eqx.Module):
             include_in_phase_mass: Whether the species is included in phase-level mass, mole, and
                 fraction aggregations. Defaults to ``True``.
             database: Database. Defaults to ``None``, which uses the default database
-                (:meth:`~atmodeller.database.DataBase.default`).
+                (:meth:`~atmodeller.database.Database.default`).
 
         Returns:
             A gas species
@@ -397,7 +397,7 @@ class ChemicalSpecies(eqx.Module):
         Raises:
             KeyError: If the gas is not available for the formula
         """
-        thermo: ThermodynamicProperties = (database or DataBase.default()).get_end_member(
+        thermo: ThermodynamicProperties = (database or Database.default()).get_end_member(
             formula, GAS_END_MEMBER
         )
 

@@ -101,7 +101,7 @@ class CorrespondingStatesUnitConverter:
         Converting kJ gives rise to a unit conversion factor of :math:`10^{-2}`.
 
         Args:
-            virial_coefficient: Virial coefficients from Holland and Powell
+            virial_coefficients: Virial coefficients from Holland and Powell
 
         Returns:
             virial coefficients with units of
@@ -542,6 +542,8 @@ class H2OMrkGasFluid91(RealGas):
         Args:
             temperature: Temperature (K)
             pressure: Pressure (bar)
+            mole_fractions: Mole fractions of all species in the phase. Passed to the MRK
+                branches, which do not use them. Defaults to ``None``.
 
         Returns:
             Volume integral (:math:`\mathrm{m}^3\ \mathrm{bar}\ \mathrm{mol}^{-1}`)

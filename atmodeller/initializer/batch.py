@@ -56,13 +56,13 @@ def make_batch_initializer(
     )
 
     def batch_initializer(
-        parameters: Parameters, base_solution_array: Float[Array, "batch solution"]
+        parameters: Parameters, initial_guess: Float[Array, "batch solution"]
     ) -> Float[Array, "batch solution"]:
-        """Replaces rows of ``base_solution_array`` that contain ``NaN`` with the cold guess.
+        """Replaces rows of ``initial_guess`` that contain ``NaN`` with the cold guess.
 
         Args:
             parameters: Parameters
-            base_solution_array: Initial guess with shape ``(batch, solution)``. Rows that
+            initial_guess: Initial guess with shape ``(batch, solution)``. Rows that
                 contain ``NaN`` have no initial guess.
 
         Returns:
@@ -70,23 +70,23 @@ def make_batch_initializer(
         """
         # Mask: True for rows where any entry is NaN along the last axis
         nan_mask: Bool[Array, "batch 1"] = jnp.any(
-            jnp.isnan(base_solution_array), axis=-1, keepdims=True
+            jnp.isnan(initial_guess), axis=-1, keepdims=True
         )
 
         def fill_from_cold_start(
-            base_solution_array: Float[Array, "batch solution"],
+            initial_guess: Float[Array, "batch solution"],
         ) -> Float[Array, "batch solution"]:
             """Selects the cold guess for rows with any NaN, otherwise keeps the given row."""
             return jnp.where(
                 nan_mask,
-                cold_start_vmapped(parameters, base_solution_array),
-                base_solution_array,
+                cold_start_vmapped(parameters, initial_guess),
+                initial_guess,
             )
 
         # The predicate is a scalar for the whole batch, so the cold guess is skipped when every
         # row has an initial guess
         result: Float[Array, "batch solution"] = lax.cond(
-            jnp.any(nan_mask), fill_from_cold_start, lambda x: x, base_solution_array
+            jnp.any(nan_mask), fill_from_cold_start, lambda x: x, initial_guess
         )
 
         result = eqx.error_if(

@@ -19,7 +19,7 @@ from atmodeller import (
     EquilibriumModel,
     Planet,
     ReservoirSpecies,
-    debug_logger,
+    console_logger,
     earth,
 )
 from atmodeller.interfaces import ActivityConstraintProtocol, SolubilityProtocol
@@ -32,7 +32,7 @@ from atmodeller.solubility import get_solubility_models
 from atmodeller.state import BaseThermodynamicState
 from atmodeller.thermodata import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.INFO)
 
 solubility_models: Mapping[str, SolubilityProtocol] = get_solubility_models()

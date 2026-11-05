@@ -12,6 +12,8 @@ its docstring for the method.
 The initializer acts on a single system and is vmapped over the batch by the solver.
 """
 
+import warnings
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -27,6 +29,11 @@ from atmodeller.parameters import Parameters
 
 class HeuristicInitializer(eqx.Module):
     r"""Initializer that allocates element budgets heuristically
+
+    .. deprecated:: 2.0.0
+        :class:`HeuristicInitializer` will be removed in version 3. Use
+        :class:`~atmodeller.initializer.element_potential.ElementPotentialInitializer`, the
+        default, instead.
 
     The cold guess shares the budget of each element among the species that contain it, by the
     limiting-reagent principle, without solving for equilibrium. The thermodynamics is used only to
@@ -150,6 +157,19 @@ class HeuristicInitializer(eqx.Module):
     """
     log_trace_value: float = LOG_TRACE_VALUE
     """Log number of moles given to species with a negligible element budget"""
+
+    def __check_init__(self) -> None:
+        # Warns when the initializer is created. The decorator warnings.deprecated (PEP 702) is
+        # not used, since it replaces __new__, which conflicts with Equinox's construction under
+        # runtime type checking (beartype)
+        warnings.warn(
+            "HeuristicInitializer is deprecated and will be removed in version 3. Use "
+            "ElementPotentialInitializer, the default, instead.",
+            FutureWarning,
+            # Points the warning at the line that creates the initializer, past Equinox's
+            # construction
+            stacklevel=3,
+        )
 
     def start(self, parameters: Parameters) -> Float[Array, " twice_species"]:
         """Cold initial guess from the heuristic.

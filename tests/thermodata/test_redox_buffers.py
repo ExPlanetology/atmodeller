@@ -11,7 +11,7 @@ from atmodeller.sci_utils import unit_conversion
 from jaxtyping import ArrayLike
 from pytest import approx
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.thermodata._redox_buffers import (
     IronWustiteBufferHirschmann,
     IronWustiteBufferHirschmann08,
@@ -19,7 +19,7 @@ from atmodeller.thermodata._redox_buffers import (
     RedoxBuffer,
 )
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.WARNING)
 
 LOG10_SHIFT: ArrayLike = 0

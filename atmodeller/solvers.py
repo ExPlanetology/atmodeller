@@ -120,7 +120,7 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         Callable that returns a checked :class:`~atmodeller.solver_utils.CheckedSolution` of a
         single attempt
     """
-    solver_function_vmapped: Callable = eqx.filter_vmap(
+    solver_fn_vmapped: Callable = eqx.filter_vmap(
         solve_single, in_axes=(SOLUTION_BATCH_AXIS, vmap_axes_spec(parameters))
     )
 
@@ -137,7 +137,7 @@ def make_batch_solver(parameters: Parameters) -> Callable:
         # jax.debug.print("Running batch single-pass solver with vmapped single solve")
         # jax.debug.print("solution = {out}", out=solution)
         # jax.debug.print("tau = {out}", out=parameters.solver_parameters.tau)
-        return solver_function_vmapped(solution, parameters)
+        return solver_fn_vmapped(solution, parameters)
 
     return batch_single_pass_solver
 
@@ -190,8 +190,8 @@ def perturb_log_number_moles(
         log_number_moles,
         attempt,
         key,
-        parameters.solver_parameters.log_number_moles_lower,
-        parameters.solver_parameters.log_number_moles_upper,
+        lower=parameters.solver_parameters.log_number_moles_lower,
+        upper=parameters.solver_parameters.log_number_moles_upper,
     )
     new_log_stability: Float[Array, "... n_species"] = compute_implied_log_stability(
         parameters, perturbed_log_number_moles
@@ -413,7 +413,7 @@ def make_solver(
     def dispatch_solver(
         parameters: Parameters,
         key: PRNGKeyArray,
-        base_solution_array: Float[Array, "n_batch twice_species"],
+        initial_guess: Float[Array, "n_batch twice_species"],
     ) -> Output:
         """Entry point that dispatches to the appropriate solver branch.
 
@@ -425,12 +425,12 @@ def make_solver(
         Args:
             parameters: Parameters; array leaves are traced, non-array leaves are static
             key: JAX PRNG key
-            base_solution_array: Initial guess with shape ``(batch_size, 2 * n_species)``
+            initial_guess: Initial guess with shape ``(batch_size, 2 * n_species)``
 
         Returns:
             :class:`~atmodeller.output.Output` object
         """
-        base_solution_array = batch_initializer(parameters, base_solution_array)
+        initial_guess = batch_initializer(parameters, initial_guess)
 
         # Define the condition to check if active stability is enabled
         condition: Bool[Array, ""] = jnp.any(parameters.reaction_system.species.active_stability)
@@ -439,13 +439,13 @@ def make_solver(
         def solve_with_stability(key):
             """Routes to the tau sweep solver for systems with active stability species."""
             _, subkey = jax.random.split(key)
-            return tau_sweep_solver(base_solution_array, parameters, subkey)
+            return tau_sweep_solver(initial_guess, parameters, subkey)
 
         def solve_without_stability(key):
             """Routes to the generic multistart retry solver for systems without stability."""
             _, subkey = jax.random.split(key)
             return batch_retry_solver(
-                base_solution_array,
+                initial_guess,
                 parameters,
                 subkey,
                 parameters.solver_parameters.max_starts,
@@ -457,7 +457,7 @@ def make_solver(
         output: Output = Output(
             parameters,
             checked_sol,
-            base_solution_array,
+            initial_guess,
             batch_residual(checked_sol.value, parameters),
         )
 
@@ -533,16 +533,16 @@ def make_solver_with_jit_single_path(
     def solver_with_stability(
         parameters: Parameters,
         key: PRNGKeyArray,
-        base_solution_array: Float[Array, "n_batch twice_species"],
+        initial_guess: Float[Array, "n_batch twice_species"],
     ) -> Output:
         """Tau sweep solver path for systems with active stability species."""
         _, subkey = jax.random.split(key)
-        base_solution_array = batch_initializer(parameters, base_solution_array)
-        checked_sol = tau_sweep_solver(base_solution_array, parameters, subkey)
+        initial_guess = batch_initializer(parameters, initial_guess)
+        checked_sol = tau_sweep_solver(initial_guess, parameters, subkey)
         return Output(
             parameters,
             checked_sol,
-            base_solution_array,
+            initial_guess,
             batch_residual(checked_sol.value, parameters),
         )
 
@@ -550,13 +550,13 @@ def make_solver_with_jit_single_path(
     def solver_without_stability(
         parameters: Parameters,
         key: PRNGKeyArray,
-        base_solution_array: Float[Array, "n_batch twice_species"],
+        initial_guess: Float[Array, "n_batch twice_species"],
     ) -> Output:
         """Generic batch retry solver path for systems without active stability."""
         _, subkey = jax.random.split(key)
-        base_solution_array = batch_initializer(parameters, base_solution_array)
+        initial_guess = batch_initializer(parameters, initial_guess)
         checked_sol = batch_retry_solver(
-            base_solution_array,
+            initial_guess,
             parameters,
             subkey,
             parameters.solver_parameters.max_starts,
@@ -564,7 +564,7 @@ def make_solver_with_jit_single_path(
         return Output(
             parameters,
             checked_sol,
-            base_solution_array,
+            initial_guess,
             batch_residual(checked_sol.value, parameters),
         )
 
@@ -602,7 +602,7 @@ def make_solver_with_jit_batch_only(
     def batch_only_solver(
         parameters: Parameters,
         key: PRNGKeyArray,
-        base_solution_array: Float[Array, "n_batch twice_species"],
+        initial_guess: Float[Array, "n_batch twice_species"],
     ) -> Output:
         """Basic batch solver path without retry or tau-sweep enhancements.
 
@@ -611,13 +611,13 @@ def make_solver_with_jit_batch_only(
         """
         # Note: key is unused in basic batch solver, but included for interface compatibility
         del key
-        base_solution_array = batch_initializer(parameters, base_solution_array)
-        checked_sol: CheckedSolution = batch_solver(base_solution_array, parameters)
+        initial_guess = batch_initializer(parameters, initial_guess)
+        checked_sol: CheckedSolution = batch_solver(initial_guess, parameters)
 
         return Output(
             parameters,
             checked_sol,
-            base_solution_array,
+            initial_guess,
             batch_residual(checked_sol.value, parameters),
         )
 

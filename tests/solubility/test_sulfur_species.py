@@ -12,13 +12,13 @@ import numpy as np
 from atmodeller.sci_utils import unit_conversion
 from jaxtyping import ArrayLike
 
-from atmodeller import debug_logger
+from atmodeller import console_logger
 from atmodeller.interfaces import RedoxBufferProtocol
 from atmodeller.solubility import get_solubility_models
 from atmodeller.solubility.core import Solubility
 from atmodeller.thermodata import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.WARNING)
 
 RTOL: float = 1.0e-8

@@ -25,7 +25,7 @@ from equinox._enum import EnumerationItem
 from jaxtyping import Array, ArrayLike
 from openpyxl import load_workbook
 
-from atmodeller import RESULTS, __version__, debug_logger
+from atmodeller import RESULTS, __version__, console_logger
 from atmodeller.containers import ChemicalSpecies
 from atmodeller.interfaces import ActivityConstraintProtocol
 from atmodeller.output import Output
@@ -36,7 +36,7 @@ from atmodeller.solver_utils import CheckedSolution
 from atmodeller.state import BaseThermodynamicState, Planet
 from atmodeller.thermodata import IronWustiteBuffer
 
-logger: logging.Logger = debug_logger()
+logger: logging.Logger = console_logger()
 logger.setLevel(logging.DEBUG)
 
 OutputFormat = Literal["natural", "named_arrays", "elements_species"]
@@ -310,11 +310,12 @@ def test_compare(cho_output: Output, cho_dicts: dict[str, dict[str, Any]]) -> No
 
 
 def test_quick_look(cho_output: Output, caplog: pytest.LogCaptureFixture) -> None:
-    """quick_look logs the output"""
+    """quick_look logs and returns the output"""
     with caplog.at_level(logging.INFO, logger="atmodeller"):
-        cho_output.quick_look()
+        out: dict[str, Any] = cho_output.quick_look()
 
     assert "Quick look output" in caplog.text
+    assert "gas" in out
 
 
 def test_to_dataframes(cho_output: Output) -> None:

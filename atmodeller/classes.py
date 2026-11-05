@@ -38,6 +38,7 @@ from atmodeller.constants import SILICATE_MELT_PHASE_INDEX
 from atmodeller.containers import SolverParameters, SpeciesCollection, get_formula_matrix
 from atmodeller.initializer import ElementPotentialInitializer, InitializerProtocol
 from atmodeller.interfaces import ActivityConstraintProtocol
+from atmodeller.jax_utils import as_j64
 from atmodeller.output import Output
 from atmodeller.parameters import Parameters
 from atmodeller.solvers import make_solver_with_jit
@@ -66,11 +67,11 @@ class EquilibriumModel(eqx.Module):
     """
 
     parameters: Parameters
-    initializer: InitializerProtocol = eqx.field(static=True)
+    initializer: InitializerProtocol
     solver: SolverCallable
     key: PRNGKeyArray
 
-    def __init__(self, parameters: Parameters, initializer: InitializerProtocol | None = None):
+    def __init__(self, parameters: Parameters, *, initializer: InitializerProtocol | None = None):
         self.parameters = parameters
         self.initializer = ElementPotentialInitializer() if initializer is None else initializer
         self.solver = make_solver_with_jit(parameters, self.initializer)
@@ -112,9 +113,9 @@ class EquilibriumModel(eqx.Module):
             solver_parameters=solver_parameters,
         )
 
-        return cls(parameters, initializer)
+        return cls(parameters, initializer=initializer)
 
-    def solve(self, base_solution_array: Float[Array, "n_batch twice_species"]) -> Output:
+    def solve(self, initial_guess: Float[Array, "n_batch twice_species"]) -> Output:
         """Runs the solver and returns the output state.
 
         Note:
@@ -124,18 +125,30 @@ class EquilibriumModel(eqx.Module):
             The same key is reused for repeat calls, so stochastic branches remain deterministic.
 
         Args:
-            base_solution_array: Initial guess for the solver, typically a broadcasted array of
+            initial_guess: Initial guess for the solver, typically a broadcasted array of
                 log number moles and log stabilities. Rows are used as given, and rows that
                 contain ``NaN`` are replaced by the cold guess of the model's initializer.
 
         Returns:
             An :class:`~atmodeller.output.Output` instance
+
+        Raises:
+            ValueError: If any model of the batch is not well posed: its constraints do not match
+                its components, an element of a condensate imposed stable has a mass constraint,
+                or species are dissolved in a melt of zero mass. The whole batch is rejected
+                before solving. Inside a JIT-compiled function of your own, where the constraints
+                are traced, this is not checked, and such a model is instead not solved and has
+                the result ``invalid_model``.
         """
         self._check_constraints()
         self._check_melt()
-        self._log_initial_guess(base_solution_array)
+        # A strongly typed float64 array, so that the compiled solver is reused whatever the
+        # source of the guess: a weakly typed guess (e.g. jnp.full with a Python float) would
+        # otherwise compile the solver again
+        initial_guess = as_j64(initial_guess)
+        self._log_initial_guess(initial_guess)
 
-        return self.solver(self.parameters, self.key, base_solution_array)
+        return self.solver(self.parameters, self.key, initial_guess)
 
     def _check_constraints(self) -> None:
         """Checks that the constraints of each model match the components of the species
@@ -263,15 +276,15 @@ class EquilibriumModel(eqx.Module):
                 "model without silicate_melt_species."
             )
 
-    def _log_initial_guess(self, base_solution_array: ArrayLike) -> None:
+    def _log_initial_guess(self, initial_guess: ArrayLike) -> None:
         """Logs how many models start from the initializer's cold guess and how many from the
         given initial guess. Nothing is logged if the initial guess is traced (inside JIT).
 
         Args:
-            base_solution_array: Initial guess for the solver
+            initial_guess: Initial guess for the solver
         """
         try:
-            guess: np.ndarray = np.atleast_2d(np.asarray(base_solution_array))
+            guess: np.ndarray = np.atleast_2d(np.asarray(initial_guess))
         except jax.errors.TracerArrayConversionError:
             return
 
@@ -293,24 +306,30 @@ class EquilibriumModel(eqx.Module):
 
         Returns:
             An :class:`~atmodeller.output.Output` instance
+
+        Raises:
+            ValueError: If any model of the batch is not well posed (see :meth:`solve`)
         """
-        base_solution_array: Float[Array, "n_batch twice_species"] = jnp.full(
+        initial_guess: Float[Array, "n_batch twice_species"] = jnp.full(
             (
                 self.parameters.batch_size,
                 self.parameters.reaction_system.species.number_species * 2,
             ),
             jnp.nan,
+            dtype=jnp.float64,
         )
 
-        return self.solve(base_solution_array)
+        return self.solve(initial_guess)
 
     def rebuild_solver(self) -> Self:
         """Rebuilds the compiled solver from the model's current parameters.
 
-        Use this after parameter updates that may have changed array-leaf shapes or batching in a
-        way that invalidates the vmapping axes captured by the existing solver closure, or that
-        invalidates the original leaf-shape broadcasting assumptions preserved by the
-        ``update`` methods on the parameter containers.
+        The update methods (:meth:`update_state` and :meth:`update_constraints`) keep the shapes
+        of the parameters, and raise an error for a value of another shape, so a model updated
+        with them never needs this. It is only needed after the parameters have been changed in
+        another way that changes their shapes or batching, e.g. with :func:`equinox.tree_at`,
+        since the solver is built for the shapes and batching of the parameters it was created
+        with.
 
         Returns:
             A new instance of :class:`EquilibriumModel` with a rebuilt solver
@@ -333,6 +352,14 @@ class EquilibriumModel(eqx.Module):
         :meth:`atmodeller.parameters.Parameters.update_constraints` that preserves the immutable
         Equinox tree semantics of the model.
 
+        An update keeps the structure of the model, so that a compiled solver can be reused:
+
+        - Mass constraints are keyed by element (e.g. ``"H"``), not by species, and a constraint
+          is switched off with ``NaN`` and on with a finite value.
+        - An activity/fugacity constraint keeps its type: it can be given new values (e.g. a new
+          ``log10_shift`` of a buffer, or ``NaN`` to switch it off), but not replaced by a
+          constraint of another type, which raises an error. Build a new model for that.
+
         Args:
             activity_constraints: New activity/fugacity constraint mapping. Defaults to ``None``.
             mass_constraints: New mass-constraint mapping. Defaults to ``None``.
@@ -342,6 +369,9 @@ class EquilibriumModel(eqx.Module):
 
         Returns:
             A new model instance with updated parameters
+
+        Raises:
+            ValueError: If a key is not in the system, or a constraint changes type
         """
         parameters_updated: Parameters = self.parameters.update_constraints(
             activity_constraints=activity_constraints,
@@ -354,20 +384,20 @@ class EquilibriumModel(eqx.Module):
 
         return cast(Self, model_updated)
 
-    def update_state(self, *args: object, **kwargs: object) -> Self:
+    def update_state(self, **kwargs: object) -> Self:
         """Returns a model with an updated thermodynamic state.
 
-        Arguments are forwarded to ``self.parameters.update_state``, which in turn forwards them
-        to the underlying thermodynamic state's ``update`` implementation.
+        Keyword arguments are forwarded to ``self.parameters.update_state``, which in turn forwards
+        them to the underlying thermodynamic state's ``update`` implementation. For example,
+        ``model.update_state(temperature=1500)``.
 
         Args:
-            *args: Positional arguments accepted by the state ``update`` method
             **kwargs: Keyword arguments accepted by the state ``update`` method
 
         Returns:
             A new model instance with updated parameters
         """
-        parameters_updated: Parameters = self.parameters.update_state(*args, **kwargs)
+        parameters_updated: Parameters = self.parameters.update_state(**kwargs)
         model_updated: EquilibriumModel = eqx.tree_at(
             lambda m: m.parameters, self, parameters_updated
         )

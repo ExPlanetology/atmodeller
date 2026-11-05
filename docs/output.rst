@@ -6,7 +6,8 @@ a nested dictionary of arrays (:meth:`~atmodeller.output.Output.to_dict`), a dic
 dataframes (:meth:`~atmodeller.output.Output.to_dataframes`), an Excel file
 (:meth:`~atmodeller.output.Output.to_excel`), or a pickle file
 (:meth:`~atmodeller.output.Output.to_pickle`). For a quick look at the output, use
-:meth:`~atmodeller.output.Output.quick_look`.
+:meth:`~atmodeller.output.Output.quick_look`, which returns the dictionary and logs it at the
+``INFO`` level (shown once logging is set up, e.g. with ``console_logger()``).
 
 All quantities are arrays with the batch dimension first, so a batch of models is returned in a
 single output. For dataframes and Excel, each top-level dictionary key becomes a dataframe (or
@@ -206,7 +207,9 @@ Species
 Species outputs are under ``out[<phase>]["species"][<quantity>][<species>]`` (``named_arrays``) or
 ``out[<species>][<phase>][<quantity>]`` (``elements_species``). Species names end in a suffix, e.g.
 ``H2O_g`` for gas, ``H2O_d`` for dissolved in the melt or ``C_graphite`` for a mineral (see
-:doc:`species`).
+:doc:`species`). A pure phase has the same name as its species, so in the ``elements_species``
+format ``out["C_graphite"]`` holds the phase-level quantities under ``"phase"`` and the species
+quantities under ``"C_graphite"``.
 
 .. list-table:: Outputs for species in each phase
    :widths: 30 20 50
@@ -251,9 +254,13 @@ Gas species have the following additional output:
      - bar
      - Partial pressure
 
-Species of condensed phases have the following additional output:
+Condensed species, i.e. the species of condensed phases other than dissolved species (pure
+condensates and the end-members of the silicate melt, silicate solid and metal), have the following
+additional output. Dissolved species (``_d``) have no stability, so it is not output for them (in
+the ``natural`` format, whose arrays include every species of the phase, a dissolved species in a
+phase that also has condensed species is reported as stable).
 
-.. list-table:: Additional outputs for species of condensed phases
+.. list-table:: Additional outputs for condensed species
    :widths: 30 20 50
    :header-rows: 1
 
@@ -405,7 +412,7 @@ output can be used inside JIT, and their names (e.g. ``objective_check_failed``)
      - Whether the solver terminated successfully according to its internal criteria. For a model
        that was not solved, this is the status of its best attempt, the one with the smallest
        residual, so it can be true even if ``success`` is false
-   * - steps
+   * - num_steps
      - integer
      - Number of iterations taken during the successful attempt. Zero if the model was not solved
    * - successful_attempt
@@ -437,7 +444,7 @@ Solution and initial guess
 The ``solution`` key contains the raw solution from the solver for each species: the natural
 logarithm of the number of moles (``<species>``) and the natural logarithm of the stability
 (``<species>_stability``). The stability is included only for species whose stability is solved
-for (``solve_for_stability``), which is fixed by the species, so it is not output for gas species or
+for (``solve_for_stability``), which is fixed by the species, so it is not output for gas species, dissolved species or
 condensates imposed as stable. For a model that was not solved, this is the point closest to a root
 over all its attempts, by the residual of the objective function, which may be the initial guess.
 

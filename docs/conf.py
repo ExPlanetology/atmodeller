@@ -101,6 +101,9 @@ autodoc_default_options = {
     "inherited-members": True,
     "undoc-members": False,
     "private-members": False,
+    # Document each object once, on the page of the module that defines it, rather than again on
+    # every package page whose __all__ re-exports it
+    "ignore-module-all": True,
 }
 
 latex_logo = "logo/logo800x800.png"

@@ -75,6 +75,7 @@ OUTPUT_UNITS: dict[str, str] = {
     "metals_to_hydrogen_by_mass": "kg/kg",
     "molar_mass": "kg/mol",
     "mole_fraction": "mol/mol",
+    "num_steps": "integer",
     "number_moles": "mol",
     "optimistix_result": "text",
     "partial_pressure": "bar",
@@ -82,12 +83,15 @@ OUTPUT_UNITS: dict[str, str] = {
     "pressure": "bar",
     "residual": "units of the objective function (see the documentation)",
     "result": "text",
+    "silicate_mass": "kg",
+    "silicate_melt_fraction": "kg/kg",
+    "silicate_melt_mass": "kg",
+    "silicate_solid_mass": "kg",
     "solution": "natural logarithm of the number of moles (mol) and of the stability",
     "solver_success": "boolean",
     "species_number_moles": "mol",
     "species_to_phase_mass_ratio": "kg/kg",
     "stable": "boolean",
-    "steps": "integer",
     "success": "boolean",
     "successful_attempt": "integer",
     "surface_area": "m^2",
@@ -139,8 +143,10 @@ class Output(eqx.Module):
     def to_dict(
         self,
         output_format: Literal["natural", "named_arrays", "elements_species"] = "named_arrays",
+        *,
         to_numpy: bool = False,
-        **kwargs,
+        expand_to_batch: bool = False,
+        ravel: bool = False,
     ) -> dict[str, Any]:
         """Output as a nested dictionary with JAX or NumPy arrays.
 
@@ -156,23 +162,31 @@ class Output(eqx.Module):
             to_numpy: Whether to convert JAX arrays to NumPy arrays. Defaults to ``False``.
                 Must be ``False`` if used within a jitted context, as NumPy arrays are not
                 compatible with JAX transformations (jit, vmap, etc.).
-            **kwargs: Arbitrary keyword arguments for the output dictionary
+            expand_to_batch: Whether to broadcast every array to the batch size. Defaults to
+                ``False``.
+            ravel: Whether to ravel arrays to 1-D after expanding. Not available for the
+                ``natural`` format. Defaults to ``False``.
 
         Returns:
             Dictionary of the solution with JAX or NumPy arrays in the specified format
+
+        Raises:
+            ValueError: If ``ravel`` is used with the ``natural`` format, or the format is invalid
         """
         if output_format == "natural":
+            if ravel:
+                raise ValueError("ravel is not available for the natural output format")
             return OutputNaturalDict(
                 self.parameters, self.checked_solution, self.initial_guess, self.residual
-            ).to_dict(to_numpy=to_numpy, **kwargs)
+            ).to_dict(to_numpy=to_numpy, expand_to_batch=expand_to_batch)
         elif output_format == "named_arrays":
             return OutputNamedArraysDict(
                 self.parameters, self.checked_solution, self.initial_guess, self.residual
-            ).to_dict(to_numpy=to_numpy, **kwargs)
+            ).to_dict(to_numpy=to_numpy, expand_to_batch=expand_to_batch, ravel=ravel)
         elif output_format == "elements_species":
             return OutputElementsSpeciesDict(
                 self.parameters, self.checked_solution, self.initial_guess, self.residual
-            ).to_dict(to_numpy=to_numpy, **kwargs)
+            ).to_dict(to_numpy=to_numpy, expand_to_batch=expand_to_batch, ravel=ravel)
         else:
             raise ValueError(f"Invalid output format: {output_format}")
 
@@ -198,8 +212,13 @@ class Output(eqx.Module):
     def quick_look(
         self,
         output_format: Literal["natural", "named_arrays", "elements_species"] = "named_arrays",
-    ) -> None:
+        logger_: logging.Logger = logger,
+    ) -> dict[str, Any]:
         """Quick look at the output.
+
+        The output is logged at the ``INFO`` level of ``logger_``, so it is shown only if logging
+        is set up, e.g. with :func:`atmodeller.console_logger`. It is also returned, so in a
+        notebook the returned dictionary is displayed in any case.
 
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
@@ -209,9 +228,16 @@ class Output(eqx.Module):
                 output format based on the arrays used internally, ``named_arrays`` for an
                 alternative format with named arrays, or ``elements_species`` for an alternative
                 format grouped by element and species names. Defaults to ``named_arrays``.
+            logger_: Logger to write the output to. Defaults to the ``atmodeller.output`` logger.
+
+        Returns:
+            The output dictionary with NumPy arrays, as from :meth:`to_dict` with
+            ``to_numpy=True``
         """
         out: dict[str, Any] = self.to_dict(output_format=output_format, to_numpy=True)
-        logger.info("Quick look output:\n%s", pformat(out, sort_dicts=False))
+        logger_.info("Quick look output:\n%s", pformat(out, sort_dicts=False))
+
+        return out
 
     def _drop_unsuccessful_solves(
         self, dataframes: dict[str, pd.DataFrame]
@@ -451,5 +477,9 @@ class Output(eqx.Module):
 
         .. warning::
             Not compatible with JAX-compiled workflows (e.g., inside a :func:`jax.jit` context)
+
+        Args:
+            logger_: Logger to write the statistics to. Defaults to the ``atmodeller.output``
+                logger.
         """
         return self.checked_solution.stats_to_logger(logger_)

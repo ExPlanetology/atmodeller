@@ -64,7 +64,7 @@ dependencies = [
 
 [project.urls]
 homepage = "https://planetology.ethz.ch"
-documentation = "https://atmodeller.readthedocs.io/en/latest"
+documentation = "https://atmodeller.readthedocs.io/"
 repository = "https://github.com/ExPlanetology/atmodeller"
 issues = "https://github.com/ExPlanetology/atmodeller/issues"
 
