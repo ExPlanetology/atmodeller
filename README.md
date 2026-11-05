@@ -40,7 +40,11 @@ If you use Atmodeller, or data from Atmodeller, please cite:
 
 - Bower, D. J., Thompson, M. A., Hakim, K., Tian, M., and Sossi, P. A. (2025), Diversity of low-mass planet atmospheres in the C&ndash;H&ndash;O&ndash;N&ndash;S&ndash;Cl system with interior dissolution, nonideality and condensation: Application to TRAPPIST-1e and sub-Neptunes, The Astrophysical Journal, 995(1), 59, doi: <https://www.doi.org/10.3847/1538-4357/ae1479>. ArXiv e-print [2507.00499](https://arxiv.org/abs/2507.00499).
 
-The data from the above study are also available for download at <https://doi.org/10.17605/OSF.IO/PC5TD>.
+If you use version 2 of Atmodeller, please also cite:
+
+- Bower, D. J. and Sossi, P. A. (2026), Atmodeller: A JAX-based Python package for thermochemical equilibrium of planetary interiors and atmospheres, Journal of Open Source Software, submitted.
+
+The data from the first study above are also available for download at <https://doi.org/10.17605/OSF.IO/PC5TD>.
 
 ## Logo
 
