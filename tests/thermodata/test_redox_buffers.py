@@ -125,7 +125,7 @@ def test_IW_Hirschmann() -> None:
         TEST_BELOW_SWITCH_TEMPERATURE, TEST_LOW_PRESSURE
     )
 
-    assert log10_fugacity_composite == approx(log10_fugacity_low_temperature, RTOL, ATOL)
+    assert log10_fugacity_composite == approx(float(log10_fugacity_low_temperature), RTOL, ATOL)
 
     log10_fugacity_high_temperature: ArrayLike = high_temperature_buffer.log10_fugacity(
         TEST_ABOVE_SWITCH_TEMPERATURE, TEST_LOW_PRESSURE
@@ -134,7 +134,7 @@ def test_IW_Hirschmann() -> None:
         TEST_ABOVE_SWITCH_TEMPERATURE, TEST_LOW_PRESSURE
     )
 
-    assert log10_fugacity_composite == approx(log10_fugacity_high_temperature, RTOL, ATOL)
+    assert log10_fugacity_composite == approx(float(log10_fugacity_high_temperature), RTOL, ATOL)
 
 
 def test_IW_Hirschmann08_fixed_P() -> None:
