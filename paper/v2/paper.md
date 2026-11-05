@@ -167,10 +167,8 @@ tables.
    a warm start, for example when coupling to a time-stepping code.
 9. **Performance.** Species-specific models are evaluated directly for each
    species, so only the models that are needed are evaluated, even under
-   vectorisation. Solver modes that trade robustness features for shorter
-   compilation are also provided, and state updates are applied in a single
-   pass, which reduces overhead when `Atmodeller` is called repeatedly from
-   another code.
+   vectorisation. State updates are applied in a single pass, which reduces
+   overhead when `Atmodeller` is called repeatedly from another code.
 10. **Outputs.** All outputs can be computed within JIT-compiled code, so
     `Atmodeller` can be embedded in other frameworks without loss of
     performance. New outputs include quantities of astronomical interest, such
