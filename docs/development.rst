@@ -74,6 +74,10 @@ To generate PDF documentation, noting that a LaTeX distribution must be availabl
 
 Documentation is built in the appropriately named subdirectory in ``_build``.
 
+The example notebooks in ``notebooks/examples`` are committed with their outputs, which the documentation shows without running the notebooks, so that builds are fast. To run the notebooks during a build, as the documentation check for pull requests does, set ``NBSPHINX_EXECUTE=always``, e.g. ``NBSPHINX_EXECUTE=always uv run make html``. After changing a notebook, and before a release, run the notebooks and store their outputs, from the root of the repository::
+
+    uv run jupyter nbconvert --to notebook --execute --inplace notebooks/examples/*.ipynb
+
 .. _DevelopmentTests:
 
 Tests

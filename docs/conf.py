@@ -129,6 +129,12 @@ napoleon_attr_annotations = True
 # For development where the notebooks may (temporarily) break, set to True
 nbsphinx_allow_errors = False
 
+# The example notebooks are committed with their outputs, which the docs show without running
+# them, so that builds (e.g. on Read the Docs) are fast. The docs workflow in CI sets
+# NBSPHINX_EXECUTE=always, which runs every notebook, so a notebook that breaks fails CI. After
+# changing a notebook, or before a release, update the stored outputs (see the Developer's guide).
+nbsphinx_execute = os.environ.get("NBSPHINX_EXECUTE", "never")
+
 # https://sphinxcontrib-bibtex.readthedocs.io/en/latest/usage.html#known-issues-and-workarounds
 
 
