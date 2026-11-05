@@ -104,6 +104,45 @@ OUTPUT_UNITS: dict[str, str] = {
 """Units of the output quantities, by quantity name, as in the documentation"""
 
 
+EXCEL_SHEET_NAME_LENGTH: int = 31
+"""Maximum length of an Excel sheet name"""
+
+
+def _excel_sheet_names(names: list[str], reserved: tuple[str, ...] = ()) -> dict[str, str]:
+    """Gets valid and unique Excel sheet names.
+
+    Excel limits a sheet name to 31 characters, forbids the characters ``[]:*?/\\``, and treats
+    names that differ only in case as the same. A name that breaks these rules, e.g. a condensate
+    with a long custom suffix, is shortened or changed so that no sheet replaces another, and a
+    warning is logged. Other names are kept as they are.
+
+    Args:
+        names: Names of the sheets, e.g. the keys of :meth:`Output.to_dataframes`
+        reserved: Sheet names that are already used, e.g. ``info``
+
+    Returns:
+        The Excel sheet name of each name
+    """
+    used: set[str] = {name.lower() for name in reserved}
+    sheet_names: dict[str, str] = {}
+    for name in names:
+        sheet_name: str = "".join("_" if char in "[]:*?/\\" else char for char in name)
+        sheet_name = sheet_name[:EXCEL_SHEET_NAME_LENGTH]
+        count: int = 1
+        while sheet_name.lower() in used:
+            suffix: str = f"~{count}"
+            sheet_name = sheet_name[: EXCEL_SHEET_NAME_LENGTH - len(suffix)] + suffix
+            count += 1
+        if sheet_name != name:
+            logger.warning(
+                "Excel sheet %s is named %s, a valid Excel sheet name", name, sheet_name
+            )
+        used.add(sheet_name.lower())
+        sheet_names[name] = sheet_name
+
+    return sheet_names
+
+
 class Output(eqx.Module):
     """Master output interface for model results.
 
@@ -406,9 +445,10 @@ class Output(eqx.Module):
                 width: int = max(len(str(cell.value)) for cell in column) + 2
                 writer.sheets["info"].column_dimensions[column[0].column_letter].width = width
 
+            sheet_names: dict[str, str] = _excel_sheet_names(list(out), reserved=("info",))
             for df_name, df in out.items():
-                df.to_excel(writer, sheet_name=df_name, index=True)
-                sheet = writer.sheets[df_name]
+                df.to_excel(writer, sheet_name=sheet_names[df_name], index=True)
+                sheet = writer.sheets[sheet_names[df_name]]
 
                 # Freeze the header row and the model column, and fit the columns to the headers
                 sheet.freeze_panes = "B2"
