@@ -28,7 +28,7 @@ The documentation is available online, with options to download it in EPUB or PD
 
 ## Quick install
 
-Atmodeller is a Python package that requires Python 3.11 or later. It is tested on Linux and macOS, and Windows should work but is not tested. It is recommended to install Atmodeller in a dedicated Python environment. Before installation, create and activate the environment, then run:
+Atmodeller is a Python package that requires Python 3.11 or later. It runs on Linux, macOS and Windows, and continuous integration tests Linux and macOS. It is recommended to install Atmodeller in a dedicated Python environment. Before installation, create and activate the environment, then run:
 
 ```pip install atmodeller```
 
