@@ -22,7 +22,7 @@ affiliations:
   - name: Institute of Geochemistry and Petrology, Department of Earth and Planetary Sciences, ETH Zurich, Clausiusstrasse 25, 8092 Zurich, Switzerland
     index: 1
     ror: 057rvn534
-date: 25 October 2026
+date: 5 November 2026
 bibliography: paper.bib
 ---
 
@@ -65,7 +65,8 @@ requires a transparent and flexible framework. In `Atmodeller`, users assemble a
 model from the species, solubility laws, and equations of state they require,
 and the reaction network is derived automatically from the species, so models of
 increasing complexity can be built with the same code. Each model is documented
-with its original source and calibration range.
+with its original source and calibration range, which the documentation lists
+for all models.
 
 Propagating these uncertainties into the results calls for parameter sweeps,
 Monte Carlo sampling, and Bayesian parameter estimation, which require code that
@@ -127,9 +128,9 @@ therefore built natively in JAX. Its thermodynamic library is currently smaller
 than those of some other codes but can be extended from standard thermochemical
 tables.
 
-# New features in version 2.0.0
+# New features in version 2
 
-`Atmodeller` v2.0.0 extends the capabilities of v1.0.0 [@Bower2025]:
+Version 2 of `Atmodeller` extends the capabilities of version 1 [@Bower2025]:
 
 1. **Thermodynamic phases.** The gas, silicate melt, silicate solid, metal, and
    pure condensed phases are represented explicitly. This enables mole fractions
@@ -140,7 +141,9 @@ tables.
    H$_2$O in silicate melts, calibrated to 3 kbar.
 3. **Non-ideal gas mixing.** Real-gas equations of state can depend on the gas
    composition, for example the mixture model of @ZD09 with Lorentz--Berthelot
-   mixing rules, rather than treating each species as a pure gas.
+   mixing rules, rather than treating each species as a pure gas. The model of
+   @ZD09 now covers 16 further species, including the noble gases and N-, S-,
+   and Cl-bearing gases.
 4. **Pressure-dependent condensed phases.** The Gibbs energy of a condensed
    species can include a pressure correction [@HP98; @HP11]. This matters at the
    GPa pressures beneath thick envelopes, for example for the stability of
@@ -167,8 +170,10 @@ tables.
    a warm start, for example when coupling to a time-stepping code.
 9. **Performance.** Species-specific models are evaluated directly for each
    species, so only the models that are needed are evaluated, even under
-   vectorisation. State updates are applied in a single pass, which reduces
-   overhead when `Atmodeller` is called repeatedly from another code.
+   vectorisation. Every input of a model, such as its temperature, planet
+   mass, and constraints, can be updated in a loop or within `jax.lax.scan`
+   without compiling again, which reduces overhead when `Atmodeller` is called
+   repeatedly from another code.
 10. **Outputs.** All outputs can be computed within JIT-compiled code, so
     `Atmodeller` can be embedded in other frameworks without loss of
     performance. New outputs include quantities of astronomical interest, such
