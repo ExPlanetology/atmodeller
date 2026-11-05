@@ -6,7 +6,7 @@
 """Real gas EOSs from :cite:t:`RPP87,C16`
 
 The Redlich-Kwong models of H4Si, CHN and H3N use the critical data of :cite:t:`RPP87` (see also
-the current edition, :cite:t:`Poling2001`). They are not bounded, as in v1 and in
+the current edition, :cite:t:`PPO00`). They are not bounded, as in v1 and in
 :cite:t:`Hakim2026`, although corresponding states extrapolations are only expected to be accurate
 up to about 10 times the critical pressure and 2-3 times the critical temperature
 :cite:p:`RPP87`; :data:`experimental_calibration_reid87` records the validity range.
