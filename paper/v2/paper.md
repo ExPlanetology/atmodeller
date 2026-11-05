@@ -64,9 +64,8 @@ available. Exploring how the choice of model affects the results therefore
 requires a transparent and flexible framework. In `Atmodeller`, users assemble a
 model from the species, solubility laws, and equations of state they require,
 and the reaction network is derived automatically from the species, so models of
-increasing complexity can be built with the same code. Each model is documented
-with its original source and calibration range, which the documentation lists
-for all models.
+increasing complexity can be built with the same code. The original source and
+calibration range of every model are listed in the documentation.
 
 Propagating these uncertainties into the results calls for parameter sweeps,
 Monte Carlo sampling, and Bayesian parameter estimation, which require code that
@@ -141,9 +140,9 @@ Version 2 of `Atmodeller` extends the capabilities of version 1 [@Bower2025]:
    H$_2$O in silicate melts, calibrated to 3 kbar.
 3. **Non-ideal gas mixing.** Real-gas equations of state can depend on the gas
    composition, for example the mixture model of @ZD09 with Lorentz--Berthelot
-   mixing rules, rather than treating each species as a pure gas. The model of
-   @ZD09 now covers 16 further species, including the noble gases and N-, S-,
-   and Cl-bearing gases.
+   mixing rules, rather than treating each species as a pure gas. This model now
+   covers 16 further species, including the noble gases and N-, S-, and
+   Cl-bearing gases.
 4. **Pressure-dependent condensed phases.** The Gibbs energy of a condensed
    species can include a pressure correction [@HP98; @HP11]. This matters at the
    GPa pressures beneath thick envelopes, for example for the stability of
@@ -169,7 +168,7 @@ Version 2 of `Atmodeller` extends the capabilities of version 1 [@Bower2025]:
    which lowers the total run time. A previous solution can also be supplied as
    a warm start, for example when coupling to a time-stepping code.
 9. **Performance.** Species-specific models are evaluated directly for each
-   species, so only the models that are needed are evaluated, even under
+   species, so only the models that are needed are computed, even under
    vectorisation. Every input of a model, such as its temperature, planet
    mass, and constraints, can be updated in a loop or within `jax.lax.scan`
    without compiling again, which reduces overhead when `Atmodeller` is called
@@ -186,7 +185,7 @@ Version 2 of `Atmodeller` extends the capabilities of version 1 [@Bower2025]:
 
 `Atmodeller` separates the physical and chemical components from the numerical
 engine that solves for equilibrium. Components interact with the engine only
-through small protocols, for example a solubility law returns a dissolved
+through small protocols: for example, a solubility law returns a dissolved
 concentration and an equation of state returns an activity, so they can be
 added, replaced, or evaluated on their own without changing the solver. They are
 represented with `Equinox` [@kidger2021equinox] as immutable classes that JAX
@@ -273,12 +272,12 @@ the authors reviewed in full.
 
 # Acknowledgements
 
-`Atmodeller` was created as part of a SERI-funded ERC Starting grant '2ATMO'
+`Atmodeller` was created as part of a SERI-funded ERC Starting Grant '2ATMO'
 granted to P. Sossi (Contract no. MB22.00033), with additional funding provided
 through a Swiss National Science Foundation (SNSF) Eccellenza Professorship
 (#203668).
 
-`Atmodeller` has benefitted from the work of many in the chemical equilibrium
+`Atmodeller` has benefited from the work of many in the chemical equilibrium
 community, including the authors of the studies and codes cited above, both for
 elucidating methodology and numerical techniques and for making their codes open
 source and available for benchmarking and code comparison. We also thank the JAX
