@@ -63,16 +63,16 @@ The same names are used for constraints and in the output, so ``"O2S_g"`` (not `
      - O2Si
    * - NH3
      - H3N
-     - SiC
-     - CSi
+     - SiO
+     - OSi
    * - HCl
      - ClH
-     - Si3N4
-     - N4Si3
-   * - H2SO4
-     - H2O4S
-     - NH4Cl
-     - ClH4N
+     - SiH4
+     - H4Si
+   * - HCN
+     - CHN
+     - MgSiO3
+     - MgO3Si
 
 Selecting species
 -----------------
