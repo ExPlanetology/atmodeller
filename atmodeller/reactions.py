@@ -51,7 +51,7 @@ from atmodeller.phases import BasePhase, GasPhase
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def left_null_space(matrix: NpArray, tolerance: float = 1e-10) -> NpArray:
+def left_null_space(matrix: NpArray, tolerance: float = 1e-10) -> NpFloat:
     """Computes a basis of the left null space by forward elimination
 
     The matrix is augmented with the identity and reduced to row echelon form with partial
@@ -71,7 +71,7 @@ def left_null_space(matrix: NpArray, tolerance: float = 1e-10) -> NpArray:
         the rank of the matrix
     """
     nrows, ncols = matrix.shape
-    augmented_matrix: NpArray = np.hstack((matrix, np.eye(nrows)))
+    augmented_matrix: NpFloat = np.hstack((matrix, np.eye(nrows)))
     threshold: float = tolerance * max(np.max(np.abs(matrix), initial=0.0), 1.0)
 
     pivot_row: int = 0
@@ -146,7 +146,7 @@ class PhaseIndex(eqx.Module):
         """Slice object for indexing arrays."""
         return slice(self.start, self.stop)
 
-    def mask(self, n_total: int) -> NpArray:
+    def mask(self, n_total: int) -> NpBool:
         """Boolean mask for this phase
 
         Args:
