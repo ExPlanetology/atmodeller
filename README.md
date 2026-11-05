@@ -48,7 +48,7 @@ The data from the first study above are also available for download at <https://
 
 ## Logo
 
-You are welcome to use the Atmodeller logo in presentations, posters, and other materials. The logo is available to download here: [logo1200x1200.png](https://raw.githubusercontent.com/ExPlanetology/atmodeller/main/docs/logo/logo1200x1200.png).
+You are welcome to use the Atmodeller logo in presentations, posters, and other materials. The logo is available to download in three sizes: [200 × 200](https://raw.githubusercontent.com/ExPlanetology/atmodeller/main/docs/logo/logo200x200.png), [800 × 800](https://raw.githubusercontent.com/ExPlanetology/atmodeller/main/docs/logo/logo800x800.png) and [1200 × 1200](https://raw.githubusercontent.com/ExPlanetology/atmodeller/main/docs/logo/logo1200x1200.png) pixels.
 
 Unlike the source code, the logo is licensed under [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/). Citing Atmodeller (see [Citation](#citation)) satisfies the attribution requirement, so no separate credit is needed for the logo.
 

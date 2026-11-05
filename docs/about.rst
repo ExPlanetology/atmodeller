@@ -7,10 +7,17 @@ About
 
 It is released under the `Apache License, Version 2.0 <https://www.apache.org/licenses/LICENSE-2.0>`_. Community development is strongly encouraged. If you use *Atmodeller* in your research, let us know and we'd be happy to include your work in the :ref:`Used in <UsedInFile>` section. This will help us track the impact of *Atmodeller* and also provide a resource for users to see how it has been applied in practice.
 
+.. _about-citation:
+
 Citation
 --------
 
 If you use *Atmodeller*, or data from *Atmodeller*, please cite :cite:t:`BTH25`. If you use version 2 of *Atmodeller*, please also cite :cite:t:`Bower2026`. In addition, please consult the *Atmodeller* source code for citations related to specific model components, such as solubility laws and real gas equations of state. Thermodynamic data are sourced from :cite:t:`MZG02`, with the volumes of graphite and diamond, and the Gibbs energy of diamond relative to graphite, from :cite:t:`Gustafson1986`.
+
+Logo
+----
+
+You are welcome to use the *Atmodeller* logo in presentations, posters and other materials. It can be downloaded in three sizes: :download:`200 × 200 <logo/logo200x200.png>`, :download:`800 × 800 <logo/logo800x800.png>` and :download:`1200 × 1200 <logo/logo1200x1200.png>` pixels. Unlike the source code, the logo is licensed under `Creative Commons Attribution 4.0 International (CC BY 4.0) <https://creativecommons.org/licenses/by/4.0/>`__. Citing *Atmodeller* (see :ref:`about-citation`) satisfies the attribution requirement, so no separate credit is needed for the logo.
 
 Authors
 -------
