@@ -36,14 +36,14 @@ Installation
 
 See :ref:`developer_install` for how to install *Atmodeller* and the extra dependencies required for the developer tools and documentation.
 
+The rest of this guide assumes that *Atmodeller* was installed with uv (option 1 of :ref:`developer_install`), so the commands are prefixed with ``uv run``, which runs them in the uv environment without activating it. If you installed with pip, activate the environment and run the same commands without ``uv run``.
+
 Pre-commit
 ----------
 
 Run pre-commit before issuing a pull request to the main repository::
 
     uv run pre-commit run --all-files
-
-Without uv, run the same command without ``uv run`` in the activated environment. The same applies to the commands below.
 
 Documentation
 -------------
