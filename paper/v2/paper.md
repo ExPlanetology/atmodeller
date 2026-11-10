@@ -268,7 +268,7 @@ scope, and physical assumptions of each change and steering the AI output to
 keep the codebase as accessible and understandable as possible to its users, who
 are primarily scientists and researchers. The authors reviewed every line of
 AI-generated code and verified all changes against the test suite before
-accepting them. Claude Code was also used to edit the text of this paper, which
+accepting them. Claude was also used to edit the text of this paper, which
 the authors reviewed in full.
 
 # Acknowledgements
