@@ -154,7 +154,7 @@ Version 2 of `Atmodeller` extends the capabilities of version 1 [@Bower2025]:
    updated without recompiling, which reduces overhead when `Atmodeller` is
    called repeatedly from another code.
 10. **Licence.** `Atmodeller` is now released under the permissive Apache 2.0
-    licence, replacing GPL-3.0-or-later.
+    licence.
 
 # Software design
 
