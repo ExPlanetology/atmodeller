@@ -7,6 +7,11 @@ under **Unreleased**, which becomes the next version when it is released.
 
 ## [Unreleased]
 
+### Added
+
+- A check before solving that every mass constraint is positive: a mass constraint of zero or
+  less cannot be solved, and now raises a `ValueError` that explains how to leave an element out.
+
 ## [2.0.0] - 2026-11-05
 
 Version 2 is a substantial rewrite of version 1, which was a prototype. The interface has changed

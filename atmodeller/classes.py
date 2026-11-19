@@ -135,13 +135,15 @@ class EquilibriumModel(eqx.Module):
         Raises:
             ValueError: If any model of the batch is not well posed: its constraints do not match
                 its components, an element of a condensate imposed stable has a mass constraint,
-                or species are dissolved in a melt of zero mass. The whole batch is rejected
-                before solving. Inside a JIT-compiled function of your own, where the constraints
-                are traced, this is not checked, and such a model is instead not solved and has
-                the result ``invalid_model``.
+                species are dissolved in a melt of zero mass, or a mass constraint is zero or
+                less. The whole batch is rejected before solving. Inside a JIT-compiled function
+                of your own, where the constraints are traced, this is not checked, and such a
+                model is instead not solved (with the result ``invalid_model``, or
+                ``solver_failed`` for a mass constraint of zero or less).
         """
         self._check_constraints()
         self._check_melt()
+        self._check_mass()
         # A strongly typed float64 array, so that the compiled solver is reused whatever the
         # source of the guess: a weakly typed guess (e.g. jnp.full with a Python float) would
         # otherwise compile the solver again
@@ -274,6 +276,45 @@ class EquilibriumModel(eqx.Module):
                 "without melt, and a tiny melt fraction is not a substitute, since the solubility "
                 "laws then put unphysical amounts into the melt. For stages without melt, use a "
                 "model without silicate_melt_species."
+            )
+
+    def _check_mass(self) -> None:
+        """Checks that every active mass constraint is positive
+
+        A mass constraint of zero (or less) cannot be solved: the elemental mass residual is the
+        ratio of the element's moles to its constraint, less one, which is unbounded at zero, and
+        the moles of every species of the element would have to be exactly zero, which the solver
+        (in log moles) cannot reach. A tiny positive constraint is solved. Nothing is checked if
+        the constraints are traced (inside JIT), when such a model fails instead.
+
+        Raises:
+            ValueError: If a model has a mass constraint of zero or less
+        """
+        try:
+            abundance: np.ndarray = np.asarray(
+                self.parameters.mass_constraints.abundance(), dtype=float
+            )
+        except jax.errors.TracerArrayConversionError:
+            return
+
+        abundance = np.reshape(abundance, (-1, abundance.shape[-1]))
+        not_positive: np.ndarray = ~np.isnan(abundance) & ~(abundance > 0)
+        if np.any(not_positive):
+            elements: tuple[str, ...] = self.parameters.mass_constraints.species.unique_elements
+            bad_elements: list[str] = [
+                element for element, bad in zip(elements, np.any(not_positive, axis=0)) if bad
+            ]
+            bad_models: np.ndarray = np.flatnonzero(np.any(not_positive, axis=-1))
+            models: str = (
+                "Every model has"
+                if abundance.shape[0] == 1
+                else f"Models {bad_models[:10].tolist()} have"
+            )
+            raise ValueError(
+                f"{models} a mass constraint of zero or less on {bad_elements}, which cannot be "
+                "solved: every species of such an element would need exactly zero moles. To "
+                "leave an element out, remove its species and its mass constraint; for a trace "
+                "amount, use a small positive mass constraint."
             )
 
     def _log_initial_guess(self, initial_guess: ArrayLike) -> None:
