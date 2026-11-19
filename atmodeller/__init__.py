@@ -35,7 +35,8 @@ jax.config.update("jax_enable_x64", True)
 # This prevents error_if from throwing an error when encountering nan or inf values. To actually
 # find the root cause of nan or inf values, set EQX_ON_ERROR to "raise" or "breakpoint" before
 # importing atmodeller, as per https://docs.kidger.site/equinox/api/errors/. A value that is already
-# set is kept.
+# set is kept. Under jax.vmap, Equinox applies "raise", "breakpoint" and "nan" to the whole batch
+# when any one model triggers a check, so use them to debug, not to solve batches.
 os.environ.setdefault("EQX_ON_ERROR", "off")
 
 # Suppress warnings (notably from Equinox about static JAX arrays)

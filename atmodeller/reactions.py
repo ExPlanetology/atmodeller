@@ -620,8 +620,37 @@ class ReactionSystem(BaseReactionBlock):
         # Could be an integer (but represented as a float) or np.nan
         self._O2_index = np.nan_to_num(self.phase_system.gas.O2_index, nan=0).astype(int)
         self._has_O2 = ~np.isnan(self.phase_system.gas.O2_index)
+        self._check_fO2_dependent_solubility()
 
         self.output_to_logger()
+
+    def _check_fO2_dependent_solubility(self) -> None:
+        """Checks that O2 is a gas species if any solubility law depends on the oxygen fugacity.
+
+        The fO2 passed to the solubility laws is the fugacity of the O2 gas species, whether fO2
+        is imposed or solved for, so it is missing only if O2 is not a species. That is the same
+        for every model of a batch, so it is checked here, when the model is built, rather than
+        with a runtime check: under :func:`jax.vmap` a runtime check would also fire for an
+        iterate that has diverged, and with ``EQX_ON_ERROR`` set to ``nan`` or ``raise`` it acts
+        on the whole batch.
+
+        Raises:
+            ValueError: If a solubility law depends on fO2 but O2 is not a gas species
+        """
+        if self._has_O2:
+            return
+
+        needs_fO2: list[str] = [
+            f"{species_.data.name} ({species_.solubility.__class__.__name__.lstrip('_')})"
+            for species_ in self.species.reservoir_species
+            if getattr(species_.solubility, "requires_fO2", False)
+        ]
+        if needs_fO2:
+            raise ValueError(
+                "The solubility laws of "
+                + ", ".join(needs_fO2)
+                + " depend on the oxygen fugacity, so O2 must be included as a gas species"
+            )
 
     @property
     def species(self) -> SpeciesCollection[SpeciesProtocol]:  # pyright: ignore - Equinox override

@@ -8,6 +8,8 @@
 For every law there should be a test in the test suite.
 """
 
+from typing import ClassVar
+
 import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike
@@ -118,6 +120,8 @@ class _N2_basalt_bernadou21(Solubility):
     concentrations at fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self,
@@ -127,11 +131,7 @@ class _N2_basalt_bernadou21(Solubility):
         pressure: ArrayLike,
         fO2: ArrayLike,
     ) -> Array:
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for N2 solubility in basaltic melt (Bernadou et al. 2021)",
-        )
+        fO2 = jnp.asarray(fO2)
         # Numerator and denominator of k13 and k14 should both have units of J/mol so that k13 and
         # k14 are unitless
         k13: Array = safe_exp(
@@ -177,6 +177,8 @@ class _N2_basalt_dasgupta22(Solubility):
         xtio2: Mole fraction of TiO2. Defaults to 0.01.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     xsio2: float = eqx.field(converter=float)
     """Mole fraction of SiO2"""
     xal2o3: float = eqx.field(converter=float)
@@ -200,11 +202,7 @@ class _N2_basalt_dasgupta22(Solubility):
         pressure: ArrayLike,
         fO2: ArrayLike,
     ) -> Array:
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for N2 solubility in basaltic melt (Dasgupta et al. 2022)",
-        )
+        fO2 = jnp.asarray(fO2)
         fugacity_gpa: ArrayLike = fugacity * unit_conversion.bar_to_GPa
         pressure_gpa: ArrayLike = pressure * unit_conversion.bar_to_GPa
 
@@ -233,6 +231,8 @@ class _N2_basalt_libourel03(Solubility):
     and N2 gases.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self,
@@ -242,11 +242,7 @@ class _N2_basalt_libourel03(Solubility):
         pressure: ArrayLike,
         fO2: ArrayLike,
     ) -> Array:
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for N2 solubility in basaltic melt (Libourel et al. 2003)",
-        )
+        fO2 = jnp.asarray(fO2)
         # Libourel performed the experiment at 1698 K and fitted for fO2 at this temperature hence
         # a correction is necessary.
         libourel_temperature: ArrayLike = 1698.15
