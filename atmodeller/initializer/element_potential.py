@@ -36,15 +36,16 @@ SWEEP_MIN_SLOPE: float = 0.1
 The slope is the mean of d ln n / d lambda_e over the carriers of the element, weighted by their
 shares. It is at least one for gas species, but a dissolved species can contribute much less (the
 exponent of its solubility law, or zero at the mole-fraction cap), so when the melt holds most of
-an element the slope can approach zero. The floor bounds the step by |f| / SWEEP_MIN_SLOPE; it acts
-only when the true slope is smaller, and then shortens the step without changing its direction."""
+an element the slope can approach zero. The floor bounds the step by ``|f| / SWEEP_MIN_SLOPE``; it
+acts only when the true slope is smaller, and then shortens the step without changing its
+direction."""
 
 SWEEP_MAX_STEP: float = 10.0
 """Largest change in lambda_e per iteration of each element's 1-D Newton in the sweep
 
 With gas carriers only the mass balance is convex with slope at least one, so a Newton step is at
-most |f| and this rarely acts. With dissolved carriers it couples to the pressure and fO2 through
-the solubility laws and can overshoot from far away; the clip bounds that."""
+most ``|f|`` and this rarely acts. With dissolved carriers it couples to the pressure and fO2
+through the solubility laws and can overshoot from far away; the clip bounds that."""
 
 
 def _gibbs_over_RT_all_species(
