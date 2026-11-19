@@ -17,12 +17,34 @@ import lineax as lx
 import numpy as np
 from jax import lax
 from jax.scipy.special import logsumexp
-from jaxtyping import Array, Bool, Float
+from jaxtyping import Array, Bool, Float, Integer
 
+from atmodeller.constants import GAS_PHASE_INDEX
 from atmodeller.engine import compute_implied_log_stability
-from atmodeller.initializer.core import LOG_TRACE_VALUE, max_moles_by_limiting_element
+from atmodeller.initializer.core import (
+    CONDENSATE_ALLOCATION_FRACTION,
+    LOG_TRACE_VALUE,
+    max_moles_by_limiting_element,
+)
 from atmodeller.jax_utils import safe_exp
 from atmodeller.parameters import Parameters
+from atmodeller.phases import BasePhase
+
+SWEEP_MIN_SLOPE: float = 0.1
+"""Floor on the slope of each element's 1-D mass balance in the sweep
+
+The slope is the mean of d ln n / d lambda_e over the carriers of the element, weighted by their
+shares. It is at least one for gas species, but a dissolved species can contribute much less (the
+exponent of its solubility law, or zero at the mole-fraction cap), so when the melt holds most of
+an element the slope can approach zero. The floor bounds the step by |f| / SWEEP_MIN_SLOPE; it acts
+only when the true slope is smaller, and then shortens the step without changing its direction."""
+
+SWEEP_MAX_STEP: float = 10.0
+"""Largest change in lambda_e per iteration of each element's 1-D Newton in the sweep
+
+With gas carriers only the mass balance is convex with slope at least one, so a Newton step is at
+most |f| and this rarely acts. With dissolved carriers it couples to the pressure and fO2 through
+the solubility laws and can overshoot from far away; the clip bounds that."""
 
 
 def _gibbs_over_RT_all_species(
@@ -74,7 +96,7 @@ class ElementPotentialInitializer(eqx.Module):
     - Condensates: pure phases; a present condensate has unit activity, :math:`d_c = 0`.
     - Dissolved species (if the system has dissolution reactions): their log moles are
       unknowns, and the dissolution rows of the solver's residual (the solubility laws) are part
-      of the residual.
+      of the residual. In the element sweep they follow the potentials (see below).
     - :math:`G_s/RT` is evaluated at the pressure of the start. The gas values are for the 1-bar
       standard state and do not change; the condensate values are re-evaluated at the pressure
       reached after each switching pass (see below), and are held fixed within each solve.
@@ -101,26 +123,40 @@ class ElementPotentialInitializer(eqx.Module):
 
     .. rubric:: Method
 
-    1. Start from an even split of the total constrained element moles over the gas species (as
-       CEA), with :math:`\lambda` fitted to it by least squares. No knowledge of the answer is
-       used.
-    2. Phase selection in :math:`2 n_\mathrm{condensates} + 1` passes, then a final solve. Each
-       pass solves, re-evaluates the condensate :math:`G_c/RT` at the pressure reached, switches
-       on the most supersaturated absent condensate (if :math:`d_c > 10^{-6}`; it starts at half
-       the budget of its limiting element), and switches off present condensates whose log moles
-       fall below ``log_trace_value`` + 1. Switching one at a
-       time means that a present polymorph fixes its element's potential and the other becomes
-       undersaturated. The start pressure (from the even split) can differ from the converged
+    1. Start from each gas and dissolved species' share of its limiting element,
+       :math:`\min_e b_e / \sum_{s' \ni e} a_{es'}` over the mass-constrained elements of the
+       species (the sum over every gas and dissolved species containing :math:`e`), so that the
+       start satisfies every element budget. :math:`\lambda` and the normalisation are fitted by
+       least squares to the gas shares and to the imposed fugacities (:math:`\sum_e a_{es}
+       \lambda_e - G_s/RT = \ln f_s`), so an element that is not mass constrained starts from
+       its target. Gas species with neither are left out of the fit. The dissolved slots start at
+       their shares, and the condensate slots at trace. No knowledge of the answer is used. An
+       even split of the total over the gas species (as CEA) is not used: for a skewed inventory
+       (e.g. a primordial H/He atmosphere with trace C, N, O and S) it puts the dissolved species
+       of the minor elements above their whole budgets.
+    2. Phase selection in :math:`2 n_\mathrm{condensates} + 1` passes, then a final solve (a
+       system without condensates has nothing to switch, and is solved once). Each pass solves,
+       re-evaluates the condensate :math:`G_c/RT` at the pressure reached, switches on the most
+       supersaturated absent condensate (if :math:`d_c > 10^{-6}`; it starts at
+       :data:`~atmodeller.initializer.core.CONDENSATE_ALLOCATION_FRACTION` of the budget of its
+       limiting element, as the heuristic initializer allocates), and switches off present
+       condensates whose log moles fall below ``log_trace_value`` + 1. Switching one at a time
+       means that a present polymorph fixes its element's potential and the other becomes
+       undersaturated. The start pressure (from the shares) can differ from the converged
        pressure by an order of magnitude, enough to put a condensate near saturation on the wrong
        side of its boundary through the pressure dependence of its Gibbs energy, hence the
        re-evaluation.
     3. Every solve is an element sweep followed by damped Newton:
 
        - *Sweep* (FastChem): up to ``sweeps`` Gauss-Seidel passes over the elements in order
-         of decreasing abundance, each solving its own element's mass balance exactly for
+         of decreasing abundance, each solving its own element's mass balance for
          :math:`\lambda_e` (see below). Each 1-D Newton stops when its step is below
          ``sweep_step_tolerance`` (at most ``sweep_iterations``), and the passes stop when no
-         :math:`\lambda_e` changes by more than ``sweep_tolerance``.
+         :math:`\lambda_e` changes by more than ``sweep_tolerance``. The sweep only sets the
+         scale of every species, and Newton then converges the coupled problem, so the sweep
+         tolerances are loose: tightening them (to ``1e-10`` and ``1e-8``) gave the same guesses
+         and solves on the test suite and on a stress family of magma-ocean planets, and made the
+         guess about 1.5 times slower on the TRAPPIST-1e example with solubility.
        - *Newton*: least-squares direction from the damped normal equations (see below),
          scaled so that no :math:`\lambda_e` and no carried species' log moles change by more
          than ``max_log_step``; stops when the residual norm is below ``residual_tolerance``, or
@@ -130,7 +166,7 @@ class ElementPotentialInitializer(eqx.Module):
        residual for an absent condensate is :math:`-\nu (d_c + \zeta_c)`, so
        :math:`\zeta_c = -d_c`, and its log moles follow from the implied-stability relation
        (absent condensates with :math:`d_c \geq 0` stay at trace).
-    5. If the result is not finite, the even-split start is returned instead.
+    5. If the result is not finite, the start (the shares) is returned instead.
 
     .. rubric:: Why the sweep
 
@@ -160,24 +196,38 @@ class ElementPotentialInitializer(eqx.Module):
     the run time of the guess for systems that are already easy. More sweeps without more Newton
     iterations were worse, because Newton then hit its cap in more switching passes.
 
-    *The 1-D problem for element e.* Hold the other potentials, the moles held outside the gas
-    (:math:`C_e`, in present condensates and dissolved species) and the gas normalisation
-    :math:`\sigma = \ln N_\mathrm{gas} - \ln \sum_\mathrm{gas} p` fixed, so that
-    :math:`\ln n_s = a_{es} x + \beta_s` with :math:`x = \lambda_e`. The log mass balance
+    *The 1-D problem for element e.* Hold the other potentials, the moles in present condensates
+    (:math:`C_e`) and the gas normalisation
+    :math:`\sigma = \ln N_\mathrm{gas} - \ln \sum_\mathrm{gas} p` fixed, so that a gas species
+    has :math:`\ln n_s = a_{es} x + \beta_s` with :math:`x = \lambda_e`. The carriers are the gas
+    and the dissolved species, with the log mass balance
 
     .. math::
 
-        f(x) = \ln \sum_{s \in \mathrm{gas},\, a_{es} > 0}
-               \exp\left(\ln a_{es} + a_{es} x + \beta_s\right) - \ln(b_e - C_e)
+        f(x) = \ln \sum_{s \in \mathrm{gas} \cup \mathrm{dissolved},\, a_{es} > 0}
+               a_{es}\, n_s(x) - \ln(b_e - C_e).
 
-    has :math:`f'(x) = \sum_s w_s a_{es} \geq 1` and :math:`f''(x) \geq 0` (mean and variance
-    of :math:`a_{es}` under the weights :math:`w_s = a_{es} n_s / \sum a n`). It is convex and
-    increasing with slope at least one, so it has one root and Newton reaches it from any
-    start, with every step at most :math:`|f|`. Freezing :math:`\sigma` is FastChem's fixed
-    total density: it keeps each 1-D problem separate and solvable when :math:`b_e > C_e`.
-    After the sweep :math:`\ln N_\mathrm{gas}` is reset so that the normalised moles equal the
-    swept ones. An element is skipped if it is not mass constrained, if :math:`C_e \geq b_e`, or
-    if no gas species contains it. The sweep ignores every row other than the mass balances.
+    A dissolved species follows the potentials like a gas species: its moles are set where its
+    dissolution row is zero, at the gas fugacities :math:`\ln p_s = \sum_e a_{es} \lambda_e -
+    G_s/RT` (and their sum as the pressure, as in the model above; the gas equations of state are
+    not evaluated in the sweep), by two steps (the row has a slope of about one in
+    :math:`\ln n_d`), with its mole fraction capped at one and its log moles within the solver's
+    bounds (``log_number_moles_lower`` and ``log_number_moles_upper`` of the solver
+    parameters). Without the cap,
+    when the dissolved species are not part of the melt's mass, a solubility law can ask for a
+    mole fraction above one, and the moles run away. Condensates are the dual case: a present
+    condensate has unit activity, so its equilibrium fixes the potentials and not its amount, and
+    it is held fixed in the sweep. With gas carriers only, :math:`f'(x) = \sum_s w_s a_{es} \geq
+    1` and :math:`f''(x) \geq 0` (mean and variance of :math:`a_{es}` under the weights
+    :math:`w_s = a_{es} n_s / \sum a n`): :math:`f` is convex and increasing, with one root that
+    Newton reaches from any start. The slope is taken from a forward-mode derivative, floored at
+    :data:`~atmodeller.initializer.element_potential.SWEEP_MIN_SLOPE`, and each step is clipped to
+    :data:`~atmodeller.initializer.element_potential.SWEEP_MAX_STEP`. Freezing :math:`\sigma` is
+    FastChem's fixed total density: it keeps each 1-D problem separate. After each sweep the
+    dissolved moles are set at the swept potentials, and :math:`\ln N_\mathrm{gas}` is reset so
+    that the normalised gas moles equal the swept ones. An element is skipped if it is not mass
+    constrained, if :math:`C_e \geq b_e`, or if no gas species contains it. The sweep ignores
+    every row other than the mass balances and the dissolution rows.
 
     .. rubric:: Newton direction
 
@@ -221,9 +271,9 @@ class ElementPotentialInitializer(eqx.Module):
         sweep_iterations: Maximum number of 1-D Newton iterations per element in a sweep.
             Defaults to ``30``.
         sweep_step_tolerance: Step size at which a 1-D Newton iteration in a sweep stops.
-            Defaults to ``1e-10``.
+            Defaults to ``1e-4``.
         sweep_tolerance: Largest change in any :math:`\lambda_e` over a sweep below which the
-            sweeps stop. Defaults to ``1e-8``.
+            sweeps stop. Defaults to ``1e-2``.
         damping: Damping :math:`\mu` of the normal equations for the Newton direction. Defaults
             to ``1e-6``.
         log_trace_value: Log number of moles of absent species (absent condensates, and species
@@ -243,9 +293,9 @@ class ElementPotentialInitializer(eqx.Module):
     sweep_iterations: int = 30
     """Maximum number of 1-D Newton iterations per element in a sweep (each step is at most the
     log residual)"""
-    sweep_step_tolerance: float = 1e-10
+    sweep_step_tolerance: float = 1e-4
     """Step size at which a 1-D Newton iteration in a sweep stops"""
-    sweep_tolerance: float = 1e-8
+    sweep_tolerance: float = 1e-2
     r"""Largest change in any :math:`\lambda_e` over a sweep below which the sweeps stop"""
     damping: float = 1e-6
     r"""Damping :math:`\mu` of the normal equations for the Newton direction, which keeps
@@ -314,16 +364,23 @@ class ElementPotentialInitializer(eqx.Module):
         )
 
         # -----------------------------------------------------------------------------------
-        # STEP 2. Even-split start and standard Gibbs energies at the start pressure. The
-        # condensate values are updated after each switching pass (STEP 7), so G/RT is an
-        # argument of the functions below.
+        # STEP 2. Proportional start and standard Gibbs energies at the start pressure. Each gas
+        # and dissolved species starts at its share of its limiting mass-constrained element, so
+        # that the start satisfies every element budget; species without a mass-constrained
+        # element have no share (budgeted is False). The condensate G/RT is updated after each
+        # switching pass (STEP 7), so G/RT is an argument of the functions below.
         # -----------------------------------------------------------------------------------
-        total: Array = jnp.sum(jnp.where(constrained, abundance, 0.0))
-        total = jnp.where(total > 0, total, 1.0)
-        log_n_each: Array = jnp.log(total / jnp.maximum(jnp.sum(gas), 1))
-        start_log_n: Float[Array, " n_species"] = jnp.where(gas, log_n_each, self.log_trace_value)
+        share: Float[Array, " n_species"] = max_moles_by_limiting_element(
+            formula_matrix, jnp.where(constrained, abundance, jnp.nan), gas | dissolved
+        )
+        budgeted: Bool[Array, " n_species"] = (gas | dissolved) & (share > 0)
+        log_share: Float[Array, " n_species"] = jnp.log(jnp.where(budgeted, share, 1.0))
+        start_log_n: Float[Array, " n_species"] = jnp.where(
+            budgeted, log_share, self.log_trace_value
+        )
+        start_pressure: Array = parameters.state.get_pressure(start_log_n)
         gibbs: Float[Array, " n_species"] = _gibbs_over_RT_all_species(
-            parameters, temperature, parameters.state.get_pressure(start_log_n)
+            parameters, temperature, start_pressure
         )
 
         # -----------------------------------------------------------------------------------
@@ -386,74 +443,166 @@ class ElementPotentialInitializer(eqx.Module):
         # STEP 5. Element sweep (FastChem): each element's own mass balance, solved for
         # lambda_e.
         #
-        # See the class docstring for the 1-D problem. Held fixed: the other potentials (updated
-        # in Gauss-Seidel order, most abundant element first), the moles outside the gas (C_e)
-        # and the gas normalisation sigma.
+        # See the class docstring for the 1-D problem. The carriers are the gas and the dissolved
+        # species, whose moles both follow the potentials (the dissolved species through their
+        # solubility laws). Held fixed: the other potentials (updated in Gauss-Seidel order, most
+        # abundant element first), the moles in present condensates and the gas normalisation
+        # sigma.
         # -----------------------------------------------------------------------------------
         order: Array = jnp.argsort(-jnp.where(constrained, abundance, -jnp.inf))
         # ln a_es; the placeholder 1.0 where a_es = 0 is masked out by the carrier mask
         log_a: Array = jnp.log(jnp.where(formula_matrix > 0, formula_matrix, 1.0))
+        # The dissolution row of each dissolved species, and whether it has one (no rows, nothing
+        # dissolved, without dissolution). Traced under vmap (a leaf of the parameters), so
+        # jax.numpy throughout
+        dissolution_row_of: Integer[Array, " n_species"] = jnp.zeros(n_species, dtype=int)
+        has_dissolution_row: Bool[Array, " n_species"] = jnp.zeros(n_species, dtype=bool)
+        if has_dissolution:
+            dissolution_matrix: Float[Array, "n_dissolution n_species"] = jnp.asarray(
+                reaction_system.dissolution.dissolution_matrix
+            )
+            dissolution_row_of = jnp.argmax(dissolution_matrix > 0, axis=0)
+            has_dissolution_row = dissolved & jnp.any(dissolution_matrix > 0, axis=0)
+        # Bounds on the log number of moles of a dissolved species, as for the solver
+        log_n_lower: float = parameters.solver_parameters.log_number_moles_lower
+        log_n_upper: float = parameters.solver_parameters.log_number_moles_upper
+
+        phases: tuple[BasePhase, ...] = reaction_system.phase_system.phases
+
+        def condensed_log_activity(
+            log_n: Float[Array, " n_species"],
+            log_p_gas: Float[Array, " n_species"],
+            pressure: Array,
+        ) -> Float[Array, " n_species"]:
+            """Log activities with the gas at its ideal partial pressures, ``log_p_gas``, and the
+            other phases from their own activity models. The gas equation of state is not
+            evaluated."""
+            parts: list[Array] = []
+            for phase_index, phase in enumerate(phases):
+                phase_slice: slice = reaction_system.phase_system.phase_slice(phase_index)
+                if phase_index == GAS_PHASE_INDEX:
+                    parts.append(log_p_gas[phase_slice])
+                else:
+                    parts.append(phase.get_log_activity(log_n[phase_slice], temperature, pressure))
+            return jnp.concatenate(parts)
+
+        def equilibrate_dissolved(
+            log_n: Float[Array, " n_species"], log_p_gas: Float[Array, " n_species"]
+        ) -> Float[Array, " n_species"]:
+            """Sets ln n of every dissolved species where its dissolution row is zero, by two
+            Newton-like steps (slope about one in ln n_d), with the mole fraction capped at one.
+
+            The gas activities are the ideal partial pressures from the potentials, ``log_p_gas``
+            (a_s.lambda - G_s/RT), and the pressure is their sum, as in the element-potential
+            model, so that the dissolved moles follow the potentials.
+            """
+            if not has_dissolution:
+                return log_n
+            pressure: Array = jnp.exp(logsumexp(jnp.where(gas, log_p_gas, -jnp.inf)))
+            for _ in range(2):
+                log_activity: Array = condensed_log_activity(log_n, log_p_gas, pressure)
+                step: Array = reaction_system.get_dissolution_residual(
+                    log_n, log_activity, temperature, pressure
+                )[dissolution_row_of]
+                # The mole fraction is capped at one, i.e. ln n_d at most ln n_d - ln a_d: when
+                # the dissolved species are not part of the melt's mass, a solubility law can ask
+                # for a mole fraction above one, and the moles would run away
+                new_log_n: Array = jnp.minimum(log_n - step, log_n - log_activity)
+                log_n = jnp.where(
+                    has_dissolution_row & jnp.isfinite(step),
+                    jnp.clip(new_log_n, log_n_lower, log_n_upper),
+                    log_n,
+                )
+            return log_n
 
         def sweep(z: Array, present: Array, gibbs: Array) -> Array:
-            log_n, _, log_p_sum = log_moles(z, present, gibbs)
+            log_n_now, _, log_p_sum = log_moles(z, present, gibbs)
             sigma: Array = z[n_elements] - log_p_sum
-            outside_gas: Array = formula_matrix @ jnp.where(
-                (condensate & present) | dissolved, safe_exp(log_n), 0.0
+            in_condensates: Array = formula_matrix @ jnp.where(
+                condensate & present, safe_exp(log_n_now), 0.0
             )
 
-            def element(k, lam):
+            def log_n_at(
+                lam: Float[Array, " n_elements"], slots: Float[Array, " n_species"]
+            ) -> Float[Array, " n_species"]:
+                """Species moles at the potentials ``lam``: the gas from lambda and sigma, the
+                dissolved species by their solubility laws, present condensates from ``slots``"""
+                log_p_gas: Array = formula_matrix.T @ lam - gibbs
+                log_n: Array = jnp.where(
+                    gas,
+                    log_p_gas + sigma,
+                    jnp.where((condensate & present) | dissolved, slots, self.log_trace_value),
+                )
+                return equilibrate_dissolved(log_n, log_p_gas)
+
+            def element(k: Array, carry: tuple[Array, Array]) -> tuple[Array, Array]:
+                lam, slots = carry
                 e: Array = order[k]
                 a_e: Array = formula_matrix[e]
-                carrier: Array = gas & (a_e > 0)
-                gas_share: Array = abundance[e] - outside_gas[e]
-                solvable: Array = constrained[e] & (gas_share > 0) & jnp.any(carrier)
-                log_target: Array = jnp.log(jnp.where(solvable, gas_share, 1.0))
-                # beta_s: ln n_s without its a_es lambda_e term
-                beta: Array = formula_matrix.T @ lam - gibbs + sigma - a_e * lam[e]
+                carrier: Array = (gas | dissolved) & (a_e > 0)
+                available: Array = abundance[e] - in_condensates[e]
+                solvable: Array = constrained[e] & (available > 0) & jnp.any(gas & (a_e > 0))
+                log_target: Array = jnp.log(jnp.where(solvable, available, 1.0))
 
-                def newton_step(x):
-                    terms: Array = jnp.where(carrier, log_a[e] + a_e * x + beta, -jnp.inf)
-                    log_g: Array = logsumexp(terms)
-                    # f' = mean stoichiometry of the carriers, >= 1 (floor for non-integer
-                    # formulae)
-                    slope: Array = jnp.maximum(jnp.sum(jnp.exp(terms - log_g) * a_e), 1.0)
-                    # Clipped only as a guard against extreme values
-                    return jnp.clip((log_g - log_target) / slope, -50.0, 50.0)
+                def mass_balance(x: Array) -> Array:
+                    log_n: Array = log_n_at(lam.at[e].set(x), slots)
+                    return logsumexp(jnp.where(carrier, log_a[e] + log_n, -jnp.inf)) - log_target
 
-                # 1-D Newton until the step is below sweep_step_tolerance. The problem is convex
-                # with slope >= 1, so it converges in a few iterations; an element that is
-                # already solved stops after one.
-                def unfinished(carry):
-                    i, _, dx = carry
-                    return (i < self.sweep_iterations) & (jnp.abs(dx) > self.sweep_step_tolerance)
-
-                def newton(carry):
-                    i, x, _ = carry
-                    dx: Array = newton_step(x)
+                # 1-D Newton until the step is below sweep_step_tolerance. The slope (from a jvp)
+                # is at least one for gas carriers; SWEEP_MIN_SLOPE and SWEEP_MAX_STEP are guards
+                def newton(carry_: tuple[Array, Array, Array]) -> tuple[Array, Array, Array]:
+                    i, x, _ = carry_
+                    value, slope = jax.jvp(mass_balance, (x,), (jnp.ones_like(x),))
+                    dx: Array = jnp.clip(
+                        value / jnp.maximum(slope, SWEEP_MIN_SLOPE),
+                        -SWEEP_MAX_STEP,
+                        SWEEP_MAX_STEP,
+                    )
+                    dx = jnp.where(jnp.isfinite(dx), dx, 0.0)
                     return i + 1, x - dx, dx
 
-                x: Array = lax.while_loop(unfinished, newton, (0, lam[e], jnp.array(jnp.inf)))[1]
-                return lam.at[e].set(jnp.where(solvable & jnp.isfinite(x), x, lam[e]))
+                def unfinished(carry_: tuple[Array, Array, Array]) -> Array:
+                    i, _, dx = carry_
+                    return (i < self.sweep_iterations) & (jnp.abs(dx) > self.sweep_step_tolerance)
+
+                x: Array = lax.while_loop(
+                    unfinished, newton, (jnp.array(0), lam[e], jnp.array(jnp.inf))
+                )[1]
+                return lam.at[e].set(jnp.where(solvable & jnp.isfinite(x), x, lam[e])), slots
 
             # Sweeps until no lambda_e changes by more than sweep_tolerance (at most sweeps), so a
             # state that is already converged costs a single sweep
-            def sweeping(carry):
-                i, _, change = carry
+            def sweeping(carry: tuple[Array, Array, Array, Array]) -> Array:
+                i, _, _, change = carry
                 return (i < self.sweeps) & (change > self.sweep_tolerance)
 
-            def one_sweep(carry):
-                i, lam, _ = carry
-                lam_new: Array = lax.fori_loop(0, n_elements, element, lam)
-                return i + 1, lam_new, jnp.max(jnp.abs(lam_new - lam))
+            def one_sweep(
+                carry: tuple[Array, Array, Array, Array],
+            ) -> tuple[Array, Array, Array, Array]:
+                i, lam, slots, _ = carry
+                lam_new, slots = lax.fori_loop(0, n_elements, element, (lam, slots))
+                # The dissolved slots follow the potentials
+                slots = jnp.where(dissolved, log_n_at(lam_new, slots), slots)
+                return i + 1, lam_new, slots, jnp.max(jnp.abs(lam_new - lam))
 
-            lam: Array = lax.while_loop(
-                sweeping, one_sweep, (0, z[:n_elements], jnp.array(jnp.inf))
-            )[1]
+            _, lam, slots, _ = lax.while_loop(
+                sweeping,
+                one_sweep,
+                (jnp.array(0), z[:n_elements], z[n_elements + 1 :], jnp.array(jnp.inf)),
+            )
+            slots = jnp.where(dissolved, log_n_at(lam, slots), slots)
             # Reset ln N_gas so that the normalised gas moles of STEP 3 equal the swept ones
             log_p_sum_new: Array = logsumexp(
                 jnp.where(gas, formula_matrix.T @ lam - gibbs, -jnp.inf)
             )
-            return z.at[:n_elements].set(lam).at[n_elements].set(log_p_sum_new + sigma)
+            return (
+                z.at[:n_elements]
+                .set(lam)
+                .at[n_elements]
+                .set(log_p_sum_new + sigma)
+                .at[n_elements + 1 :]
+                .set(slots)
+            )
 
         # -----------------------------------------------------------------------------------
         # STEP 6. Solve: sweep, then damped Newton to residual_tolerance (at most
@@ -510,24 +659,43 @@ class ElementPotentialInitializer(eqx.Module):
         # -----------------------------------------------------------------------------------
         # STEP 7. Phase selection: switch condensates on and off one at a time.
         #
-        # Starting unknowns: lambda fitted to the even split by least squares
-        # (ln n_s = a_s.lambda - G_s/RT + c over the gas species), ln N_gas = ln(total),
-        # dissolved slots at the even split, condensate slots at trace.
+        # Starting unknowns: lambda and c fitted by least squares to two kinds of row: the gas
+        # species with a share (ln n_s = a_s.lambda - G_s/RT + c), and the gas species with an
+        # imposed fugacity (a_s.lambda - G_s/RT = ln f_s, with no c), which start the potential of
+        # an element without a mass constraint from its target. Gas species with neither carry no
+        # information and are left out. ln N_gas is the total of the gas shares, the dissolved
+        # slots start at their shares (the sweep then sets them by their solubility laws), and
+        # the condensate slots at trace.
         # 2 * n_condensates + 1 passes let each condensate be switched on and off once; a final
         # solve follows. After each pass's solve, the condensate G/RT is re-evaluated at the
         # pressure reached (gas G/RT is for the 1-bar standard state), before the on/off decision.
         # The final solve uses the G/RT of the last switching pass, which is not re-evaluated at
         # the pressure of the final solve.
         # -----------------------------------------------------------------------------------
-        design: Array = jnp.where(
-            gas[:, None], jnp.concatenate([formula_matrix.T, jnp.ones((n_species, 1))], -1), 0.0
+        share_row: Array = gas & budgeted & ~imposed
+        target_fugacity: Array = parameters.activity_constraints.log_activity(
+            temperature, start_pressure
         )
-        fit: Array = jnp.linalg.lstsq(design, jnp.where(gas, log_n_each + gibbs, 0.0))[0]
+        design: Array = jnp.concatenate(
+            [
+                jnp.where((share_row | imposed)[:, None], formula_matrix.T, 0.0),
+                jnp.where(share_row, 1.0, 0.0)[:, None],
+            ],
+            -1,
+        )
+        rhs: Array = jnp.where(
+            share_row,
+            log_share + gibbs,
+            jnp.where(imposed, jnp.where(imposed, target_fugacity, 0.0) + gibbs, 0.0),
+        )
+        fit: Array = jnp.linalg.lstsq(design, rhs)[0]
+        log_n_gas_start: Array = logsumexp(jnp.where(gas & budgeted, log_share, -jnp.inf))
+        log_n_gas_start = jnp.where(jnp.isfinite(log_n_gas_start), log_n_gas_start, 0.0)
         z0: Array = jnp.concatenate(
             [
                 fit[:n_elements],
-                jnp.atleast_1d(jnp.log(total)),
-                jnp.where(dissolved, log_n_each, self.log_trace_value),
+                jnp.atleast_1d(log_n_gas_start),
+                jnp.where(dissolved & budgeted, log_share, self.log_trace_value),
             ]
         )
 
@@ -549,28 +717,33 @@ class ElementPotentialInitializer(eqx.Module):
             best: Array = jnp.argmax(jnp.where(candidates, driving_force, -jnp.inf))
             on: Array = (jnp.arange(n_species) == best) & jnp.any(candidates) & switching
             off: Array = condensate & present & (slots < self.log_trace_value + 1.0) & switching
-            # A newly present condensate starts at half the budget of its limiting element
+            # A newly present condensate starts at a fraction (half) of the budget of its limiting
+            # element, as the heuristic initializer allocates
             n_limit: Array = max_moles_by_limiting_element(
                 formula_matrix, jnp.where(constrained, abundance, jnp.nan), on
             )
             log_start: Array = jnp.log(
-                0.5 * jnp.where(n_limit > 0, n_limit, jnp.exp(self.log_trace_value))
+                CONDENSATE_ALLOCATION_FRACTION
+                * jnp.where(n_limit > 0, n_limit, jnp.exp(self.log_trace_value))
             )
             slots = jnp.where(on, log_start, jnp.where(off, self.log_trace_value, slots))
             return z.at[n_elements + 1 :].set(slots), (present | on) & ~off, gibbs
 
         n_condensates: int = len(reaction_names) - len(reaction_system.phase_system.gas.species)
-        # 2 * n_condensates + 1 switching passes, then the final solve as the last iteration
-        z, present, gibbs = lax.fori_loop(
-            0,
-            2 * n_condensates + 2,
-            switching_pass,
-            (z0, jnp.zeros(n_species, dtype=bool), gibbs),
-        )
+        present: Array = jnp.zeros(n_species, dtype=bool)
+        if n_condensates == 0:
+            # Nothing to switch, so a single solve (a switching pass would only re-evaluate the
+            # condensate G/RT, of which there are none, before an identical final solve)
+            z: Array = solve(z0, present, gibbs)
+        else:
+            # 2 * n_condensates + 1 switching passes, then the final solve as the last iteration
+            z, present, gibbs = lax.fori_loop(
+                0, 2 * n_condensates + 2, switching_pass, (z0, present, gibbs)
+            )
 
         # -----------------------------------------------------------------------------------
         # STEP 8. Output: absent condensates in the solver's stability representation
-        # (zeta_c = -d_c), then [log moles, log stability], or the even-split start if not
+        # (zeta_c = -d_c), then [log moles, log stability], or the start (the shares) if not
         # finite. Species that are neither reaction nor dissolved species are set to trace.
         # -----------------------------------------------------------------------------------
         log_n: Array = log_moles(z, present, gibbs)[0]

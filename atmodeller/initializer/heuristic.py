@@ -22,7 +22,11 @@ from jax.scipy.special import logsumexp
 from jaxtyping import Array, Bool, Float
 
 from atmodeller.engine import compute_implied_log_stability
-from atmodeller.initializer.core import LOG_TRACE_VALUE, max_moles_by_limiting_element
+from atmodeller.initializer.core import (
+    CONDENSATE_ALLOCATION_FRACTION,
+    LOG_TRACE_VALUE,
+    max_moles_by_limiting_element,
+)
 from atmodeller.jax_utils import FloatArray
 from atmodeller.parameters import Parameters
 
@@ -142,19 +146,15 @@ class HeuristicInitializer(eqx.Module):
 
     Args:
         condensate_allocation_fraction: Fraction :math:`\phi` of the element budget to allocate to
-            predicted-stable condensates. Defaults to ``0.5``.
+            predicted-stable condensates. Defaults to
+            :data:`~atmodeller.initializer.core.CONDENSATE_ALLOCATION_FRACTION`.
         log_trace_value: Log number of moles given to species with a negligible element budget,
             and to condensates predicted absent. Defaults to
             :data:`~atmodeller.initializer.core.LOG_TRACE_VALUE`.
     """
 
-    condensate_allocation_fraction: float = 0.5
-    r"""Fraction :math:`\phi` of the element budget to allocate to predicted-stable condensates
-
-    This value, although arbitrary to some extent, prevents condensates from being allocated an
-    excessively large portion of the element budget, which can drive gas species to unrealistically
-    low initial abundances.
-    """
+    condensate_allocation_fraction: float = CONDENSATE_ALLOCATION_FRACTION
+    r"""Fraction :math:`\phi` of the element budget to allocate to predicted-stable condensates"""
     log_trace_value: float = LOG_TRACE_VALUE
     """Log number of moles given to species with a negligible element budget"""
 
