@@ -17,7 +17,8 @@ If no row contains ``NaN``, the initializer is not evaluated.
 Concrete implementations are in :mod:`atmodeller.initializer.heuristic` and
 :mod:`atmodeller.initializer.element_potential`. This module also holds what they share: the trace
 value for species with a negligible element budget, and the moles of species limited by the
-element budget.
+element budget, the fraction of its limiting element's budget that a condensate predicted (or
+switched on) as stable starts with.
 """
 
 from typing import Protocol, runtime_checkable
@@ -29,6 +30,15 @@ from atmodeller.parameters import Parameters
 
 LOG_TRACE_VALUE: float = -20.0
 """Small trace value (in log space) to assign to species that have a negligible element budget"""
+
+CONDENSATE_ALLOCATION_FRACTION: float = 0.5
+"""Fraction of the budget of its limiting element that a condensate predicted (or switched on) as
+stable starts with
+
+This value, although arbitrary to some extent, prevents condensates from being allocated an
+excessively large portion of the element budget, which can drive gas species to unrealistically
+low initial abundances.
+"""
 
 
 def max_moles_by_limiting_element(

@@ -7,6 +7,32 @@ under **Unreleased**, which becomes the next version when it is released.
 
 ## [Unreleased]
 
+### Added
+
+- A check before solving that every mass constraint is positive: a mass constraint of zero or
+  less cannot be solved, and now raises a `ValueError` that explains how to leave an element out.
+- `CONDENSATE_ALLOCATION_FRACTION` in `atmodeller.initializer.core`, the fraction of its limiting
+  element's budget that a condensate predicted or switched on as stable starts with (0.5),
+  shared by both initializers. It is the default of
+  `HeuristicInitializer.condensate_allocation_fraction`, which is unchanged.
+
+### Changed
+
+- `ElementPotentialInitializer` starts each gas and dissolved species at its share of the budget
+  of its limiting element, instead of an even split of the total over the gas species, and starts
+  an element without a mass constraint from its imposed fugacity. Its element sweep counts the
+  dissolved species, which follow the element potentials through their solubility laws, so it
+  places each element between the gas and the melt. This solves systems with a large melt
+  reservoir and a skewed inventory (e.g. a primordial H/He atmosphere with trace C, N, O and S),
+  where the cold guess failed, and halves the solver steps on such systems. The initial guess
+  can differ slightly from version 2.0.0.
+- `ElementPotentialInitializer` defaults to looser sweep tolerances, `sweep_step_tolerance` of
+  `1e-4` (was `1e-10`) and `sweep_tolerance` of `1e-2` (was `1e-8`): the sweep only sets the
+  scale of every species before the Newton step, which converges the system. A system without
+  condensates is solved once, without a switching pass. The sweep keeps the log moles of the
+  dissolved species within the solver's bounds (`log_number_moles_lower` and
+  `log_number_moles_upper` of `SolverParameters`).
+
 ## [2.0.0] - 2026-11-05
 
 Version 2 is a substantial rewrite of version 1, which was a prototype. The interface has changed

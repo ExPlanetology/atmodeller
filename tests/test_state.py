@@ -136,6 +136,28 @@ def test_dissolved_species_raise() -> None:
     assert valid_by_model == [True, False]
 
 
+def test_mass_constraint_not_positive_raises() -> None:
+    """A mass constraint of zero or less raises before solving, since every species of the element
+    would need exactly zero moles, and a tiny positive mass constraint is solved"""
+    species: tuple[ChemicalSpecies, ...] = (
+        H2O_g,
+        ChemicalSpecies.create_gas("H2"),
+        ChemicalSpecies.create_gas("O2"),
+    )
+    planet: Planet = Planet.from_species(species, temperature=1500)
+
+    model: EquilibriumModel = EquilibriumModel.from_state(
+        planet, mass_constraints={"H": 1.0e20, "O": np.array([1.0e21, 0.0])}
+    )
+    with pytest.raises(
+        ValueError, match=r"Models \[1\] have a mass constraint of zero .* \['O'\]"
+    ):
+        model.solve_with_default()
+
+    model = EquilibriumModel.from_state(planet, mass_constraints={"H": 1.0e20, "O": 1.0e-20})
+    assert bool(np.all(model.solve_with_default().checked_solution.success))
+
+
 def test_duplicate_names_raise() -> None:
     """Two species, or two phases, with the same name raise"""
     with pytest.raises(ValueError, match="Species names must be unique"):
