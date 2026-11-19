@@ -6,7 +6,7 @@
 """Core classes and functions for solubility laws"""
 
 from abc import abstractmethod
-from typing import Optional
+from typing import ClassVar, Optional
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -20,6 +20,10 @@ from atmodeller.thermodata._redox_buffers import IronWustiteBuffer
 
 class Solubility(eqx.Module):
     """Solubility interface"""
+
+    requires_fO2: ClassVar[bool] = False
+    """Whether the law depends on the oxygen fugacity, in which case a model that uses it must
+    include O2 as a gas species. This is checked when the model is built."""
 
     @abstractmethod
     def concentration(

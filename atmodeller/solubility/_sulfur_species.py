@@ -8,7 +8,8 @@
 For every law there should be a test in the test suite.
 """
 
-import equinox as eqx
+from typing import ClassVar
+
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike
 
@@ -28,16 +29,14 @@ class _S2_sulfate_andesite_boulliung23(Solubility):
     equilibrated with Air/SO2 mixtures.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
         del kwargs
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 sulfate solubility in andesite (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         logcs: Array = -12.948 + (31586.2393 / as_j64(temperature))
         logso4_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
         so4_wtp: Array = jnp.power(10, logso4_wtp)
@@ -67,16 +66,14 @@ class _S2_sulfide_andesite_boulliung23(Solubility):
     conditions were greater than 1 log unit below FMQ.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
         del kwargs
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 sulfide solubility in andesite (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         logcs: Array = 0.225 - (8921.0927 / as_j64(temperature))
         logs_wtp: Array = logcs - (0.5 * (jnp.log10(fO2) - jnp.log10(fugacity)))
         s_wtp: Array = jnp.power(10, logs_wtp)
@@ -97,6 +94,8 @@ in a controlled CO-CO2-SO2 atmosphere fO2 conditions were greater than 1 log uni
 class _S2_andesite_boulliung23(Solubility):
     """S2 in andesite accounting for both sulfide and sulfate :cite:p:`BW22,BW23corr,BW23`"""
 
+    requires_fO2: ClassVar[bool] = True
+
     _sulfide: Solubility
     _sulfate: Solubility
 
@@ -108,11 +107,7 @@ class _S2_andesite_boulliung23(Solubility):
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 solubility in andesite (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         concentration: ArrayLike = self._sulfide.concentration(
             fugacity, temperature=temperature, fO2=fO2, **kwargs
         )
@@ -137,16 +132,14 @@ class _S2_sulfate_basalt_boulliung23(Solubility):
     for silicate melts equilibrated with Air/SO2 mixtures.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
         del kwargs
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 sulfate solubility in basalt (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         logcs: Array = -12.948 + (32333.5635 / as_j64(temperature))
         logso4_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
         so4_wtp: Array = jnp.power(10, logso4_wtp)
@@ -175,16 +168,14 @@ class _S2_sulfide_basalt_boulliung23(Solubility):
     greater than 1 log unit below FMQ.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
         del kwargs
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 sulfide solubility in basalt (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         logcs: Array = 0.225 - (8045.7465 / as_j64(temperature))
         logs_wtp: Array = logcs - (0.5 * (jnp.log10(fO2) - jnp.log10(fugacity)))
         s_wtp: Array = jnp.power(10, logs_wtp)
@@ -206,6 +197,8 @@ than 1 log unit below FMQ.
 class _S2_basalt_boulliung23(Solubility):
     """Sulfur in basalt due to sulfide and sulfate dissolution :cite:p:`BW22,BW23corr,BW23`"""
 
+    requires_fO2: ClassVar[bool] = True
+
     _sulfide: Solubility
     _sulfate: Solubility
 
@@ -217,11 +210,7 @@ class _S2_basalt_boulliung23(Solubility):
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 solubility in basalt (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         concentration: ArrayLike = self._sulfide.concentration(
             fugacity, temperature=temperature, fO2=fO2, **kwargs
         )
@@ -246,16 +235,14 @@ class _S2_sulfate_trachybasalt_boulliung23(Solubility):
     silicate melts equilibrated with Air/SO2 mixtures.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
         del kwargs
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 sulfate solubility in trachybasalt (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         logcs: Array = -12.948 + (32446.366 / as_j64(temperature))
         logso4_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
         so4_wtp: Array = jnp.power(10, logso4_wtp)
@@ -285,16 +272,14 @@ class _S2_sulfide_trachybasalt_boulliung23(Solubility):
     conditions were greater than 1 log unit below FMQ.
     """
 
+    requires_fO2: ClassVar[bool] = True
+
     @override
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
         del kwargs
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 sulfide solubility in trachybasalt (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         logcs: Array = 0.225 - (7842.5 / as_j64(temperature))
         logs_wtp: Array = logcs - (0.5 * (jnp.log10(fO2) - jnp.log10(fugacity)))
         s_wtp: Array = jnp.power(10, logs_wtp)
@@ -316,6 +301,8 @@ FMQ.
 class _S2_trachybasalt_boulliung23(Solubility):
     """Sulfur in trachybasalt by sulfide and sulfate dissolution :cite:p:`BW22,BW23corr,BW23`"""
 
+    requires_fO2: ClassVar[bool] = True
+
     _sulfide: Solubility
     _sulfate: Solubility
 
@@ -327,11 +314,7 @@ class _S2_trachybasalt_boulliung23(Solubility):
     def concentration(
         self, fugacity: ArrayLike, *, temperature: ArrayLike, fO2: ArrayLike, **kwargs
     ) -> Array:
-        fO2 = eqx.error_if(
-            jnp.asarray(fO2),
-            jnp.isnan(fO2),
-            "fO2 must be specified for S2 solubility in trachybasalt (Boulliung and Wood, 2023)",
-        )
+        fO2 = jnp.asarray(fO2)
         concentration: ArrayLike = self._sulfide.concentration(
             fugacity, temperature=temperature, fO2=fO2, **kwargs
         )

@@ -33,6 +33,17 @@ under **Unreleased**, which becomes the next version when it is released.
   dissolved species within the solver's bounds (`log_number_moles_lower` and
   `log_number_moles_upper` of `SolverParameters`).
 
+### Fixed
+
+- A solubility law that depends on the oxygen fugacity (the N2 laws, and the S2 laws of Boulliung
+  and Wood) now requires O2 as a gas species, which is checked when the model is built and raises
+  a `ValueError`. Before, a missing O2 was caught by a runtime check that was off by default, so
+  the model failed without explanation, and with `EQX_ON_ERROR` set to `nan` or `raise` the check
+  also fired for a diverged model in a batch and acted on every model of the batch: models that
+  solve on their own were reported as not solved. The fO2 can still be imposed in some models of
+  a batch and solved for in others. Laws flag the dependence with the class attribute
+  `Solubility.requires_fO2`.
+
 ## [2.0.0] - 2026-11-05
 
 Version 2 is a substantial rewrite of version 1, which was a prototype. The interface has changed
