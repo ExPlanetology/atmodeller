@@ -3,7 +3,7 @@
 Installation
 ============
 
-*Atmodeller* is a Python package that requires Python 3.11 or later. It runs on Linux, macOS and Windows, and continuous integration tests Linux and macOS with Python 3.11 and 3.13.
+*Atmodeller* is a Python package that requires Python 3.11 or later. It runs on Linux, macOS and Windows, and continuous integration tests Linux with Python 3.11 and 3.13, and macOS with Python 3.13.
 
 Python environment
 ------------------

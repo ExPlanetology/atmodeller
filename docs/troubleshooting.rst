@@ -29,7 +29,7 @@ A solution cannot be found
 
 - The initial guess may not be sufficient to reach convergence. Try modifying the initial guess---especially if you're iterating systematically over a range of parameters. In such cases, reusing the previous solution as the initial guess for the next step can improve convergence: pass ``output.solution`` from the previous solve to ``model.solve``. Rows of the initial guess that contain NaN are replaced by the initializer's guess.
 
-- Allow more attempts. Models that fail are retried from a new initial guess up to ``max_starts`` times (default 10), and systems with condensates are first solved at a larger :math:`\tau`, controlled by ``tau_max`` and ``tau_num``. All of these are fields of ``SolverParameters``, which is passed to the model as ``solver_parameters`` (see :doc:`solver`).
+- Allow more attempts. Models that fail are retried from a new initial guess up to ``max_starts`` times (default 10). For systems whose condensate stability is solved for, if any model fails at the final :math:`\tau`, every model is solved again starting from a larger :math:`\tau`, controlled by ``tau_max`` and ``tau_num``. All of these are fields of ``SolverParameters``, which is passed to the model as ``solver_parameters`` (see :doc:`solver`).
 
 - Ensure that a solution physically exists for the system you've constructed. While *Atmodeller* allows arbitrary user-defined activity and mass constraints, this does not guarantee a valid solution. The number of constraints is checked before solving (see :ref:`species-constraints`), so if no solution is found, the constraints may conflict physically, e.g. an fO2 that cannot be reached with the given masses. To diagnose this, simplify the system by reducing the number of species and/or constraints. If a solution can be found for a simpler case, gradually reintroduce complexity to identify when the system becomes unsolvable.
 
@@ -45,6 +45,6 @@ The solver detects a NaN
 Additional information
 ~~~~~~~~~~~~~~~~~~~~~~
 
-- To see the solver log, including how many models were solved and how many attempts they needed, call ``atmodeller.console_logger()`` before solving. For more detail, e.g. the initial guess, call ``atmodeller.console_logger(logging.DEBUG)``, and to also keep a log file, ``atmodeller.file_logger()``, which writes each run to a new file in ``logs/``.
+- To see the log, call ``atmodeller.console_logger()`` before solving: it reports, for example, how many models start from the initializer's guess. For how many models were solved and how many attempts they needed, call ``output.solver_stats_to_logger()`` after solving. For more detail of the model set-up, e.g. its species and reactions, call ``atmodeller.console_logger(logging.DEBUG)``, and to also keep a log file, ``atmodeller.file_logger()``, which writes each run to a new file in ``logs/``.
 
 - To find where a NaN first appears, enable JAX's NaN checking before solving, with ``jax.config.update("jax_debug_nans", True)``. This slows down the calculation, so use it only for debugging.
