@@ -85,6 +85,14 @@ under **Unreleased**, which becomes the next version when it is released.
   with `include_in_phase_mass=True`; the units of the noble-gas solubility laws; and the EOS
   docstrings (e.g. the Chabrier tables are interpolated linearly, and the bounded models hold the
   compressibility factor above their calibration).
+- The sulfate solubility laws of Boulliung and Wood (`S2_sulfate_andesite_boulliung23`,
+  `S2_sulfate_basalt_boulliung23`, `S2_sulfate_trachybasalt_boulliung23`) gave a third of the
+  dissolved sulfur: their sulfate capacity is defined with the S content in wt% S, but the result
+  was converted again from wt% SO4 to wt% S. The combined laws (`S2_andesite_boulliung23`,
+  `S2_basalt_boulliung23`, `S2_trachybasalt_boulliung23`) were affected through their sulfate
+  part, so dissolved sulfur rises by up to 3 times under oxidising conditions (above about FMQ+1),
+  where sulfate dominates; under reducing conditions sulfide dominates and results are unchanged.
+  The tests are anchored to experiments of Boulliung and Wood (2022, Table 3).
 
 ## [2.0.0] - 2026-11-05
 

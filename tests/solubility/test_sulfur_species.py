@@ -49,24 +49,29 @@ solubility_models: dict[str, Solubility] = get_solubility_models()
 
 
 def test_S2_sulfate_andesite_boulliung(check_values) -> None:
-    """Tests S as sulfate SO4^2-/S^6+ in andesite :cite:p:`BW22,BW23corr`"""
+    """Tests S as sulfate SO4^2-/S^6+ in andesite :cite:p:`BW22,BW23corr`
+
+    Andesite at 1673 K, log fO2 = -1.10 and log fS2 = -13.16 (:cite:t:`BW22{Tables 2
+    and 3}`), where the measured S is 37 ppm. The model is pinned, and within 50% of the
+    measurement.
+    Across Table 3 the model is 0.94-1.36 times the measured S from 1623 K up, but 2.6-3 times
+    at 1523 and 1573 K.
+    """
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfate_andesite_boulliung23"]
-    # target_concentration: ArrayLike = 0.0002601378182149385
-    target_concentration: ArrayLike = 95
-    test_fugacity_S2_sulfate_boulliung_andesite: ArrayLike = 4.16869e-16
-    test_fo2_sulfate_boulliung_andesite: ArrayLike = 0.079432823
-    test_temperature_sulfate_boulliung_andesite: ArrayLike = 1523
-    check_values.concentration(
-        function_name,
-        solubility_model,
-        target_concentration,
-        test_fugacity_S2_sulfate_boulliung_andesite,
-        test_temperature_sulfate_boulliung_andesite,
-        TEST_PRESSURE,
-        test_fo2_sulfate_boulliung_andesite,
-    )
+    for expected, rtol in ((50.35001192113412, 1e-8), (37, 0.5)):
+        check_values.concentration(
+            function_name,
+            solubility_model,
+            expected,
+            10**-13.16,
+            1673,
+            TEST_PRESSURE,
+            10**-1.10,
+            rtol=rtol,
+            atol=0.0,
+        )
 
 
 def test_S2_sulfide_andesite_boulliung(check_values) -> None:
@@ -109,24 +114,28 @@ def test_S2_andesite_boulliung(check_values) -> None:
 
 
 def test_S2_sulfate_basalt_boulliung(check_values) -> None:
-    """Tests S in basalt as sulfate, SO4^2-/S^6+ :cite:p:`BW22,BW23corr`"""
+    """Tests S as sulfate SO4^2-/S^6+ in basalt :cite:p:`BW22,BW23corr`
+
+    Icelandic basalt (NIB) at 1573 K, log fO2 = -1.10 and log fS2 = -14.6 (:cite:t:`BW22{Tables 2
+    and 3}`), where the measured S is 450 ppm. The model is pinned, and within 30% of the
+    measurement.
+    Across Table 3 the model is 0.82-1.27 times the measured S.
+    """
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfate_basalt_boulliung23"]
-    # target_concentration: ArrayLike = 0.00020528360011091678
-    target_concentration: ArrayLike = 210
-    test_fugacity_S2_sulfate_boulliung_basalt: ArrayLike = 1.38038e-14
-    test_fo2_sulfate_boulliung_basalt: ArrayLike = 0.079432823
-    test_temperature_sulfate_boulliung_basalt: ArrayLike = 1623
-    check_values.concentration(
-        function_name,
-        solubility_model,
-        target_concentration,
-        test_fugacity_S2_sulfate_boulliung_basalt,
-        test_temperature_sulfate_boulliung_basalt,
-        TEST_PRESSURE,
-        test_fo2_sulfate_boulliung_basalt,
-    )
+    for expected, rtol in ((454.3062304741978, 1e-8), (450, 0.3)):
+        check_values.concentration(
+            function_name,
+            solubility_model,
+            expected,
+            10**-14.6,
+            1573,
+            TEST_PRESSURE,
+            10**-1.10,
+            rtol=rtol,
+            atol=0.0,
+        )
 
 
 def test_S2_sulfide_basalt_boulliung(check_values) -> None:
@@ -169,24 +178,29 @@ def test_S2_basalt_boulliung(check_values) -> None:
 
 
 def test_S2_sulfate_trachybasalt_boulliung(check_values) -> None:
-    """Tests S as sulfate SO4^2-/S^6+ in trachybasalt :cite:p:`BW22,BW23corr`"""
+    """Tests S as sulfate SO4^2-/S^6+ in trachybasalt :cite:p:`BW22,BW23corr`
+
+    T-Basalt at 1473 K, log fO2 = -1.10 and log fS2 = -16.22 (:cite:t:`BW22{Tables 2
+    and 3}`), where the measured S is 1550 ppm. The model is pinned, and within 50% of the
+    measurement.
+    Across Table 3 the model is 1.35-2.8 times the measured S, about 2 times at most temperatures:
+    the law uses the starting composition (Table 1), whereas the glasses lost Na2O and K2O.
+    """
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfate_trachybasalt_boulliung23"]
-    # target_concentration: ArrayLike = 0.0007002721319248917
-    target_concentration: ArrayLike = 230
-    test_fugacity_S2_sulfate_boulliung_trachybasalt: ArrayLike = 2.51189e-15
-    test_fo2_sulfate_boulliung_trachybasalt: ArrayLike = 0.079432823
-    test_temperature_sulfate_boulliung_trachybasalt: ArrayLike = 1573
-    check_values.concentration(
-        function_name,
-        solubility_model,
-        target_concentration,
-        test_fugacity_S2_sulfate_boulliung_trachybasalt,
-        test_temperature_sulfate_boulliung_trachybasalt,
-        TEST_PRESSURE,
-        test_fo2_sulfate_boulliung_trachybasalt,
-    )
+    for expected, rtol in ((2086.430552541709, 1e-8), (1550, 0.5)):
+        check_values.concentration(
+            function_name,
+            solubility_model,
+            expected,
+            10**-16.22,
+            1473,
+            TEST_PRESSURE,
+            10**-1.10,
+            rtol=rtol,
+            atol=0.0,
+        )
 
 
 def test_S2_sulfide_trachybasalt_boulliung(check_values) -> None:
