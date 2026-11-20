@@ -14,8 +14,7 @@ because :mod:`atmodeller.containers` imports from this module. Moving it there w
 circular import.
 """
 
-from dataclasses import dataclass
-from typing import Generic, NamedTuple, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 import equinox as eqx
 from jaxtyping import Array, ArrayLike, Bool
@@ -284,7 +283,7 @@ class VolumeProtocol(Protocol):
         ...
 
 
-class ModelInfo(NamedTuple):
+class ModelInfo(eqx.Module):
     """Catalogue information of a model in a library registry
 
     Used to list the library's models in the documentation. An empty ``ModelInfo`` (the default)
@@ -309,8 +308,7 @@ class ModelInfo(NamedTuple):
 T_model = TypeVar("T_model", covariant=True)
 
 
-@dataclass(frozen=True)
-class CatalogueEntry(Generic[T_model]):
+class CatalogueEntry(eqx.Module, Generic[T_model]):
     """A model in a library registry, with its catalogue information
 
     Args:
@@ -320,5 +318,5 @@ class CatalogueEntry(Generic[T_model]):
 
     model: T_model
     """The model"""
-    info: ModelInfo = ModelInfo()
+    info: ModelInfo = eqx.field(default_factory=ModelInfo)
     """Its catalogue information"""
