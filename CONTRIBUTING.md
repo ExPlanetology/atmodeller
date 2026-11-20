@@ -10,7 +10,7 @@ Please open an [issue](https://github.com/ExPlanetology/atmodeller/issues) to re
 
 1. For larger changes, open an [issue](https://github.com/ExPlanetology/atmodeller/issues) first so the approach can be discussed.
 2. Fork the repository to your own account (personal or organisational).
-3. Make your changes on a branch, including tests and documentation where required.
+3. Make your changes on a branch, including tests and documentation where required. If you change a notebook, re-run it and commit it with its outputs: the documentation shows the stored outputs (CI runs the notebooks only to check that they work).
 4. Run the tests and pre-commit, then open a pull request against the upstream repository and complete the pull request template.
 
 The [Developer's Guide](https://atmodeller.readthedocs.io/en/latest/development.html) explains how to set up a development install and run the tests, pre-commit checks and documentation build.
