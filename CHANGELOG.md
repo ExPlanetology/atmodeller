@@ -43,6 +43,11 @@ under **Unreleased**, which becomes the next version when it is released.
   solve on their own were reported as not solved. The fO2 can still be imposed in some models of
   a batch and solved for in others. Laws flag the dependence with the class attribute
   `Solubility.requires_fO2`.
+- The extrapolation of thermodynamic data now works independently on each side of the
+  temperature range. When one side was `"constant_cp"`, an `"off"` side was also extended with
+  constant heat capacity instead of being held at its value at the bound (the penalty was still
+  added). The library's phases set both sides the same, so this only affected a side set
+  explicitly, e.g. `extrapolate_below="constant_cp"` on a pure liquid.
 
 ## [2.0.0] - 2026-11-05
 

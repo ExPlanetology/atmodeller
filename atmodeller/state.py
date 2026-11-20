@@ -524,8 +524,9 @@ class BasePlanet(BaseThermodynamicState):
 
         :meth:`from_species`'s ``core_mass_fraction=None`` is how you express "no untracked core
         mass at all" — the metal phase's mass then comes entirely from tracked ``metal_species``.
-        This choice is fixed at construction time (it depends on which species exist in the metal
-        phase) and cannot be toggled afterwards via :meth:`update`.
+        It is the same as ``core_mass_fraction=0``: the background core mass is zero. A background
+        core can be added later with :meth:`update`, which gives the same state as building the
+        planet with that core mass fraction.
 
     Args:
         reaction_system: Reaction system representing the thermodynamic state of the planetary body
@@ -799,12 +800,9 @@ class BasePlanet(BaseThermodynamicState):
             planet_mass: Mass of the planet (kg) used to re-size the background phase masses.
                 Defaults to ``None`` (no change).
             core_mass_fraction: Mass fraction of the background (untracked) iron core relative to
-                the planetary mass (kgkg\\ :sup:`-1`). Defaults to ``None`` (no change). Only
-                meaningful for a planet that already has an untracked core, i.e. one constructed
-                with a numeric ``core_mass_fraction`` in :meth:`from_species`; a planet built with
-                ``core_mass_fraction=None`` there (core fully from tracked ``metal_species``)
-                cannot be switched to an untracked core here, since which species exist in the
-                metal phase is fixed at construction and unaffected by this method.
+                the planetary mass (kg kg\\ :sup:`-1`). Defaults to ``None`` (no change). It also
+                adds a background core to a planet built with ``core_mass_fraction=None`` in
+                :meth:`from_species`, with the same result as building it with this fraction.
             mantle_melt_fraction: Mantle melt fraction of the background (untracked) mantle mass.
                 Defaults to ``None`` (no change).
             surface_radius: Radius of the planetary surface (m). Defaults to ``None``.
@@ -833,7 +831,8 @@ class BasePlanet(BaseThermodynamicState):
         # so if any of planet_mass, core_mass_fraction and mantle_melt_fraction changes, all four
         # are rewritten as in from_species. Fractions that are not given keep their current
         # values. A planet without a background core (core_mass_fraction=None in from_species)
-        # has a current core fraction of zero, so it keeps no background core.
+        # has a current core fraction of zero, so it keeps no background core unless
+        # core_mass_fraction is given.
         if (
             planet_mass is not None
             or core_mass_fraction is not None

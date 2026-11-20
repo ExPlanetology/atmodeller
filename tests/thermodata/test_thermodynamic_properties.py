@@ -18,7 +18,7 @@ from jaxtyping import Array
 from molmass import Formula
 from scipy.optimize import brentq
 
-from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
+from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE, Extrapolation
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
 from atmodeller.reactions import ReactionNetwork
 from atmodeller.database import Database
@@ -232,6 +232,20 @@ def test_extrapolation_modes() -> None:
         water.with_extrapolation("data", "off").standard_gibbs_over_RT(200.0),
         water.standard_gibbs_over_RT(200.0),
     )
+    # Each side is independent of the other: below the range, any mode above gives the same as
+    # that mode on both sides, and likewise above the range
+    modes: tuple[Extrapolation, ...] = ("data", "off", "constant_cp")
+    for below in modes:
+        for above in modes:
+            mixed: ThermodynamicProperties = water.with_extrapolation(below, above)
+            sides: tuple[tuple[float, Extrapolation], ...] = ((200.0, below), (1000.0, above))
+            for temperature, mode in sides:
+                np.testing.assert_allclose(
+                    mixed.standard_gibbs_over_RT(temperature),
+                    water.with_extrapolation(mode, mode).standard_gibbs_over_RT(temperature),
+                    rtol=1e-12,
+                    err_msg=f"below={below}, above={above}, T={temperature}",
+                )
 
     # Liquid SiO2 is off in a pure phase, and extended with a constant heat capacity in a melt
     silica: ChemicalSpecies = ChemicalSpecies.from_end_member("liquid", formula="SiO2")

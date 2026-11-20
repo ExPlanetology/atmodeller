@@ -297,12 +297,21 @@ class ThermodynamicProperties(eqx.Module):
         )
 
         if EXTRAPOLATION_CONSTANT_CP in (self.extrapolate_below, self.extrapolate_above):
+            # The extension is applied only on a side that is constant_cp: elsewhere it is
+            # evaluated at temperature_data itself, which gives the data (inside the range) or the
+            # value held at the bound (a side that is off), so each side is independent
+            temperature_extended: Array = jnp.where(
+                jnp.logical_or(constant_cp_below, constant_cp_above), temperature, temperature_data
+            )
             cp: FloatArray = self.cp(temperature_data)
             gibbs_energy: FloatArray = (
                 self.enthalpy(temperature_data)
-                + cp * (temperature - temperature_data)
-                - temperature
-                * (self.entropy(temperature_data) + cp * jnp.log(temperature / temperature_data))
+                + cp * (temperature_extended - temperature_data)
+                - temperature_extended
+                * (
+                    self.entropy(temperature_data)
+                    + cp * jnp.log(temperature_extended / temperature_data)
+                )
             )
         else:
             gibbs_energy = self.gibbs_energy(temperature_data)
