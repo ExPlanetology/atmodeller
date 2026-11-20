@@ -27,6 +27,7 @@ class _S2_sulfate_andesite_boulliung23(Solubility):
     sulfate capacity (:math:`C_{\mathrm{S^{6+}}}`) in :cite:t:`BW23corr`. Composition for andesite
     from :cite:t:`BW22{Table 1}`. Experiments conducted at 1 atm, 1473-1773 K for silicate melts
     equilibrated with Air/SO2 mixtures.
+    The sulfate capacity is defined with the S content in wt% S, not wt% SO4.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -38,9 +39,9 @@ class _S2_sulfate_andesite_boulliung23(Solubility):
         del kwargs
         fO2 = jnp.asarray(fO2)
         logcs: Array = -12.948 + (31586.2393 / as_j64(temperature))
-        logso4_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
-        so4_wtp: Array = jnp.power(10, logso4_wtp)
-        s_wtp: Array = so4_wtp * (32.065 / 96.06)
+        # The sulfate capacity is defined with the S content in wt% S, not wt% SO4 (BW22, p. 160)
+        logs_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
+        s_wtp: Array = jnp.power(10, logs_wtp)
         ppmw: Array = s_wtp * unit_conversion.percent_to_ppm
 
         return ppmw
@@ -54,6 +55,7 @@ Using the first equation in the abstract of :cite:t:`BW22` and the corrected exp
 sulfate capacity (:math:`C_{\mathrm{S^{6+}}}`) in :cite:t:`BW23corr`. Composition for andesite from
 :cite:t:`BW22{Table 1}`. Experiments conducted at 1 atm, 1473-1773 K for silicate melts
 equilibrated with Air/SO2 mixtures.
+The sulfate capacity is defined with the S content in wt% S, not wt% SO4.
 """
 
 
@@ -130,6 +132,7 @@ class _S2_sulfate_basalt_boulliung23(Solubility):
     (:math:`C_{\mathrm{S^{6+}}}`) in :cite:t:`BW23corr`. Composition for Basalt from
     :cite:t:`BW22{Table 1}`. Experiments conducted at 1 atm pressure, temperatures from 1473-1773 K
     for silicate melts equilibrated with Air/SO2 mixtures.
+    The sulfate capacity is defined with the S content in wt% S, not wt% SO4.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -141,9 +144,9 @@ class _S2_sulfate_basalt_boulliung23(Solubility):
         del kwargs
         fO2 = jnp.asarray(fO2)
         logcs: Array = -12.948 + (32333.5635 / as_j64(temperature))
-        logso4_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
-        so4_wtp: Array = jnp.power(10, logso4_wtp)
-        s_wtp: Array = so4_wtp * (32.065 / 96.06)
+        # The sulfate capacity is defined with the S content in wt% S, not wt% SO4 (BW22, p. 160)
+        logs_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
+        s_wtp: Array = jnp.power(10, logs_wtp)
         ppmw: Array = s_wtp * unit_conversion.percent_to_ppm
 
         return ppmw
@@ -156,6 +159,7 @@ Using the first equation in the abstract and the corrected expression for sulfat
 (:math:`C_{\mathrm{S^{6+}}}`) in :cite:t:`BW23corr`. Composition for Basalt from
 :cite:t:`BW22{Table 1}`. Experiments conducted at 1 atm pressure, temperatures from 1473-1773 K for
 silicate melts equilibrated with Air/SO2 mixtures.
+The sulfate capacity is defined with the S content in wt% S, not wt% SO4.
 """
 
 
@@ -233,6 +237,7 @@ class _S2_sulfate_trachybasalt_boulliung23(Solubility):
     sulfate capacity (:math:`C_{\mathrm{S^{6+}}}`) in :cite:t:`BW23corr`. Composition for
     trachybasalt from :cite:t:`BW22{Table 1}`. Experiments conducted at 1 atm, 1473-1773 K for
     silicate melts equilibrated with Air/SO2 mixtures.
+    The sulfate capacity is defined with the S content in wt% S, not wt% SO4.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -244,9 +249,9 @@ class _S2_sulfate_trachybasalt_boulliung23(Solubility):
         del kwargs
         fO2 = jnp.asarray(fO2)
         logcs: Array = -12.948 + (32446.366 / as_j64(temperature))
-        logso4_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
-        so4_wtp: Array = jnp.power(10, logso4_wtp)
-        s_wtp: Array = so4_wtp * (32.065 / 96.06)
+        # The sulfate capacity is defined with the S content in wt% S, not wt% SO4 (BW22, p. 160)
+        logs_wtp: Array = logcs + (0.5 * jnp.log10(fugacity)) + (1.5 * jnp.log10(fO2))
+        s_wtp: Array = jnp.power(10, logs_wtp)
         ppmw: Array = s_wtp * unit_conversion.percent_to_ppm
 
         return ppmw
@@ -260,6 +265,7 @@ Using the first equation in the abstract of :cite:t:`BW22` and the corrected exp
 capacity (:math:`C_{\mathrm{S^{6+}}}`) in :cite:t:`BW23corr`. Composition for trachybasalt from
 :cite:t:`BW22{Table 1}`. Experiments conducted at 1 atm, 1473-1773 K for silicate melts
 equilibrated with Air/SO2 mixtures.
+The sulfate capacity is defined with the S content in wt% S, not wt% SO4.
 """
 
 
