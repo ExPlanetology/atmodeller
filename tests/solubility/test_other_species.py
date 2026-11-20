@@ -120,25 +120,32 @@ def test_He_basalt(check_values) -> None:
 
 
 def test_N2_basalt_bernadou(check_values) -> None:
-    """Tests N2 in basaltic silicate melt :cite:p:`BGF21`"""
+    """Tests N2 in basaltic silicate melt :cite:p:`BGF21` at their oxidised experiment AR1FeN
+
+    1200 C, 800 bar, fN2 = 741 bar and IW+1.59 (:cite:t:`BGF21{Tables 3-4}`; fO2 from the IW
+    buffer of Atmodeller), where N2 dominates. The model is pinned, and within 30% of the measured
+    20.86 ppm, the threshold :cite:t:`BGF21` used for the uncertainty of their fit. The N3- term at
+    reduced conditions does not reproduce their data (see the docstring of the law).
+    """
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["N2_basalt_bernadou21"]
-    # target_concentration: ArrayLike = 1.8621737654355521
-    target_concentration: ArrayLike = 20.86
-    test_fugacity_N2_basalt_bernadou: ArrayLike = 741
-    test_totalP_N2_basalt_bernadou: ArrayLike = 800
-    test_temperature_N2_basalt_bernadou: ArrayLike = 1473.15
-    test_fO2_N2_basalt_bernadou: ArrayLike = 38.9045145
-    check_values.concentration(
-        function_name,
-        solubility_model,
-        target_concentration,
-        test_fugacity_N2_basalt_bernadou,
-        test_temperature_N2_basalt_bernadou,
-        test_totalP_N2_basalt_bernadou,
-        test_fO2_N2_basalt_bernadou,
-    )
+    fugacity: ArrayLike = 741.0
+    temperature: ArrayLike = 1473.15
+    pressure: ArrayLike = 800.0
+    fO2: ArrayLike = 10**-10.365073101913051
+    for expected, rtol in ((25.578390596094554, 1e-8), (20.86, 0.3)):
+        check_values.concentration(
+            function_name,
+            solubility_model,
+            expected,
+            fugacity,
+            temperature,
+            pressure,
+            fO2,
+            rtol=rtol,
+            atol=0.0,
+        )
 
 
 def test_N2_basalt_dasgupta(check_values) -> None:

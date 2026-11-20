@@ -97,7 +97,9 @@ class EquilibriumModel(eqx.Module):
             state: Thermodynamic state
             activity_constraints: Optional activity/fugacity constraint mapping. Defaults to
                 ``None``.
-            mass_constraints: Optional mass-constraint mapping. Defaults to ``None``.
+            mass_constraints: Optional mapping of an element, or a formula of elements in the
+                system, to its mass constraint (see :class:`~atmodeller.parameters.Parameters`).
+                Defaults to ``None``.
             mass_units: Units used for ``mass_constraints``. Defaults to ``"mass"``.
             solver_parameters: Optional solver parameter object. Defaults to ``None``.
             initializer: Optional initializer for the cold initial guess. Defaults to ``None``.
@@ -138,8 +140,7 @@ class EquilibriumModel(eqx.Module):
                 species are dissolved in a melt of zero mass, or a mass constraint is zero or
                 less. The whole batch is rejected before solving. Inside a JIT-compiled function
                 of your own, where the constraints are traced, this is not checked, and such a
-                model is instead not solved (with the result ``invalid_model``, or
-                ``solver_failed`` for a mass constraint of zero or less).
+                model is instead not solved and not retried, with the result ``invalid_model``.
         """
         self._check_constraints()
         self._check_melt()
@@ -285,7 +286,8 @@ class EquilibriumModel(eqx.Module):
         ratio of the element's moles to its constraint, less one, which is unbounded at zero, and
         the moles of every species of the element would have to be exactly zero, which the solver
         (in log moles) cannot reach. A tiny positive constraint is solved. Nothing is checked if
-        the constraints are traced (inside JIT), when such a model fails instead.
+        the constraints are traced (inside JIT), when such a model is not well posed instead
+        (:func:`~atmodeller.engine.is_valid_model`).
 
         Raises:
             ValueError: If a model has a mass constraint of zero or less

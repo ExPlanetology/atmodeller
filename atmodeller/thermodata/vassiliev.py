@@ -73,8 +73,24 @@ def _debye_integral(y: ArrayLike) -> Array:
     return jnp.where(y < _DEBYE_Y_SWITCH, small, large)
 
 
+TEMPERATURE_MELTING_CARBON: float = 4600.0
+"""Upper bound (K) of the carbon fits, :math:`T_\\mathrm{m}` of :cite:t:`Vassiliev2021{Table 9}`:
+the graphite-liquid-vapour triple point (4600 ± 300 K), which the paper uses for both graphite
+and diamond. The fits are constrained by data only up to 2000 K at most (Table 1), so above that
+the heat capacity follows the extrapolated Maier-Kelley form."""
+
+TEMPERATURE_MELTING_SILICON: float = 1688.0
+"""Upper bound (K) of the silicon fits, the melting point :math:`T_\\mathrm{m}` of
+:cite:t:`Vassiliev2021{Table 9}` (1688 ± 3 K)"""
+
+
 class VassilievHeatCapacity(eqx.Module):
     """Heat capacity model for diamond, graphite and silicon from :cite:t:`Vassiliev2021`.
+
+    The fits of :cite:t:`Vassiliev2021{Table 6}` are given for temperatures from 0.1 K to
+    :math:`T_\\mathrm{m}`, with :math:`T_\\mathrm{m}` from their Table 9, so that is the temperature
+    range of each fit here (:meth:`temperature_range`). Each fit's docstring notes where its data end. The heat
+    capacity is per mole of atoms, which for these elements is per mole.
 
     Args:
         n: Number of experimental (T, Cp) pairs used in the fit (metadata only)
@@ -86,6 +102,9 @@ class VassilievHeatCapacity(eqx.Module):
         a: Constant Maier-Kelley coefficient in J/(mol K) :cite:p:`Vassiliev2021{Eq. 4}`
         b: Linear Maier-Kelley coefficient in J/(mol K), multiplying T/1000
         sigma: Standard deviation of the fit in J/(mol K) (metadata only)
+        temperature_max: Upper bound (K) of the temperature range of the fit
+        temperature_min: Lower bound (K) of the temperature range of the fit. Defaults to 0.1 K,
+            as in :cite:t:`Vassiliev2021{Table 6}`.
     """
 
     n: int
@@ -95,6 +114,16 @@ class VassilievHeatCapacity(eqx.Module):
     a: float
     b: float
     sigma: float
+    temperature_max: float
+    temperature_min: float = 0.1
+
+    def temperature_range(self) -> tuple[float, float]:
+        """Gets the temperature range of the fit.
+
+        Returns:
+            Minimum and maximum temperature (K)
+        """
+        return self.temperature_min, self.temperature_max
 
     def _cp_over_R(self, temperature: ArrayLike) -> FloatArray:
         """Heat capacity relative to :data:`~atmodeller.sci_utils.GAS_CONSTANT`
@@ -167,38 +196,134 @@ class VassilievHeatCapacity(eqx.Module):
 
 
 cp_diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
-    186, 812.3, (0.454, 0.503, 0.043), (1886.0, 1879.6, 1501.6), 24.59, 0.287, 0.06
+    186,
+    812.3,
+    (0.454, 0.503, 0.043),
+    (1886.0, 1879.6, 1501.6),
+    24.59,
+    0.287,
+    0.06,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Diamond 1a heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Diamond 1a heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted to the diamond data of :cite:t:`Vassiliev2021{Table 1}` (12.8-2000 K, the
+high-temperature part from Cv data), so it is constrained only up to 2000 K."""
 cp_diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
-    32, 1366.0, (0.031, 0.488, 0.482), (1833.6, 1968.7, 1824.5), 24.59, 0.287, 0.02
+    32,
+    1366.0,
+    (0.031, 0.488, 0.482),
+    (1833.6, 1968.7, 1824.5),
+    24.59,
+    0.287,
+    0.02,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Diamond 1b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Diamond 1b heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted to 32 smoothed low-temperature points (5-160 K) with the Maier-Kelley coefficients from
+Cv data at 1200-1600 K, and presented as the diamond Cp from 0 to 2000 K
+:cite:p:`Vassiliev2021{Figs. 8, 9}`; constrained only up to 2000 K."""
 cp_diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
-    32, 602.6, (0.730, 0.238, 0.031), (1891.0, 1881.1, 1844.9), 24.943, 0.0, 0.02
+    32,
+    602.6,
+    (0.730, 0.238, 0.031),
+    (1891.0, 1881.1, 1844.9),
+    24.943,
+    0.0,
+    0.02,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Diamond 1c heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Diamond 1c heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+With :math:`a = 3R` and :math:`b = 0`. :cite:t:`Vassiliev2021` call this curve the Cv of
+diamond (p. 6, Fig. 9: Cp - Cv = 0.23 J/(mol K) at 2000 K), and state that with these
+coefficients function (3) gives the heat capacity of diamond and graphite up to 300 K (p. 3).
+Above 300 K it is therefore closer to Cv than to Cp; use 1a or 1b for Cp."""
 cp_diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
-    27, 242.0, (0.884, 0.040, 0.076), (1930.7, 2000.8, 1292.7), 24.943, 0.0, 0.05
+    27,
+    242.0,
+    (0.884, 0.040, 0.076),
+    (1930.7, 2000.8, 1292.7),
+    24.943,
+    0.0,
+    0.05,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Diamond 1d heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Diamond 1d heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+With :math:`a = 3R` and :math:`b = 0`, fitted to the data of :cite:t:`Vassiliev2021`'s
+reference [46] (15-1100 K, Table 1), so it is constrained only up to 1100 K. It agrees with 1c
+above 600 K (Fig. 10)."""
 cp_graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
-    73, 288.4, (0.770, 0.110, 0.120), (1955.9, 424.1, 945.1), 24.25, 0.848, 0.07
+    73,
+    288.4,
+    (0.770, 0.110, 0.120),
+    (1955.9, 424.1, 945.1),
+    24.25,
+    0.848,
+    0.07,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Graphite 2a heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Graphite 2a heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted to the data of :cite:t:`Vassiliev2021`'s reference [21] (13-301 K) with the Maier-Kelley
+coefficients from data at 1600-2000 K (Table 5), and described from 0.1 to 2000 K (Section 5.3);
+constrained only up to 2000 K."""
 cp_graphite_2b: VassilievHeatCapacity = VassilievHeatCapacity(
-    38, 268.3, (0.779, 0.114, 0.107), (1937.7, 416.0, 930.3), 24.25, 0.848, 0.09
+    38,
+    268.3,
+    (0.779, 0.114, 0.107),
+    (1937.7, 416.0, 930.3),
+    24.25,
+    0.848,
+    0.09,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Graphite 2b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Graphite 2b heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted to the data of :cite:t:`Vassiliev2021`'s reference [14] (5-350 K) with the Maier-Kelley
+coefficients from data at 1600-2000 K (Table 5); constrained only up to 2000 K."""
 cp_graphite_2c: VassilievHeatCapacity = VassilievHeatCapacity(
-    111, 282.6, (0.773, 0.114, 0.114), (1949.9, 426.4, 947.9), 24.25, 0.848, 0.08
+    111,
+    282.6,
+    (0.773, 0.114, 0.114),
+    (1949.9, 426.4, 947.9),
+    24.25,
+    0.848,
+    0.08,
+    TEMPERATURE_MELTING_CARBON,
 )
-"""Graphite 2c heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Graphite 2c heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted jointly to :cite:t:`Vassiliev2021`'s references [14] and [21] (5-350 K) with the
+Maier-Kelley coefficients from data at 1600-2000 K (Table 5); constrained only up to 2000 K."""
 cp_silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
-    201, 535.6, (0.367, 0.358, 0.275), (345.3, 847.6, 866.0), 23.55, 3.394, 0.07
+    201,
+    535.6,
+    (0.367, 0.358, 0.275),
+    (345.3, 847.6, 866.0),
+    23.55,
+    3.394,
+    0.07,
+    TEMPERATURE_MELTING_SILICON,
 )
-"""Silicon 3a heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Silicon 3a heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted to the silicon data of :cite:t:`Vassiliev2021{Table 2}` (2.2-1600 K). The paper
+describes it over 5-2000 K (Section 5.4), but silicon melts at 1688 K, the bound used here."""
 cp_silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
-    24, 677.0, (0.381, 0.337, 0.281), (350.4, 852.2, 877.1), 23.55, 3.394, 0.06
+    24,
+    677.0,
+    (0.381, 0.337, 0.281),
+    (350.4, 852.2, 877.1),
+    23.55,
+    3.394,
+    0.06,
+    TEMPERATURE_MELTING_SILICON,
 )
-"""Silicon 3b heat capacity :cite:t:`Vassiliev2021{Table 6}`."""
+"""Silicon 3b heat capacity :cite:t:`Vassiliev2021{Table 6}`.
+
+Fitted to the data of :cite:t:`Vassiliev2021`'s reference [24] only (5-300 K) and shown over
+0.1-300 K (Fig. 17), with the Maier-Kelley coefficients of 3a; constrained by its own data only
+up to 300 K."""

@@ -65,7 +65,7 @@ to the model, see :data:`H2O_basalt_dixon95_table5`.
 """
 
 H2O_basalt_dixon95_table5: Solubility = SolubilityPowerLaw(1072.64, 0.494861)
-r"""H2O in MORB liquids :cite:p:`DSH95`
+r"""H2O in MORB liquids, a power law fitted to the Table 5 model :cite:p:`DSH95`
 
 Power law fitted (least squares in log space) to the model solubility of total H2O against fH2O
 for MORB at 1200 C in :cite:t:`DSH95{Table 5}`, from 1 bar to 5 kbar. That model combines
@@ -262,10 +262,8 @@ H2_chachan18: Solubility = _H2_chachan18(
 )
 """H2 by combining theory and experiment :cite:p:`CS18`"""
 
-# At 1 GPa in the presence of pure H2, the molecular H2 concentration is 0.19 wt.%"
-# Need to convert pressure to H2 fugacity
-# With Chabrier EOS, f_calibration = 23986.034649111516
-# With Zhang and Duan EOS, f_calibration2 = 28421.194323648964
+# At 1 GPa in the presence of pure H2, the molecular H2 concentration is 0.19 wt.%, so the
+# calibration pressure is converted to H2 fugacity, here with the bounded Chabrier EOS
 T_calibration: Scalar = 1673
 P_calibration: Scalar = unit_conversion.GPa_to_bar
 f_calibration: Array = H2_chabrier21_bounded.fugacity(as_j64(T_calibration), as_j64(P_calibration))
@@ -274,4 +272,4 @@ X_calibration: Scalar = 0.0019
 H2_kite19: Solubility = _H2_chachan18(
     f_calibration=float(f_calibration), T_calibration=T_calibration, X_calibration=X_calibration
 )
-"""H2 by combining theory and experiment :cite:p:`KFS19`."""
+"""H2 by combining theory and experiment :cite:p:`KFS19`"""

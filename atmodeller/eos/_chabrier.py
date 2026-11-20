@@ -19,6 +19,7 @@ from jaxtyping import ArrayLike, Float
 from molmass import Formula
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos import DATA_DIRECTORY
 from atmodeller.eos._aggregators import CombinedRealGas, CombinedRealGasFugacity
@@ -52,7 +53,8 @@ class Chabrier(RealGas):
           380 K above about :math:`2.5 \times 10^6` bar. He is unaffected.
 
     Args:
-        log10_density_func: Spline lookup for density from :cite:t:`CD21` T-P-rho tables
+        log10_density_func: Linear interpolation of log10 density in the :cite:t:`CD21`
+            T-P-rho tables
         He_fraction: He mass fraction (Y)
         H2_molar_mass_g_mol: Molar mass of :math:`\mathrm{H}_2`
         He_molar_mass_g_mol: Molar mass of He
@@ -62,7 +64,7 @@ class Chabrier(RealGas):
     CHABRIER_DIRECTORY: ClassVar[Path] = Path("chabrier")
     """Directory of the Chabrier data within :obj:`~atmodeller.eos.data`"""
     log10_density_func: Callable
-    """Spline lookup for density from :cite:t:`CD21` T-P-rho tables"""
+    """Linear interpolation of log10 density in the :cite:t:`CD21` T-P-rho tables"""
     He_fraction: float = eqx.field(converter=float)
     """He mass fraction (Y)"""
     H2_molar_mass_g_mol: float = eqx.field(converter=float)
@@ -103,7 +105,7 @@ class Chabrier(RealGas):
 
     @classmethod
     def _get_interpolator(cls, filename: Path) -> Callable:
-        """Gets spline lookup for density from :cite:t:`CD21` T-P-rho tables.
+        """Gets the linear interpolation of log10 density in the :cite:t:`CD21` T-P-rho tables.
 
         The data tables have a slightly different organisation of the header line. But in all cases
         the first three columns contain the required data: log10 T [K], log10 P [GPa], and
@@ -392,19 +394,33 @@ H2_He_Y0297_chabrier21_bounded: RealGas = CombinedRealGas.create(
 """H2HeY0297 bounded :cite:p:`CD21`"""
 
 
-def get_chabrier_eos_models() -> dict[str, RealGasBase]:
+def get_chabrier_eos_catalogue() -> dict[str, CatalogueEntry[RealGasBase]]:
     """Gets a dictionary of EOS models
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGasBase] = {}
-    eos_models["H2_chabrier21"] = H2_chabrier21_bounded
-    eos_models["H2_3000K_chabrier21"] = H2_3000K_chabrier21
-    eos_models["H2_4000K_chabrier21"] = H2_4000K_chabrier21
-    eos_models["H2_He_Y0275_chabrier21"] = H2_He_Y0275_chabrier21_bounded
-    eos_models["H2_He_Y0292_chabrier21"] = H2_He_Y0292_chabrier21_bounded
-    eos_models["H2_He_Y0297_chabrier21"] = H2_He_Y0297_chabrier21_bounded
-    eos_models["He_chabrier21"] = He_chabrier21_bounded
+    eos_models: dict[str, CatalogueEntry[RealGasBase]] = {}
+    eos_models["H2_chabrier21"] = CatalogueEntry(
+        H2_chabrier21_bounded, ModelInfo("H2", sources=("CD21",))
+    )
+    eos_models["H2_3000K_chabrier21"] = CatalogueEntry(
+        H2_3000K_chabrier21, ModelInfo("H2", sources=("CD21",))
+    )
+    eos_models["H2_4000K_chabrier21"] = CatalogueEntry(
+        H2_4000K_chabrier21, ModelInfo("H2", sources=("CD21",))
+    )
+    eos_models["H2_He_Y0275_chabrier21"] = CatalogueEntry(
+        H2_He_Y0275_chabrier21_bounded, ModelInfo("H2-He", sources=("CD21",))
+    )
+    eos_models["H2_He_Y0292_chabrier21"] = CatalogueEntry(
+        H2_He_Y0292_chabrier21_bounded, ModelInfo("H2-He", sources=("CD21",))
+    )
+    eos_models["H2_He_Y0297_chabrier21"] = CatalogueEntry(
+        H2_He_Y0297_chabrier21_bounded, ModelInfo("H2-He", sources=("CD21",))
+    )
+    eos_models["He_chabrier21"] = CatalogueEntry(
+        He_chabrier21_bounded, ModelInfo("He", sources=("CD21",))
+    )
 
     return eos_models

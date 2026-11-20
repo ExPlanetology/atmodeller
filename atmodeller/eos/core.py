@@ -320,8 +320,14 @@ class VirialCompensation(eqx.Module):
     volume and the volume integral of an MRK EOS, and hence it does not return a meaningful volume
     or volume integral by itself.
 
+    The coefficients are scaled by the critical temperature :math:`T_c` and pressure :math:`P_c`
+    (corresponding states, :cite:t:`HP91`): :math:`a=(a_0 T_c+a_1 T)/P_c^2`,
+    :math:`b=(b_0 T_c+b_1 T)/P_c^{3/2}` and :math:`c=(c_0 T_c+c_1 T)/P_c^{5/4}`. With unit
+    critical data (:math:`T_c=P_c=1`), as for the full CORK models, these reduce to
+    :math:`a=a_0+a_1 T` and likewise for :math:`b` and :math:`c`.
+
     Args:
-        a_coefficients: Coefficients for a polynomial of the form :math:`a=a_0+a_1 T`.
+        a_coefficients: Coefficients :math:`(a_0, a_1)` of :math:`a`
         b_coefficients: As above for the b coefficients
         c_coefficients: As above for the c coefficients
         P0: Pressure at which the MRK equation begins to overestimate the molar volume
@@ -329,7 +335,7 @@ class VirialCompensation(eqx.Module):
     """
 
     a_coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)
-    """Coefficients for a polynomial of the form :math:`a=a_0+a_1 T`"""
+    """Coefficients :math:`(a_0, a_1)` of :math:`a` (see the class docstring for the scaling)"""
     b_coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)
     """As above for the b coefficients"""
     c_coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)

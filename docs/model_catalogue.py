@@ -6,9 +6,11 @@
 """Generates the tables of the model catalogue (docs/models.rst) from the model registries
 
 Run by ``conf.py`` at the start of each docs build, so the catalogue always lists the models of
-:func:`~atmodeller.eos.get_eos_models` and :func:`~atmodeller.solubility.get_solubility_models`.
-The source of each model is read from the ``:cite:`` keys in the docstring of the module-level
-object that is registered, or else of its class.
+:func:`~atmodeller.eos.get_eos_catalogue` and :func:`~atmodeller.solubility.get_solubility_catalogue`.
+The species, phase and sources of each model come from its catalogue information
+(:class:`~atmodeller.interfaces.ModelInfo`); a model without it is not listed. The description is
+the first line of the docstring of the registered object (or of its class), and the calibrated
+range of an EOS comes from its calibrations.
 """
 
 import importlib
@@ -20,9 +22,10 @@ from typing import Any
 
 from sphinx.pycode import ModuleAnalyzer
 
-from atmodeller import eos, solubility
-from atmodeller.eos import get_eos_models
-from atmodeller.solubility import get_solubility_models
+from atmodeller import solubility
+from atmodeller.eos import get_eos_catalogue
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
+from atmodeller.solubility import get_solubility_catalogue
 
 CITE: re.Pattern = re.compile(r":cite:[a-z]*:`([^`]+)`")
 
@@ -43,27 +46,9 @@ def _attribute_docstrings(package: ModuleType) -> dict[int, str]:
     return docstrings
 
 
-def _citation_keys(obj: Any, docstrings: dict[int, str]) -> list[str]:
-    """The citation keys of a model, from its docstring or, for a bounded model without one, from
-    the models that it combines"""
-    text: str = docstrings.get(id(obj)) or (type(obj).__doc__ or "")
-    keys: list[str] = []
-    for match in CITE.findall(text):
-        # Drop the parts in braces first, which can contain commas
-        for key in re.sub(r"\{.*?\}", "", match).split(","):
-            key = key.strip()
-            if key and key not in keys:
-                keys.append(key)
-    if not keys:
-        for real_gas in getattr(obj, "real_gases", ()):
-            keys.extend(k for k in _citation_keys(real_gas, docstrings) if k not in keys)
-
-    return keys
-
-
-def _source(obj: Any, docstrings: dict[int, str]) -> str:
-    """The citations of a model, as reST"""
-    return ", ".join(f":cite:t:`{key}`" for key in _citation_keys(obj, docstrings)) or "—"
+def _source(info: ModelInfo) -> str:
+    """The sources of a model, as reST citations"""
+    return ", ".join(f":cite:t:`{key}`" for key in info.sources) or "—"
 
 
 def _summary(obj: Any, docstrings: dict[int, str]) -> str:
@@ -82,27 +67,30 @@ def _number(value: float) -> str:
 def _calibrated_range(model: Any) -> tuple[str, str]:
     """Calibrated temperature (K) and pressure (bar) range of an EOS
 
-    A bounded model combines EOS for pressures below, within and above the calibration. The
-    calibrated part is the one that is neither an ideal gas nor an upper bound.
+    A bounded model combines EOS for pressures below, within and above the calibration: the
+    calibrated segments are those that are neither an ideal gas nor an upper bound. The range spans
+    all of them, and a bound that none of them sets is open.
     """
     calibrations = getattr(model, "calibrations", None)
     if not calibrations:
         return "not bounded", "not bounded"
 
-    calibration = calibrations[0]
-    for real_gas, candidate in zip(getattr(model, "real_gases", ()), calibrations):
-        if type(real_gas).__name__ not in ("IdealGas", "UpperBoundRealGas"):
-            calibration = candidate
-            break
+    segments = [
+        calibration
+        for real_gas, calibration in zip(getattr(model, "real_gases", ()), calibrations)
+        if type(real_gas).__name__ not in ("IdealGas", "UpperBoundRealGas")
+    ] or list(calibrations)
 
-    def span(low: float | None, high: float | None) -> str:
+    def span(lows: list[float | None], highs: list[float | None]) -> str:
+        low: float | None = None if None in lows else min(lows)  # type: ignore[type-var]
+        high: float | None = None if None in highs else max(highs)  # type: ignore[type-var]
         if low is None and high is None:
             return "—"
         return f"{_number(low) if low is not None else ''}–{_number(high) if high is not None else ''}"
 
     return (
-        span(calibration.temperature_min, calibration.temperature_max),
-        span(calibration.pressure_min, calibration.pressure_max),
+        span([c.temperature_min for c in segments], [c.temperature_max for c in segments]),
+        span([c.pressure_min for c in segments], [c.pressure_max for c in segments]),
     )
 
 
@@ -121,15 +109,20 @@ def _table(title: str, header: list[str], rows: list[list[str]], widths: str) ->
     return "\n".join(lines) + "\n"
 
 
+def _listed(catalogue: dict[str, CatalogueEntry]) -> list[tuple[str, CatalogueEntry]]:
+    """The entries with catalogue information, sorted by key"""
+    return sorted(
+        ((key, entry) for key, entry in catalogue.items() if entry.info != ModelInfo()),
+        key=lambda item: item[0].lower(),
+    )
+
+
 def eos_table() -> str:
     """Table of the real-gas EOS"""
-    docstrings: dict[int, str] = _attribute_docstrings(eos)
     rows: list[list[str]] = []
-    for key, model in sorted(get_eos_models().items(), key=lambda item: item[0].lower()):
-        temperature, pressure = _calibrated_range(model)
-        rows.append(
-            [f"``{key}``", key.split("_")[0], temperature, pressure, _source(model, docstrings)]
-        )
+    for key, entry in _listed(get_eos_catalogue()):
+        temperature, pressure = _calibrated_range(entry.model)
+        rows.append([f"``{key}``", entry.info.species, temperature, pressure, _source(entry.info)])
 
     return _table(
         "Real-gas equations of state (``get_eos_models()``)",
@@ -143,13 +136,15 @@ def solubility_table() -> str:
     """Table of the solubility laws"""
     docstrings: dict[int, str] = _attribute_docstrings(solubility)
     rows: list[list[str]] = []
-    for key, law in sorted(get_solubility_models().items(), key=lambda item: item[0].lower()):
-        if key == "NO_SOLUBILITY":
-            continue
-        parts: list[str] = key.split("_")
-        melt: str = " ".join(parts[1:-1]) or "—"
+    for key, entry in _listed(get_solubility_catalogue()):
         rows.append(
-            [f"``{key}``", parts[0], melt, _summary(law, docstrings), _source(law, docstrings)]
+            [
+                f"``{key}``",
+                entry.info.species,
+                entry.info.phase or "—",
+                _summary(entry.model, docstrings),
+                _source(entry.info),
+            ]
         )
 
     return _table(

@@ -884,11 +884,12 @@ class GasPhase(BasePhase[ChemicalSpecies]):
 class CondensedPhase(BasePhase[SpeciesProtocol]):
     """Condensed solution (e.g., silicate melt or solid)
 
-    A condensed phase can optionally treat dissolved and/or condensed species as additional to the
-    solvent (the bulk melt mass that species dissolve into). When enabled, these species are
-    included on top of the solvent when computing phase-level totals (mass, moles, molar mass,
-    and derived fractions). This is useful in the dilute limit, where their contribution to the
-    total phase mass is negligible, or when the background material already accounts for them.
+    Each species of a condensed phase has ``include_in_phase_mass`` (``True`` by default). A
+    species with ``True`` is added to the solvent (the bulk mass that species dissolve into) in the
+    phase-level totals (mass, moles, molar mass and derived fractions). A species with ``False``
+    is left out of them, so the totals are those of the solvent alone, which is useful in the
+    dilute limit, where its contribution is negligible, or when the background material already
+    accounts for it.
 
     Note that this only affects phase-level aggregations — per-species thermodynamic properties
     (e.g., activity) are always computed from the raw species amounts and are unaffected. Total

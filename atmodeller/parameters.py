@@ -550,8 +550,10 @@ class Parameters(eqx.Module):
         state: Thermodynamic state
         activity_constraints: Mapping of a species name and an activity constraint. Defaults to a
             new instance of :class:`ActivityConstraintSet`.
-        mass_constraints: Mapping of element name and mass/abundance constraint. Defaults to a
-            new instance of :class:`MassConstraintSet`.
+        mass_constraints: Mapping of an element, or a formula of elements in the system (e.g.
+            ``"H2O"``), to its mass/abundance constraint. Defaults to a new instance of
+            :class:`MassConstraintSet`. A key that is not an element or formula of the system
+            raises a ``ValueError``.
         mass_units: Units of ``mass_constraints``. Defaults to ``mass``.
         solver_parameters: Solver parameters. Defaults to a new instance of
             :class:`~atmodeller.containers.SolverParameters`.

@@ -154,6 +154,19 @@ def test_mass_constraint_not_positive_raises() -> None:
     ):
         model.solve_with_default()
 
+    # Inside JIT, where this is not checked, such a model is not well posed (invalid_model)
+    valid_by_model: list[bool] = [
+        bool(
+            is_valid_model(
+                EquilibriumModel.from_state(
+                    planet, mass_constraints={"H": 1.0e20, "O": o}
+                ).parameters
+            )
+        )
+        for o in (1.0e21, 0.0, -1.0)
+    ]
+    assert valid_by_model == [True, False, False]
+
     model = EquilibriumModel.from_state(planet, mass_constraints={"H": 1.0e20, "O": 1.0e-20})
     assert bool(np.all(model.solve_with_default().checked_solution.success))
 

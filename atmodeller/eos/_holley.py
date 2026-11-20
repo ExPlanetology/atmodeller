@@ -11,6 +11,7 @@ import optimistix as optx
 from jaxtyping import ArrayLike
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.eos import ABSOLUTE_TOLERANCE, RELATIVE_TOLERANCE, THROW
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas, safe_ideal_initial_volume
@@ -264,8 +265,8 @@ CO2_beattie_holley58_bounded: RealGas = CombinedRealGas.create(
 """CO2 Beattie-Bridgeman bounded :cite:p:`HWZ58`
 
 Note:
-    Above the calibrated pressure the volume is that at the bound, which is not physical between
-    about 675 and 840 K, where the equation has no gas root at the bound (see
+    Above the calibrated pressure the compressibility factor is that at the bound, which is not
+    physical between about 675 and 840 K, where the equation has no gas root at the bound (see
     :data:`CO2_beattie_holley58`).
 """
 
@@ -310,22 +311,36 @@ He_beattie_holley58_bounded: RealGas = CombinedRealGas.create(
 """He Beattie-Bridgeman bounded :cite:p:`HWZ58`"""
 
 
-def get_holley_eos_models() -> dict[str, RealGas]:
+def get_holley_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of Holley EOS models
 
     The naming convention is as follows:
         [species]_[eos model]_[citation]
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["CH4_beattie_holley58"] = CH4_beattie_holley58_bounded
-    eos_models["CO2_beattie_holley58"] = CO2_beattie_holley58_bounded
-    eos_models["H2_beattie_holley58"] = H2_beattie_holley58_bounded
-    eos_models["He_beattie_holley58"] = He_beattie_holley58_bounded
-    eos_models["N2_beattie_holley58"] = N2_beattie_holley58_bounded
-    eos_models["H3N_beattie_holley58"] = H3N_beattie_holley58_bounded
-    eos_models["O2_beattie_holley58"] = O2_beattie_holley58_bounded
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["CH4_beattie_holley58"] = CatalogueEntry(
+        CH4_beattie_holley58_bounded, ModelInfo("CH4", sources=("HWZ58",))
+    )
+    eos_models["CO2_beattie_holley58"] = CatalogueEntry(
+        CO2_beattie_holley58_bounded, ModelInfo("CO2", sources=("HWZ58",))
+    )
+    eos_models["H2_beattie_holley58"] = CatalogueEntry(
+        H2_beattie_holley58_bounded, ModelInfo("H2", sources=("HWZ58",))
+    )
+    eos_models["He_beattie_holley58"] = CatalogueEntry(
+        He_beattie_holley58_bounded, ModelInfo("He", sources=("HWZ58",))
+    )
+    eos_models["N2_beattie_holley58"] = CatalogueEntry(
+        N2_beattie_holley58_bounded, ModelInfo("N2", sources=("HWZ58",))
+    )
+    eos_models["H3N_beattie_holley58"] = CatalogueEntry(
+        H3N_beattie_holley58_bounded, ModelInfo("H3N", sources=("HWZ58",))
+    )
+    eos_models["O2_beattie_holley58"] = CatalogueEntry(
+        O2_beattie_holley58_bounded, ModelInfo("O2", sources=("HWZ58",))
+    )
 
     return eos_models

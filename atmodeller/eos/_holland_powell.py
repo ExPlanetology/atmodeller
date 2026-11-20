@@ -15,6 +15,7 @@ from jaxtyping import Array, ArrayLike
 from scipy.constants import kilo
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import CORK, RealGas, VirialCompensation
 from atmodeller.eos.redlich_kwong import (
@@ -963,12 +964,13 @@ H2O_cork_gas_fluid_holland91_bounded: RealGas = CombinedRealGas.create(
 )
 """H2O cork for the gas and supercritical fluid bounded :cite:p:`HP91`
 
-This is the model of the library (``H2O_cork_holland91``). It has no liquid branch: the EOS is
+This is the model of the library, under the key ``"H2O_cork_holland91"`` of
+:func:`~atmodeller.eos.get_eos_models`. It has no liquid branch: the EOS is
 for the gas species H2O_g, and liquid water is the condensate H2O_l, with its own thermodynamic
 data and stability, so a liquid fugacity here would count condensation twice. Below the critical
 temperature and above the saturation pressure it therefore differs from the liquid fugacity of
-:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid branch is
-``H2O_cork_holland91`` in this module.
+:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid
+branch is the module-level ``H2O_cork_holland91`` of this module, which is not in the library.
 """
 
 CO2_virial_compensation_holland98: VirialCompensation = VirialCompensation(
@@ -1011,16 +1013,17 @@ H2O_cork_gas_fluid_holland98_bounded: RealGas = CombinedRealGas.create(
 )
 """H2O cork for the gas and supercritical fluid bounded :cite:p:`HP98`
 
-This is the model of the library (``H2O_cork_holland98``). It has no liquid branch: the EOS is
+This is the model of the library, under the key ``"H2O_cork_holland98"`` of
+:func:`~atmodeller.eos.get_eos_models`. It has no liquid branch: the EOS is
 for the gas species H2O_g, and liquid water is the condensate H2O_l, with its own thermodynamic
 data and stability, so a liquid fugacity here would count condensation twice. Below the critical
 temperature and above the saturation pressure it therefore differs from the liquid fugacity of
-:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid branch is
-``H2O_cork_holland98`` in this module.
+:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid
+branch is the module-level ``H2O_cork_holland98`` of this module, which is not in the library.
 """
 
 
-def get_holland_eos_models() -> dict[str, RealGas]:
+def get_holland_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of EOS models
 
     The naming convention is as follows:
@@ -1029,19 +1032,41 @@ def get_holland_eos_models() -> dict[str, RealGas]:
     'cs' refers to corresponding states.
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["CH4_cork_cs_holland91"] = CH4_cork_cs_holland91_bounded
-    eos_models["CO_cork_cs_holland91"] = CO_cork_cs_holland91_bounded
-    eos_models["CO2_cork_holland91"] = CO2_cork_holland91_bounded
-    eos_models["CO2_cork_holland98"] = CO2_cork_holland98_bounded
-    eos_models["CO2_cork_cs_holland91"] = CO2_cork_cs_holland91_bounded
-    eos_models["H2_cork_cs_holland91"] = H2_cork_cs_holland91_bounded
-    eos_models["H2O_cork_holland91"] = H2O_cork_gas_fluid_holland91_bounded
-    eos_models["H2O_cork_holland98"] = H2O_cork_gas_fluid_holland98_bounded
-    eos_models["H2S_cork_cs_holland11"] = H2S_cork_cs_holland11_bounded
-    eos_models["N2_cork_cs_holland91"] = N2_cork_cs_holland91_bounded
-    eos_models["S2_cork_cs_holland11"] = S2_cork_cs_holland11_bounded
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["CH4_cork_cs_holland91"] = CatalogueEntry(
+        CH4_cork_cs_holland91_bounded, ModelInfo("CH4", sources=("HP91",))
+    )
+    eos_models["CO_cork_cs_holland91"] = CatalogueEntry(
+        CO_cork_cs_holland91_bounded, ModelInfo("CO", sources=("HP91",))
+    )
+    eos_models["CO2_cork_holland91"] = CatalogueEntry(
+        CO2_cork_holland91_bounded, ModelInfo("CO2", sources=("HP91",))
+    )
+    eos_models["CO2_cork_holland98"] = CatalogueEntry(
+        CO2_cork_holland98_bounded, ModelInfo("CO2", sources=("HP98",))
+    )
+    eos_models["CO2_cork_cs_holland91"] = CatalogueEntry(
+        CO2_cork_cs_holland91_bounded, ModelInfo("CO2", sources=("HP91",))
+    )
+    eos_models["H2_cork_cs_holland91"] = CatalogueEntry(
+        H2_cork_cs_holland91_bounded, ModelInfo("H2", sources=("HP91",))
+    )
+    eos_models["H2O_cork_holland91"] = CatalogueEntry(
+        H2O_cork_gas_fluid_holland91_bounded, ModelInfo("H2O", sources=("HP91",))
+    )
+    eos_models["H2O_cork_holland98"] = CatalogueEntry(
+        H2O_cork_gas_fluid_holland98_bounded, ModelInfo("H2O", sources=("HP98",))
+    )
+    eos_models["H2S_cork_cs_holland11"] = CatalogueEntry(
+        H2S_cork_cs_holland11_bounded, ModelInfo("H2S", sources=("HP91", "HP11"))
+    )
+    eos_models["N2_cork_cs_holland91"] = CatalogueEntry(
+        N2_cork_cs_holland91_bounded, ModelInfo("N2", sources=("HP91",))
+    )
+    eos_models["S2_cork_cs_holland11"] = CatalogueEntry(
+        S2_cork_cs_holland11_bounded, ModelInfo("S2", sources=("HP91", "HP11"))
+    )
 
     return eos_models

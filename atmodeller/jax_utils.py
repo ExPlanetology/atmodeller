@@ -90,7 +90,7 @@ def safe_exp(x: ArrayLike) -> Array:  # pragma: no cover
     - Clips inputs to prevent underflow of ``exp(x)`` for large negative values.
     - Treats ``-inf`` inputs explicitly and returns 0 for those entries
       (i.e., preserves the identity ``exp(-inf) = 0``).
-    - Avoids nans by replacing invalid values before applying ``exp``.
+    - Other inputs are passed to ``exp`` unchanged, so a ``NaN`` input gives ``NaN``.
 
     Note:
         This function is intended for computations performed in log-space or masked representations

@@ -5,8 +5,8 @@
 
 """Real gas Virial EOS
 
-The papers state a volume integration from :math:`P_0` to :math:`P`, where :math:`f(P_0=1)=1`.
-Hence for bounded EOS a minimum pressure of 1 bar is assumed.
+The volume integral is referenced to 1 bar, where the fugacity equals the pressure. Hence for
+bounded EOS a minimum pressure of 1 bar is assumed.
 """
 
 import equinox as eqx
@@ -14,6 +14,7 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas
@@ -204,13 +205,15 @@ H4Si_wang18_bounded: RealGas = CombinedRealGas.create(
 """H4Si quadratic virial bounded :cite:p:`Hakim2026,WLL18`"""
 
 
-def get_wang_eos_models() -> dict[str, RealGas]:
+def get_wang_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of virial EOS
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["H4Si_wang18"] = H4Si_wang18_bounded
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["H4Si_wang18"] = CatalogueEntry(
+        H4Si_wang18_bounded, ModelInfo("H4Si", sources=("Hakim2026", "WLL18"))
+    )
 
     return eos_models

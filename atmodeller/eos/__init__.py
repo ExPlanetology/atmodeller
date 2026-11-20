@@ -9,7 +9,7 @@ import importlib.resources
 from importlib.resources.abc import Traversable
 
 DATA_DIRECTORY: Traversable = importlib.resources.files(f"{__package__}.data")
-"""Data directory, which is the same as the package directory"""
+"""Data directory of the EOS tables (the ``atmodeller.eos.data`` subpackage)"""
 # ABSOLUTE_TOLERANCE is less than RELATIVE_TOLERANCE because typical volumes are around 1e-6
 ABSOLUTE_TOLERANCE: float = 1.0e-12
 r"""Absolute tolerance when solving for the volume in :math:`\mathrm{m}^3\ \mathrm{mol}^{-1}`"""
@@ -30,12 +30,13 @@ from atmodeller.eos._zhang_duan_base import (  # noqa: E402, F401
     ZhangDuanMixture,
 )
 from atmodeller.eos.core import IdealGas, RealGas  # noqa: E402, F401
-from atmodeller.eos.library import get_eos_models  # noqa: E402, F401
+from atmodeller.eos.library import get_eos_catalogue, get_eos_models  # noqa: E402, F401
 
 __all__ = [
     "CombinedRealGas",
     "IdealGas",
     "RealGas",
     "ZhangDuanMixture",
+    "get_eos_catalogue",
     "get_eos_models",
 ]

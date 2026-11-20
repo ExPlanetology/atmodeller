@@ -13,6 +13,7 @@ up to about 10 times the critical pressure and 2-3 times the critical temperatur
 """
 
 from atmodeller.eos._aggregators import CombinedRealGas
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.eos.core import RealGas
 from atmodeller.eos.redlich_kwong import RedlichKwong49
 from atmodeller.sci_utils import ExperimentalCalibration
@@ -46,19 +47,27 @@ OSi_rk49_connolly16_bounded: RealGas = CombinedRealGas.create(
 """OSi Redlich-Kwong bounded :cite:p:`C16`"""
 
 
-def get_reid_connolly_eos_models() -> dict[str, RealGas]:
+def get_reid_connolly_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of EOS models
 
     The naming convention is as follows:
         [species]_[eos model]_[citation]
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["OSi_rk49_connolly16"] = OSi_rk49_connolly16_bounded
-    eos_models["H4Si_rk49_reid87"] = H4Si_rk49_reid87
-    eos_models["CHN_rk49_reid87"] = CHN_rk49_reid87
-    eos_models["H3N_rk49_reid87"] = H3N_rk49_reid87
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["OSi_rk49_connolly16"] = CatalogueEntry(
+        OSi_rk49_connolly16_bounded, ModelInfo("OSi", sources=("C16",))
+    )
+    eos_models["H4Si_rk49_reid87"] = CatalogueEntry(
+        H4Si_rk49_reid87, ModelInfo("H4Si", sources=("RPP87",))
+    )
+    eos_models["CHN_rk49_reid87"] = CatalogueEntry(
+        CHN_rk49_reid87, ModelInfo("CHN", sources=("RPP87",))
+    )
+    eos_models["H3N_rk49_reid87"] = CatalogueEntry(
+        H3N_rk49_reid87, ModelInfo("H3N", sources=("RPP87",))
+    )
 
     return eos_models

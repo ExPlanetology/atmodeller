@@ -23,8 +23,9 @@ wrapped with :func:`equinox.filter_vmap` to enable efficient batched evaluation 
 scenarios or parameter sets.
 
 Note:
-    The residual concatenation order in :func:`objective_function` must remain identical to the
-    mask concatenation order in :func:`get_active_mask`.
+    The residual concatenation order in :func:`get_full_residual` (used by
+    :func:`objective_function`) must remain identical to the mask concatenation order in
+    :func:`get_active_mask`.
 """
 
 import jax.numpy as jnp
@@ -74,10 +75,12 @@ def is_valid_model(parameters: Parameters) -> Bool[Array, ""]:
     """Whether a model is well posed, so that it can be solved.
 
     A model is not well posed if its active constraints do not match its unknowns, if an element of
-    a condensate imposed stable has a mass constraint (its amount is not solved for), or if it has
-    species dissolved in a silicate melt of zero mass (nothing can dissolve). Such a model can
-    never be solved. :meth:`~atmodeller.classes.EquilibriumModel.solve` raises for these before
-    solving, unless the parameters are traced (inside JIT), when this decides instead.
+    a condensate imposed stable has a mass constraint (its amount is not solved for), if it has
+    species dissolved in a silicate melt of zero mass (nothing can dissolve), or if a mass
+    constraint is zero or less (every species of the element would need exactly zero moles). Such
+    a model can never be solved. :meth:`~atmodeller.classes.EquilibriumModel.solve` raises for
+    these before solving, unless the parameters are traced (inside JIT), when this decides
+    instead.
 
     Args:
         parameters: Parameters
@@ -91,7 +94,9 @@ def is_valid_model(parameters: Parameters) -> Bool[Array, ""]:
         jnp.asarray(parameters.mass_constraints.active(), dtype=bool)
         & parameters.mass_constraints.species.imposed_stable_elements
     )
-    valid: Bool[Array, ""] = jnp.logical_and(constraints_match, ~mass_on_imposed)
+    abundance: FloatArray = parameters.mass_constraints.abundance()
+    mass_positive: Bool[Array, ""] = jnp.all(jnp.where(jnp.isnan(abundance), True, abundance > 0))
+    valid: Bool[Array, ""] = constraints_match & ~mass_on_imposed & mass_positive
 
     phases: tuple = parameters.reaction_system.phase_system.phases
     if len(phases) > SILICATE_MELT_PHASE_INDEX and not phases[SILICATE_MELT_PHASE_INDEX].is_empty:

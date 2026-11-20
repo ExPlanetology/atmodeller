@@ -46,11 +46,11 @@ _He_henry_sol_constant_jambon86 = (
     (_He_henry_sol_constant_jambon86 / 2.24e4) * 4.0026 * unit_conversion.fraction_to_ppm
 )
 He_basalt_jambon86: Solubility = SolubilityPowerLaw(_He_henry_sol_constant_jambon86, 1)
-"""Solubility of He in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of He in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for He from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Ar_henry_sol_constant_jambon86: Scalar = 5.9e-5  # cm3*STP/g*bar
@@ -60,11 +60,11 @@ _Ar_henry_sol_constant_jambon86 = (
     (_Ar_henry_sol_constant_jambon86 / 2.24e4) * 39.948 * unit_conversion.fraction_to_ppm
 )
 Ar_basalt_jambon86: Solubility = SolubilityPowerLaw(_Ar_henry_sol_constant_jambon86, 1)
-"""Solubility of Ar in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Ar in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Ar from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Ne_henry_sol_constant_jambon86: Scalar = 25e-5  # cm3*STP/g*bar
@@ -74,11 +74,11 @@ _Ne_henry_sol_constant_jambon86 = (
     (_Ne_henry_sol_constant_jambon86 / 2.24e4) * 20.1797 * unit_conversion.fraction_to_ppm
 )
 Ne_basalt_jambon86: Solubility = SolubilityPowerLaw(_Ne_henry_sol_constant_jambon86, 1)
-"""Solubility of Ne in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Ne in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Ne from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Kr_henry_sol_constant_jambon86: Scalar = 3.0e-5  # cm3*STP/g*bar
@@ -88,11 +88,11 @@ _Kr_henry_sol_constant_jambon86 = (
     (_Kr_henry_sol_constant_jambon86 / 2.24e4) * 83.798 * unit_conversion.fraction_to_ppm
 )
 Kr_basalt_jambon86: Solubility = SolubilityPowerLaw(_Kr_henry_sol_constant_jambon86, 1)
-"""Solubility of Kr in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Kr in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Kr from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Xe_henry_sol_constant_jambon86: Scalar = 1.7e-5  # cm3*STP/g*bar
@@ -102,22 +102,32 @@ _Xe_henry_sol_constant_jambon86 = (
     (_Xe_henry_sol_constant_jambon86 / 2.24e4) * 131.293 * unit_conversion.fraction_to_ppm
 )
 Xe_basalt_jambon86: Solubility = SolubilityPowerLaw(_Xe_henry_sol_constant_jambon86, 1)
-"""Solubility of Xe in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Xe in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Xe from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 
 class _N2_basalt_bernadou21(Solubility):
     """N2 in basaltic silicate melt :cite:p:`BGF21`
 
-    :cite:t:`BGF21{Equation 18}` and using :cite:t:`BGF21{Equations 19-20}` and the values for the
-    thermodynamic constants from :cite:t:`BGF21{Table 6}`. Experiments on basaltic samples at fluid
-    saturation in C-H-O-N system, pressure range: 0.8-10 kbar, temperature range: 1200-1300 C;
-    fO2 range: IW+4.9 to IW-4.7. Using their experimental results and a database for N
-    concentrations at fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
+    :cite:t:`BGF21{Equation 18}`, the sum of physically dissolved N2 and chemically dissolved
+    N\\ :sup:`3-`, with the equilibrium constants of :cite:t:`BGF21{Equations 19-20}` and the
+    thermodynamic constants of :cite:t:`BGF21{Table 6}`. Equation 18 gives the mass fraction of N
+    in the melt, which is converted to ppmw. Experiments on basaltic samples at fluid saturation in
+    the C-H-O-N system, pressure range: 0.8-10 kbar, temperature range: 1200-1300 C; fO2 range:
+    IW+4.9 to IW-4.7. Using their experimental results and a database for N concentrations at
+    fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
+
+    The N2 term (oxidised conditions, above about IW-1.5) reproduces the measured N contents of
+    the oxidised experiments of :cite:t:`BGF21{Table 3}` to within a factor of 3, the spread of
+    those data (4-26 ppm at similar N2 fugacity). The N\\ :sup:`3-` term (reduced conditions)
+    as published does not reproduce their reduced experiments: it gives about 8 times their N
+    content at 0.9 kbar and IW-3 to IW-5, and about 100 times at 10 kbar. The pressure correction
+    of the volume change, :cite:t:`BGF21{Equation 21}`, is omitted, since its coefficient is not
+    given. Use this law with care below about IW-1.5.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -140,8 +150,9 @@ class _N2_basalt_bernadou21(Solubility):
         k14: Array = safe_exp(
             -(183733 + 172 * temperature - 5 * pressure) / (GAS_CONSTANT_BAR * 1.0e5 * temperature)
         )
-        molfrac: Array = (k13 * fugacity) + ((fO2 ** (-3 / 4)) * k14 * (fugacity**0.5))
-        ppmw: Array = molfrac * unit_conversion.fraction_to_ppm
+        # Mass fraction of N in the melt: N2 and N3- (Equation 18)
+        mass_fraction: Array = (k13 * fugacity) + ((fO2 ** (-3 / 4)) * k14 * (fugacity**0.5))
+        ppmw: Array = mass_fraction * unit_conversion.fraction_to_ppm
 
         return ppmw
 
@@ -149,11 +160,9 @@ class _N2_basalt_bernadou21(Solubility):
 N2_basalt_bernadou21: Solubility = _N2_basalt_bernadou21()
 """N2 in basaltic silicate melt :cite:p:`BGF21`
 
-:cite:t:`BGF21{Equation 18}` and using :cite:t:`BGF21{Equations 19-20}` and the values for the
-thermodynamic constants from :cite:t:`BGF21{Table 6}`. Experiments on basaltic samples at fluid
-saturation in C-H-O-N system, pressure range: 0.8-10 kbar, temperature range: 1200-1300 C;
-fO2 range: IW+4.9 to IW-4.7. Using their experimental results and a database for N
-concentrations at fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
+:cite:t:`BGF21{Equation 18}`. The N2 term (oxidised conditions) reproduces their data to within a
+factor of 3; the N\\ :sup:`3-` term (below about IW-1.5) as published overestimates their reduced
+experiments by about 8 times at 0.9 kbar, so use it with care there.
 """
 
 
@@ -161,7 +170,8 @@ class _N2_basalt_dasgupta22(Solubility):
     """N2 in silicate melts :cite:p:`DFP22`
 
     Using :cite:t:`DFP22{Equation 10}`, composition parameters from :cite:t:`DFP22{Figure 8}`, and
-    Iron-wustite buffer (logIW_fugacity) from :cite:t:`OP93,HGD08`.
+    the composite iron-wustite buffer of :cite:t:`OP93,HGD08` and :cite:t:`H21`
+    (:class:`~atmodeller.thermodata.IronWustiteBuffer`).
 
     :cite:p:`DFP22` performed experiments on 80:20 synthetic basalt-Si3N4 mixture at 1.5-3.0 GPa and 1300-1600 C
     fO2 from ~IW-3 to IW-4. They combined this data with prior studies to derive

@@ -18,8 +18,9 @@ from jaxtyping import Array
 from molmass import Formula
 from scipy.optimize import brentq
 
-from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE
+from atmodeller.constants import NO_DATA_GIBBS_OVER_RT, TEMPERATURE_REFERENCE, Extrapolation
 from atmodeller.containers import ChemicalSpecies, SpeciesCollection
+from atmodeller.interfaces import HeatCapacityProtocol
 from atmodeller.reactions import ReactionNetwork
 from atmodeller.database import Database
 from atmodeller.phases import CondensedPhase, PurePhase
@@ -232,6 +233,20 @@ def test_extrapolation_modes() -> None:
         water.with_extrapolation("data", "off").standard_gibbs_over_RT(200.0),
         water.standard_gibbs_over_RT(200.0),
     )
+    # Each side is independent of the other: below the range, any mode above gives the same as
+    # that mode on both sides, and likewise above the range
+    modes: tuple[Extrapolation, ...] = ("data", "off", "constant_cp")
+    for below in modes:
+        for above in modes:
+            mixed: ThermodynamicProperties = water.with_extrapolation(below, above)
+            sides: tuple[tuple[float, Extrapolation], ...] = ((200.0, below), (1000.0, above))
+            for temperature, mode in sides:
+                np.testing.assert_allclose(
+                    mixed.standard_gibbs_over_RT(temperature),
+                    water.with_extrapolation(mode, mode).standard_gibbs_over_RT(temperature),
+                    rtol=1e-12,
+                    err_msg=f"below={below}, above={above}, T={temperature}",
+                )
 
     # Liquid SiO2 is off in a pure phase, and extended with a constant heat capacity in a melt
     silica: ChemicalSpecies = ChemicalSpecies.from_end_member("liquid", formula="SiO2")
@@ -283,8 +298,9 @@ def test_extrapolation_modes() -> None:
 
 
 def test_vassiliev_heat_capacity() -> None:
-    """The Vassiliev (2021) heat capacities agree with standard values at 298.15 K, and are pinned
-    at 1000 K"""
+    """The Vassiliev (2021) heat capacities agree with standard values at 298.15 K, are pinned at
+    1000 K, have the range 0.1 K to T_m of their Table 6, and can be integrated: graphite 2a gives
+    the enthalpy increment of the NASA Glenn graphite to 2%"""
     # Standard heat capacities at 298.15 K (J/mol/K): graphite from the NASA Glenn data, diamond
     # and silicon from NIST-JANAF
     reference: dict[str, float] = {
@@ -315,6 +331,28 @@ def test_vassiliev_heat_capacity() -> None:
     ]
     for model, expected in pinned_1000:
         np.testing.assert_allclose(model.cp(1000.0), expected, rtol=1e-5)
+
+    melting: dict[str, float] = {
+        "diamond": vassiliev.TEMPERATURE_MELTING_CARBON,
+        "graphite": vassiliev.TEMPERATURE_MELTING_CARBON,
+        "silicon": vassiliev.TEMPERATURE_MELTING_SILICON,
+    }
+    for material, material_models in models.items():
+        for model in material_models:
+            assert isinstance(model, HeatCapacityProtocol)
+            assert model.temperature_range() == (0.1, melting[material])
+
+    integrated: ThermodynamicProperties = IntegratedThermodynamicProperties(
+        vassiliev.cp_graphite_2a,
+        float(graphite.enthalpy(TEMPERATURE_REFERENCE)),
+        float(graphite.entropy(TEMPERATURE_REFERENCE)),
+    )
+    for temperature in (1000.0, 2000.0):
+        np.testing.assert_allclose(
+            integrated.enthalpy(temperature) - integrated.enthalpy(TEMPERATURE_REFERENCE),
+            graphite.enthalpy(temperature) - graphite.enthalpy(TEMPERATURE_REFERENCE),
+            rtol=0.02,
+        )
 
 
 def test_holland_powell_volume() -> None:

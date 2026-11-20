@@ -16,6 +16,7 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas
@@ -34,7 +35,7 @@ class SaxenaABC(RealGas):
         b_coefficients: :math:`b` coefficients
         c_coefficients: :math:`c` coefficients
         d_coefficients: :math:`d` coefficients
-        critical_data: Critical data. Defaults to empty.
+        critical_data: Critical data. Defaults to unit critical data (no scaling).
     """
 
     a_coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)
@@ -255,7 +256,7 @@ class SaxenaFiveCoefficients(SaxenaABC):
         :cite:p:`SS92{Equation 3b}`
 
         Args:
-            temperature: Scaled temperature (dimensionless)
+            scaled_temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients :math:`a`, :math:`b`, :math:`c`, or :math:`d`.
 
         Returns
@@ -283,7 +284,7 @@ class SaxenaEightCoefficients(SaxenaABC):
         :cite:p:`SS92{Equation 3a}`
 
         Args:
-            temperature: Scaled temperature (dimensionless)
+            scaled_temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients :math:`a`, :math:`b`, :math:`c`, or :math:`d`.
 
         Returns
@@ -534,36 +535,40 @@ S2_SS92: RealGas = get_corresponding_states_SS92("S2")
 Ar_SF87: RealGas = get_corresponding_states_SS92("Ar")
 """Ar corresponding states :cite:p:`SF87{Equation 11}`
 
-The low pressure extension given by the corresponding states model of :cite:t:`SS92{Table 1a}` is
-also adopted.
+The low and medium pressure segments of the corresponding states model of :cite:t:`SS92{Table 1a}`
+(below 1 kbar and 1-5 kbar) are also adopted, as for the other corresponding states models.
 """
 N2_SF87: RealGas = get_corresponding_states_SS92("N2")
 """N2 corresponding states :cite:p:`SF87{Equation 11}`
 
-The low pressure extension given by the corresponding states model of :cite:t:`SS92{Table 1a}` is
-also adopted.
+The low and medium pressure segments of the corresponding states model of :cite:t:`SS92{Table 1a}`
+(below 1 kbar and 1-5 kbar) are also adopted, as for the other corresponding states models.
 """
 
 
-def get_saxena_eos_models() -> dict[str, RealGas]:
+def get_saxena_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of Saxena and colleagues EOS models
 
     'cs' refers to corresponding states.
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["Ar_cs_saxena87"] = Ar_SF87
-    eos_models["CH4_cs_shi92"] = CH4_SS92
-    eos_models["CO_cs_shi92"] = CO_SS92
-    eos_models["CO2_cs_shi92"] = CO2_SS92
-    eos_models["COS_cs_shi92"] = COS_SS92
-    eos_models["H2_shi92"] = H2_SS92
-    eos_models["H2S_shi92"] = H2S_SS92
-    eos_models["N2_cs_saxena87"] = N2_SF87
-    eos_models["O2_cs_shi92"] = O2_SS92
-    eos_models["S2_cs_shi92"] = S2_SS92
-    eos_models["O2S_shi92"] = O2S_SS92_bounded
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["Ar_cs_saxena87"] = CatalogueEntry(
+        Ar_SF87, ModelInfo("Ar", sources=("SF87", "SS92"))
+    )
+    eos_models["CH4_cs_shi92"] = CatalogueEntry(CH4_SS92, ModelInfo("CH4", sources=("SS92",)))
+    eos_models["CO_cs_shi92"] = CatalogueEntry(CO_SS92, ModelInfo("CO", sources=("SS92",)))
+    eos_models["CO2_cs_shi92"] = CatalogueEntry(CO2_SS92, ModelInfo("CO2", sources=("SS92",)))
+    eos_models["COS_cs_shi92"] = CatalogueEntry(COS_SS92, ModelInfo("COS", sources=("SS92",)))
+    eos_models["H2_shi92"] = CatalogueEntry(H2_SS92, ModelInfo("H2", sources=("SS92", "SF88")))
+    eos_models["H2S_shi92"] = CatalogueEntry(H2S_SS92, ModelInfo("H2S", sources=("SS92",)))
+    eos_models["N2_cs_saxena87"] = CatalogueEntry(
+        N2_SF87, ModelInfo("N2", sources=("SF87", "SS92"))
+    )
+    eos_models["O2_cs_shi92"] = CatalogueEntry(O2_SS92, ModelInfo("O2", sources=("SS92",)))
+    eos_models["S2_cs_shi92"] = CatalogueEntry(S2_SS92, ModelInfo("S2", sources=("SS92",)))
+    eos_models["O2S_shi92"] = CatalogueEntry(O2S_SS92_bounded, ModelInfo("O2S", sources=("SS92",)))
 
     return eos_models

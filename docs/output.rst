@@ -94,7 +94,8 @@ Phase-level outputs are under ``out[<phase>]["phase"]`` in all formats.
      - Molar mass of the phase
    * - species_number_moles
      - mol
-     - Total number of moles of species, including the background
+     - Total number of moles of the species with ``include_in_phase_mass=True``, plus the
+       background
    * - species_to_phase_mass_ratio
      - kg kg\ :math:`^{-1}`
      - Mass of all tracked species relative to ``mass``. Less than 1 when there is background
@@ -458,7 +459,8 @@ warm start from a previous solution):
 - ``<species>_log_error`` and ``<species>_stability_log_error``: absolute difference between the
   guess and the solution
 - ``log_error_mae`` and ``log_error_rmse``: mean absolute error and root-mean-square error of the
-  guess across all solution quantities
+  guess across the active solution quantities (the stabilities of species whose stability is not
+  solved for are left out)
 
 As in ``solution``, the stability entries are included only for species whose stability is solved
 for.

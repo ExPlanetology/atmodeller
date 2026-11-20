@@ -14,7 +14,7 @@ because :mod:`atmodeller.containers` imports from this module. Moving it there w
 circular import.
 """
 
-from typing import Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 import equinox as eqx
 from jaxtyping import Array, ArrayLike, Bool
@@ -281,3 +281,42 @@ class VolumeProtocol(Protocol):
             Integral of volume with respect to pressure in :math:`\mathrm{J}\ \mathrm{mol}^{-1}`
         """
         ...
+
+
+class ModelInfo(eqx.Module):
+    """Catalogue information of a model in a library registry
+
+    Used to list the library's models in the documentation. An empty ``ModelInfo`` (the default)
+    means the model is not listed.
+
+    Args:
+        species: The species the model describes, e.g. ``"H2O"`` or ``"H2-He"`` for a mixture
+        phase: The phase it applies to, e.g. the melt of a solubility law (``"basalt"``). Empty if
+            not applicable.
+        sources: Citation keys of the sources of the model, in the bibliography of the
+            documentation
+    """
+
+    species: str = ""
+    """The species the model describes"""
+    phase: str = ""
+    """The phase it applies to, e.g. the melt of a solubility law"""
+    sources: tuple[str, ...] = ()
+    """Citation keys of the sources of the model"""
+
+
+T_model = TypeVar("T_model", covariant=True)
+
+
+class CatalogueEntry(eqx.Module, Generic[T_model]):
+    """A model in a library registry, with its catalogue information
+
+    Args:
+        model: The model
+        info: Its catalogue information. Defaults to empty, so the model is not listed.
+    """
+
+    model: T_model
+    """The model"""
+    info: ModelInfo = eqx.field(default_factory=ModelInfo)
+    """Its catalogue information"""
