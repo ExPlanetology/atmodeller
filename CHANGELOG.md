@@ -11,6 +11,8 @@ under **Unreleased**, which becomes the next version when it is released.
 
 - A check before solving that every mass constraint is positive: a mass constraint of zero or
   less cannot be solved, and now raises a `ValueError` that explains how to leave an element out.
+  Inside a JIT-compiled function of your own, where the constraints are traced, such a model is
+  not well posed (`is_valid_model`): its result is `invalid_model` and it is not retried.
 - `CONDENSATE_ALLOCATION_FRACTION` in `atmodeller.initializer.core`, the fraction of its limiting
   element's budget that a condensate predicted or switched on as stable starts with (0.5),
   shared by both initializers. It is the default of
