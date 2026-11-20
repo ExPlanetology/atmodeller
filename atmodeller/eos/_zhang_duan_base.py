@@ -353,7 +353,7 @@ class ZhangDuanBase(RealGas):
     def initial_volume(
         self, temperature: ArrayLike, pressure: ArrayLike, mole_fractions: ArrayLike | None = None
     ) -> FloatArray:
-        r"""Initial guess volume is the ideal gas volume plus a small epsilon
+        r"""Initial guess volume: ten times the ideal-gas volume plus a small epsilon
 
         The factor of 10 biases the solver towards the largest (gas phase) root, otherwise an
         incorrect root may be found. But this does not guarantee that the correct root will always
@@ -583,10 +583,10 @@ class ZhangDuanMixture(ZhangDuanBase):
             species: Tuple of species names
             species_to_output: Name of the species for which to output species-specific quantities,
                 such as partial fugacity
-            k1: Binary interaction parameter matrix for :math:`\epsilon` (n_species, n_species).
-                Defaults to :attr:`K1_ZHANG_DUAN` to use the Zhang and Duan (2009) coefficients.
-            k2: Binary interaction parameter matrix for :math:`\sigma` (n_species, n_species).
-                Defaults to :attr:`K2_ZHANG_DUAN` to use the Zhang and Duan (2009) coefficients.
+            k1: Binary interaction parameters for :math:`\epsilon`, keyed by species pair
+                (``"A-B"``), from which the (n_species, n_species) matrix is built. Defaults to
+                :attr:`K1_ZHANG_DUAN` to use the Zhang and Duan (2009) coefficients.
+            k2: As ``k1``, for :math:`\sigma`. Defaults to :attr:`K2_ZHANG_DUAN`.
         """
         self.species = species
         self.k1 = self.build_mixing_matrix(species, k1)

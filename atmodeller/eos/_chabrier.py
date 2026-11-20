@@ -53,7 +53,8 @@ class Chabrier(RealGas):
           380 K above about :math:`2.5 \times 10^6` bar. He is unaffected.
 
     Args:
-        log10_density_func: Spline lookup for density from :cite:t:`CD21` T-P-rho tables
+        log10_density_func: Linear interpolation of log10 density in the :cite:t:`CD21`
+            T-P-rho tables
         He_fraction: He mass fraction (Y)
         H2_molar_mass_g_mol: Molar mass of :math:`\mathrm{H}_2`
         He_molar_mass_g_mol: Molar mass of He
@@ -63,7 +64,7 @@ class Chabrier(RealGas):
     CHABRIER_DIRECTORY: ClassVar[Path] = Path("chabrier")
     """Directory of the Chabrier data within :obj:`~atmodeller.eos.data`"""
     log10_density_func: Callable
-    """Spline lookup for density from :cite:t:`CD21` T-P-rho tables"""
+    """Linear interpolation of log10 density in the :cite:t:`CD21` T-P-rho tables"""
     He_fraction: float = eqx.field(converter=float)
     """He mass fraction (Y)"""
     H2_molar_mass_g_mol: float = eqx.field(converter=float)
@@ -104,7 +105,7 @@ class Chabrier(RealGas):
 
     @classmethod
     def _get_interpolator(cls, filename: Path) -> Callable:
-        """Gets spline lookup for density from :cite:t:`CD21` T-P-rho tables.
+        """Gets the linear interpolation of log10 density in the :cite:t:`CD21` T-P-rho tables.
 
         The data tables have a slightly different organisation of the header line. But in all cases
         the first three columns contain the required data: log10 T [K], log10 P [GPa], and

@@ -35,7 +35,7 @@ class SaxenaABC(RealGas):
         b_coefficients: :math:`b` coefficients
         c_coefficients: :math:`c` coefficients
         d_coefficients: :math:`d` coefficients
-        critical_data: Critical data. Defaults to empty.
+        critical_data: Critical data. Defaults to unit critical data (no scaling).
     """
 
     a_coefficients: tuple[float, ...] = eqx.field(converter=to_native_floats)
@@ -256,7 +256,7 @@ class SaxenaFiveCoefficients(SaxenaABC):
         :cite:p:`SS92{Equation 3b}`
 
         Args:
-            temperature: Scaled temperature (dimensionless)
+            scaled_temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients :math:`a`, :math:`b`, :math:`c`, or :math:`d`.
 
         Returns
@@ -284,7 +284,7 @@ class SaxenaEightCoefficients(SaxenaABC):
         :cite:p:`SS92{Equation 3a}`
 
         Args:
-            temperature: Scaled temperature (dimensionless)
+            scaled_temperature: Scaled temperature (dimensionless)
             coefficients: Tuple of the coefficients :math:`a`, :math:`b`, :math:`c`, or :math:`d`.
 
         Returns
@@ -535,14 +535,14 @@ S2_SS92: RealGas = get_corresponding_states_SS92("S2")
 Ar_SF87: RealGas = get_corresponding_states_SS92("Ar")
 """Ar corresponding states :cite:p:`SF87{Equation 11}`
 
-The low pressure extension given by the corresponding states model of :cite:t:`SS92{Table 1a}` is
-also adopted.
+The low and medium pressure segments of the corresponding states model of :cite:t:`SS92{Table 1a}`
+(below 1 kbar and 1-5 kbar) are also adopted, as for the other corresponding states models.
 """
 N2_SF87: RealGas = get_corresponding_states_SS92("N2")
 """N2 corresponding states :cite:p:`SF87{Equation 11}`
 
-The low pressure extension given by the corresponding states model of :cite:t:`SS92{Table 1a}` is
-also adopted.
+The low and medium pressure segments of the corresponding states model of :cite:t:`SS92{Table 1a}`
+(below 1 kbar and 1-5 kbar) are also adopted, as for the other corresponding states models.
 """
 
 

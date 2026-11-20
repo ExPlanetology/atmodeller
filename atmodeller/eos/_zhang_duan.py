@@ -51,6 +51,7 @@ CO2_experimental_calibration: ExperimentalCalibration = ExperimentalCalibration(
 CO2_zhang09_bounded: RealGas = CombinedRealGas.create(
     [CO2_zhang09], [CO2_experimental_calibration]
 )
+"""CO2 bounded to the experimental calibration :cite:p:`ZD09{Table 5}`"""
 
 # Tested boundedness (not the same as physical correctness) for 500<T<10000 K and 0<P<10 GPa
 H2_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["H2"], sigma_species["H2"])

@@ -964,12 +964,13 @@ H2O_cork_gas_fluid_holland91_bounded: RealGas = CombinedRealGas.create(
 )
 """H2O cork for the gas and supercritical fluid bounded :cite:p:`HP91`
 
-This is the model of the library (``H2O_cork_holland91``). It has no liquid branch: the EOS is
+This is the model of the library, under the key ``"H2O_cork_holland91"`` of
+:func:`~atmodeller.eos.get_eos_models`. It has no liquid branch: the EOS is
 for the gas species H2O_g, and liquid water is the condensate H2O_l, with its own thermodynamic
 data and stability, so a liquid fugacity here would count condensation twice. Below the critical
 temperature and above the saturation pressure it therefore differs from the liquid fugacity of
-:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid branch is
-``H2O_cork_holland91`` in this module.
+:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid
+branch is the module-level ``H2O_cork_holland91`` of this module, which is not in the library.
 """
 
 CO2_virial_compensation_holland98: VirialCompensation = VirialCompensation(
@@ -1012,12 +1013,13 @@ H2O_cork_gas_fluid_holland98_bounded: RealGas = CombinedRealGas.create(
 )
 """H2O cork for the gas and supercritical fluid bounded :cite:p:`HP98`
 
-This is the model of the library (``H2O_cork_holland98``). It has no liquid branch: the EOS is
+This is the model of the library, under the key ``"H2O_cork_holland98"`` of
+:func:`~atmodeller.eos.get_eos_models`. It has no liquid branch: the EOS is
 for the gas species H2O_g, and liquid water is the condensate H2O_l, with its own thermodynamic
 data and stability, so a liquid fugacity here would count condensation twice. Below the critical
 temperature and above the saturation pressure it therefore differs from the liquid fugacity of
-:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid branch is
-``H2O_cork_holland98`` in this module.
+:cite:t:`HP98{Table 2}`, e.g. by 16 kJ in RT ln f at 200 C. The full model with the liquid
+branch is the module-level ``H2O_cork_holland98`` of this module, which is not in the library.
 """
 
 

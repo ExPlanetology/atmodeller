@@ -101,15 +101,17 @@ class RedlichKwongABC(RealGas):
     ) -> FloatArray:
         r"""Volume-explicit equation :cite:p:`HP91{Equation 7}`
 
-        Without complications of critical phenomena the RK equation can be simplified using the
-        approximation:
+        Without complications of critical phenomena the RK equation can be made explicit in volume
+        by using the approximation
 
         .. math::
 
             V \sim \frac{RT}{P} + b
 
-        where :math:`V` is volume, :math:`R` is the gas constant, :math:`T` is temperature,
-        :math:`P` is pressure, and :math:`b` corrects for the volume.
+        in its attractive term, where :math:`V` is volume, :math:`R` is the gas constant,
+        :math:`T` is temperature, :math:`P` is pressure, and :math:`b` corrects for the volume. The
+        volume is then :math:`RT/P + b` plus that attractive term,
+        :math:`-\sqrt{T}\, a R / ((RT + bP)(RT + 2bP))`.
 
         Args:
             temperature: Temperature (K)

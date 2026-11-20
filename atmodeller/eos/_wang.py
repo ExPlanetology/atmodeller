@@ -5,8 +5,8 @@
 
 """Real gas Virial EOS
 
-The papers state a volume integration from :math:`P_0` to :math:`P`, where :math:`f(P_0=1)=1`.
-Hence for bounded EOS a minimum pressure of 1 bar is assumed.
+The volume integral is referenced to 1 bar, where the fugacity equals the pressure. Hence for
+bounded EOS a minimum pressure of 1 bar is assumed.
 """
 
 import equinox as eqx

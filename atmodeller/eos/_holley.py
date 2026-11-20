@@ -265,8 +265,8 @@ CO2_beattie_holley58_bounded: RealGas = CombinedRealGas.create(
 """CO2 Beattie-Bridgeman bounded :cite:p:`HWZ58`
 
 Note:
-    Above the calibrated pressure the volume is that at the bound, which is not physical between
-    about 675 and 840 K, where the equation has no gas root at the bound (see
+    Above the calibrated pressure the compressibility factor is that at the bound, which is not
+    physical between about 675 and 840 K, where the equation has no gas root at the bound (see
     :data:`CO2_beattie_holley58`).
 """
 
