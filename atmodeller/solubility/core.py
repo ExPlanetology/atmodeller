@@ -67,7 +67,7 @@ class Solubility(eqx.Module):
 
 
 class NoSolubility(Solubility):
-    """No solubility"""
+    """No solubility: the concentration is zero, so nothing dissolves"""
 
     @override
     def concentration(

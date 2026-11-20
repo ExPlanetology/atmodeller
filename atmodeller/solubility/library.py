@@ -69,7 +69,8 @@ def get_solubility_catalogue() -> dict[str, CatalogueEntry[Solubility]]:
     """Gets the solubility registry: each solubility law with its catalogue information
 
     The catalogue information (species, melt and sources) lists the laws in the documentation.
-    ``NO_SOLUBILITY`` has none, so it is not listed.
+    ``NO_SOLUBILITY`` applies to any species and has no source, so its catalogue information only
+    names it.
 
     Returns:
         Dictionary of catalogue entries, keyed as :func:`get_solubility_models`
@@ -192,7 +193,7 @@ def get_solubility_catalogue() -> dict[str, CatalogueEntry[Solubility]]:
     sorted_models = {k: models[k] for k in sorted(models)}
 
     # For completeness add the no solubility model at the end of the dictionary
-    sorted_models["NO_SOLUBILITY"] = CatalogueEntry(NoSolubility())
+    sorted_models["NO_SOLUBILITY"] = CatalogueEntry(NoSolubility(), ModelInfo("No solubility"))
 
     return sorted_models
 
