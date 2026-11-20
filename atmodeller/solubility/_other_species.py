@@ -113,11 +113,21 @@ units to mol/g*bar.
 class _N2_basalt_bernadou21(Solubility):
     """N2 in basaltic silicate melt :cite:p:`BGF21`
 
-    :cite:t:`BGF21{Equation 18}` and using :cite:t:`BGF21{Equations 19-20}` and the values for the
-    thermodynamic constants from :cite:t:`BGF21{Table 6}`. Experiments on basaltic samples at fluid
-    saturation in C-H-O-N system, pressure range: 0.8-10 kbar, temperature range: 1200-1300 C;
-    fO2 range: IW+4.9 to IW-4.7. Using their experimental results and a database for N
-    concentrations at fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
+    :cite:t:`BGF21{Equation 18}`, the sum of physically dissolved N2 and chemically dissolved
+    N\\ :sup:`3-`, with the equilibrium constants of :cite:t:`BGF21{Equations 19-20}` and the
+    thermodynamic constants of :cite:t:`BGF21{Table 6}`. Equation 18 gives the mass fraction of N
+    in the melt, which is converted to ppmw. Experiments on basaltic samples at fluid saturation in
+    the C-H-O-N system, pressure range: 0.8-10 kbar, temperature range: 1200-1300 C; fO2 range:
+    IW+4.9 to IW-4.7. Using their experimental results and a database for N concentrations at
+    fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
+
+    The N2 term (oxidised conditions, above about IW-1.5) reproduces the measured N contents of
+    the oxidised experiments of :cite:t:`BGF21{Table 3}` to within a factor of 3, the spread of
+    those data (4-26 ppm at similar N2 fugacity). The N\\ :sup:`3-` term (reduced conditions)
+    as published does not reproduce their reduced experiments: it gives about 8 times their N
+    content at 0.9 kbar and IW-3 to IW-5, and about 100 times at 10 kbar. The pressure correction
+    of the volume change, :cite:t:`BGF21{Equation 21}`, is omitted, since its coefficient is not
+    given. Use this law with care below about IW-1.5.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -140,8 +150,9 @@ class _N2_basalt_bernadou21(Solubility):
         k14: Array = safe_exp(
             -(183733 + 172 * temperature - 5 * pressure) / (GAS_CONSTANT_BAR * 1.0e5 * temperature)
         )
-        molfrac: Array = (k13 * fugacity) + ((fO2 ** (-3 / 4)) * k14 * (fugacity**0.5))
-        ppmw: Array = molfrac * unit_conversion.fraction_to_ppm
+        # Mass fraction of N in the melt: N2 and N3- (Equation 18)
+        mass_fraction: Array = (k13 * fugacity) + ((fO2 ** (-3 / 4)) * k14 * (fugacity**0.5))
+        ppmw: Array = mass_fraction * unit_conversion.fraction_to_ppm
 
         return ppmw
 
@@ -149,11 +160,9 @@ class _N2_basalt_bernadou21(Solubility):
 N2_basalt_bernadou21: Solubility = _N2_basalt_bernadou21()
 """N2 in basaltic silicate melt :cite:p:`BGF21`
 
-:cite:t:`BGF21{Equation 18}` and using :cite:t:`BGF21{Equations 19-20}` and the values for the
-thermodynamic constants from :cite:t:`BGF21{Table 6}`. Experiments on basaltic samples at fluid
-saturation in C-H-O-N system, pressure range: 0.8-10 kbar, temperature range: 1200-1300 C;
-fO2 range: IW+4.9 to IW-4.7. Using their experimental results and a database for N
-concentrations at fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
+:cite:t:`BGF21{Equation 18}`. The N2 term (oxidised conditions) reproduces their data to within a
+factor of 3; the N\\ :sup:`3-` term (below about IW-1.5) as published overestimates their reduced
+experiments by about 8 times at 0.9 kbar, so use it with care there.
 """
 
 

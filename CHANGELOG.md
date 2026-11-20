@@ -53,6 +53,11 @@ under **Unreleased**, which becomes the next version when it is released.
   constant heat capacity instead of being held at its value at the bound (the penalty was still
   added). The library's phases set both sides the same, so this only affected a side set
   explicitly, e.g. `extrapolate_below="constant_cp"` on a pure liquid.
+- The documentation of the N2 solubility law `N2_basalt_bernadou21`: its Equation 18 gives the
+  mass fraction of N, and its N3- term (reduced conditions, below about IW-1.5) as published
+  overestimates the authors' reduced experiments, by about 8 times at 0.9 kbar. The N2 term
+  (oxidised conditions) reproduces their data to within a factor of 3. Its test is now anchored to their oxidised
+  experiment AR1FeN at a realistic fO2.
 
 ## [2.0.0] - 2026-11-05
 
