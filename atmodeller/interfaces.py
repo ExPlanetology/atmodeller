@@ -290,7 +290,7 @@ class ModelInfo(eqx.Module):
     means the model is not listed.
 
     Args:
-        species: The species the model describes, e.g. ``"H2O"`` or ``"H2–He"`` for a mixture
+        species: The species the model describes, e.g. ``"H2O"`` or ``"H2-He"`` for a mixture
         phase: The phase it applies to, e.g. the melt of a solubility law (``"basalt"``). Empty if
             not applicable.
         sources: Citation keys of the sources of the model, in the bibliography of the

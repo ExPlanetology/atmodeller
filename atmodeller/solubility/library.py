@@ -17,6 +17,7 @@
         print(concentration)
 """
 
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.solubility._carbon_species import (
     CH4_basalt_ardia13,
     CO2_basalt_dixon95,
@@ -61,7 +62,6 @@ from atmodeller.solubility._sulfur_species import (
     S2_sulfide_trachybasalt_boulliung23,
     S2_trachybasalt_boulliung23,
 )
-from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.solubility.core import NoSolubility, Solubility
 
 
@@ -107,7 +107,7 @@ def get_solubility_catalogue() -> dict[str, CatalogueEntry[Solubility]]:
     models["H2_chachan18"] = CatalogueEntry(H2_chachan18, ModelInfo("H2", "", ("CS18",)))
     models["H2_kite19"] = CatalogueEntry(H2_kite19, ModelInfo("H2", "", ("KFS19",)))
     models["H2O_ano_dio_newcombe17"] = CatalogueEntry(
-        H2O_ano_dio_newcombe17, ModelInfo("H2O", "anorthite–diopside", ("NBB17",))
+        H2O_ano_dio_newcombe17, ModelInfo("H2O", "anorthite-diopside", ("NBB17",))
     )
     models["H2O_basalt_dixon95"] = CatalogueEntry(
         H2O_basalt_dixon95, ModelInfo("H2O", "basalt", ("DSH95",))
@@ -159,7 +159,7 @@ def get_solubility_catalogue() -> dict[str, CatalogueEntry[Solubility]]:
 
     # Other species
     models["Cl2_ano_dio_for_thomas21"] = CatalogueEntry(
-        Cl2_ano_dio_for_thomas21, ModelInfo("Cl2", "anorthite–diopside–forsterite", ("TW21",))
+        Cl2_ano_dio_for_thomas21, ModelInfo("Cl2", "anorthite-diopside-forsterite", ("TW21",))
     )
     models["Cl2_basalt_thomas21"] = CatalogueEntry(
         Cl2_basalt_thomas21, ModelInfo("Cl2", "basalt", ("TW21",))

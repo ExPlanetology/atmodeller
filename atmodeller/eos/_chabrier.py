@@ -411,13 +411,13 @@ def get_chabrier_eos_catalogue() -> dict[str, CatalogueEntry[RealGasBase]]:
         H2_4000K_chabrier21, ModelInfo("H2", sources=("CD21",))
     )
     eos_models["H2_He_Y0275_chabrier21"] = CatalogueEntry(
-        H2_He_Y0275_chabrier21_bounded, ModelInfo("H2–He", sources=("CD21",))
+        H2_He_Y0275_chabrier21_bounded, ModelInfo("H2-He", sources=("CD21",))
     )
     eos_models["H2_He_Y0292_chabrier21"] = CatalogueEntry(
-        H2_He_Y0292_chabrier21_bounded, ModelInfo("H2–He", sources=("CD21",))
+        H2_He_Y0292_chabrier21_bounded, ModelInfo("H2-He", sources=("CD21",))
     )
     eos_models["H2_He_Y0297_chabrier21"] = CatalogueEntry(
-        H2_He_Y0297_chabrier21_bounded, ModelInfo("H2–He", sources=("CD21",))
+        H2_He_Y0297_chabrier21_bounded, ModelInfo("H2-He", sources=("CD21",))
     )
     eos_models["He_chabrier21"] = CatalogueEntry(
         He_chabrier21_bounded, ModelInfo("He", sources=("CD21",))

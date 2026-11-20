@@ -207,7 +207,7 @@ cp_diamond_1a: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Diamond 1a heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted to the diamond data of :cite:t:`Vassiliev2021{Table 1}` (12.8–2000 K, the
+Fitted to the diamond data of :cite:t:`Vassiliev2021{Table 1}` (12.8-2000 K, the
 high-temperature part from Cv data), so it is constrained only up to 2000 K."""
 cp_diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
     32,
@@ -221,8 +221,8 @@ cp_diamond_1b: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Diamond 1b heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted to 32 smoothed low-temperature points (5–160 K) with the Maier-Kelley coefficients from
-Cv data at 1200–1600 K, and presented as the diamond Cp from 0 to 2000 K
+Fitted to 32 smoothed low-temperature points (5-160 K) with the Maier-Kelley coefficients from
+Cv data at 1200-1600 K, and presented as the diamond Cp from 0 to 2000 K
 :cite:p:`Vassiliev2021{Figs. 8, 9}`; constrained only up to 2000 K."""
 cp_diamond_1c: VassilievHeatCapacity = VassilievHeatCapacity(
     32,
@@ -253,7 +253,7 @@ cp_diamond_1d: VassilievHeatCapacity = VassilievHeatCapacity(
 """Diamond 1d heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
 With :math:`a = 3R` and :math:`b = 0`, fitted to the data of :cite:t:`Vassiliev2021`'s
-reference [46] (15–1100 K, Table 1), so it is constrained only up to 1100 K. It agrees with 1c
+reference [46] (15-1100 K, Table 1), so it is constrained only up to 1100 K. It agrees with 1c
 above 600 K (Fig. 10)."""
 cp_graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
     73,
@@ -267,8 +267,8 @@ cp_graphite_2a: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Graphite 2a heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted to the data of :cite:t:`Vassiliev2021`'s reference [21] (13–301 K) with the Maier-Kelley
-coefficients from data at 1600–2000 K (Table 5), and described from 0.1 to 2000 K (Section 5.3);
+Fitted to the data of :cite:t:`Vassiliev2021`'s reference [21] (13-301 K) with the Maier-Kelley
+coefficients from data at 1600-2000 K (Table 5), and described from 0.1 to 2000 K (Section 5.3);
 constrained only up to 2000 K."""
 cp_graphite_2b: VassilievHeatCapacity = VassilievHeatCapacity(
     38,
@@ -282,8 +282,8 @@ cp_graphite_2b: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Graphite 2b heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted to the data of :cite:t:`Vassiliev2021`'s reference [14] (5–350 K) with the Maier-Kelley
-coefficients from data at 1600–2000 K (Table 5); constrained only up to 2000 K."""
+Fitted to the data of :cite:t:`Vassiliev2021`'s reference [14] (5-350 K) with the Maier-Kelley
+coefficients from data at 1600-2000 K (Table 5); constrained only up to 2000 K."""
 cp_graphite_2c: VassilievHeatCapacity = VassilievHeatCapacity(
     111,
     282.6,
@@ -296,8 +296,8 @@ cp_graphite_2c: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Graphite 2c heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted jointly to :cite:t:`Vassiliev2021`'s references [14] and [21] (5–350 K) with the
-Maier-Kelley coefficients from data at 1600–2000 K (Table 5); constrained only up to 2000 K."""
+Fitted jointly to :cite:t:`Vassiliev2021`'s references [14] and [21] (5-350 K) with the
+Maier-Kelley coefficients from data at 1600-2000 K (Table 5); constrained only up to 2000 K."""
 cp_silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
     201,
     535.6,
@@ -310,8 +310,8 @@ cp_silicon_3a: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Silicon 3a heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted to the silicon data of :cite:t:`Vassiliev2021{Table 2}` (2.2–1600 K). The paper
-describes it over 5–2000 K (Section 5.4), but silicon melts at 1688 K, the bound used here."""
+Fitted to the silicon data of :cite:t:`Vassiliev2021{Table 2}` (2.2-1600 K). The paper
+describes it over 5-2000 K (Section 5.4), but silicon melts at 1688 K, the bound used here."""
 cp_silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
     24,
     677.0,
@@ -324,6 +324,6 @@ cp_silicon_3b: VassilievHeatCapacity = VassilievHeatCapacity(
 )
 """Silicon 3b heat capacity :cite:t:`Vassiliev2021{Table 6}`.
 
-Fitted to the data of :cite:t:`Vassiliev2021`'s reference [24] only (5–300 K) and shown over
-0.1–300 K (Fig. 17), with the Maier-Kelley coefficients of 3a; constrained by its own data only
+Fitted to the data of :cite:t:`Vassiliev2021`'s reference [24] only (5-300 K) and shown over
+0.1-300 K (Fig. 17), with the Maier-Kelley coefficients of 3a; constrained by its own data only
 up to 300 K."""

@@ -67,8 +67,8 @@ under **Unreleased**, which becomes the next version when it is released.
   (oxidised conditions) reproduces their data to within a factor of 3. Its test is now anchored to their oxidised
   experiment AR1FeN at a realistic fO2.
 - The model catalogue in the documentation: the calibrated pressure range of an EOS made of several
-  calibrated segments now spans all of them (it showed only the first, e.g. 1–1000 bar for
-  `H2_shi92`, whose calibration reaches 100 kbar); the H2–He mixtures of Chabrier and Debras are
+  calibrated segments now spans all of them (it showed only the first, e.g. 1-1000 bar for
+  `H2_shi92`, whose calibration reaches 100 kbar); the H2-He mixtures of Chabrier and Debras are
   listed as such; the sources no longer include papers cited only for comparison; and the melt of
   seven solubility laws is correct. `models.rst` now says that only pressure is bounded and that
   above the calibration the compressibility factor, not the volume, is held.
