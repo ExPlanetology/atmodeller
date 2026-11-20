@@ -97,7 +97,10 @@ class ElementPotentialInitializer(eqx.Module):
     - Condensates: pure phases; a present condensate has unit activity, :math:`d_c = 0`.
     - Dissolved species (if the system has dissolution reactions): their log moles are
       unknowns, and the dissolution rows of the solver's residual (the solubility laws) are part
-      of the residual. In the element sweep they follow the potentials (see below).
+      of the residual. These rows use the solver's activity models, so in the Newton step the
+      solubility laws see the real-gas fugacities, whereas the gas speciation stays ideal. In the
+      element sweep the dissolved species follow the potentials at the ideal partial pressures
+      (see below).
     - :math:`G_s/RT` is evaluated at the pressure of the start. The gas values are for the 1-bar
       standard state and do not change; the condensate values are re-evaluated at the pressure
       reached after each switching pass (see below), and are held fixed within each solve.
@@ -127,11 +130,13 @@ class ElementPotentialInitializer(eqx.Module):
     1. Start from each gas and dissolved species' share of its limiting element,
        :math:`\min_e b_e / \sum_{s' \ni e} a_{es'}` over the mass-constrained elements of the
        species (the sum over every gas and dissolved species containing :math:`e`), so that the
-       start satisfies every element budget. :math:`\lambda` and the normalisation are fitted by
-       least squares to the gas shares and to the imposed fugacities (:math:`\sum_e a_{es}
-       \lambda_e - G_s/RT = \ln f_s`), so an element that is not mass constrained starts from
-       its target. Gas species with neither are left out of the fit. The dissolved slots start at
-       their shares, and the condensate slots at trace. No knowledge of the answer is used. An
+       start satisfies every element budget. :math:`\lambda` is fitted by least squares to the gas
+       shares (:math:`\ln n_s = \sum_e a_{es} \lambda_e - G_s/RT + c`, with a free constant
+       :math:`c`) and to the imposed fugacities (:math:`\sum_e a_{es} \lambda_e - G_s/RT = \ln
+       f_s`), so an element that is not mass constrained starts from its target. Gas species with
+       neither are left out of the fit. :math:`\ln N_\mathrm{gas}` starts at the total of the gas
+       shares. The dissolved slots start at their shares (at trace for a dissolved species with no
+       mass-constrained element), and the condensate slots at trace. No knowledge of the answer is used. An
        even split of the total over the gas species (as CEA) is not used: for a skewed inventory
        (e.g. a primordial H/He atmosphere with trace C, N, O and S) it puts the dissolved species
        of the minor elements above their whole budgets.
@@ -195,7 +200,8 @@ class ElementPotentialInitializer(eqx.Module):
     TRAPPIST-1e example at 280 K (1000 conditions), a cap of 3 left 12 guesses with the wrong
     condensates, whereas with 10 every guess was at the equilibrium, at a cost of about 10% in
     the run time of the guess for systems that are already easy. More sweeps without more Newton
-    iterations were worse, because Newton then hit its cap in more switching passes.
+    iterations were worse, because Newton then hit its cap in more switching passes. (These
+    figures were measured with the earlier sweep, over the gas species only.)
 
     *The 1-D problem for element e.* Hold the other potentials, the moles in present condensates
     (:math:`C_e`) and the gas normalisation
@@ -292,8 +298,10 @@ class ElementPotentialInitializer(eqx.Module):
     sweeps: int = 10
     """Maximum number of Gauss-Seidel element sweeps at the start of every Newton solve"""
     sweep_iterations: int = 30
-    """Maximum number of 1-D Newton iterations per element in a sweep (each step is at most the
-    log residual)"""
+    """Maximum number of 1-D Newton iterations per element in a sweep (with gas carriers only,
+    each step is at most the log residual; see
+    :data:`~atmodeller.initializer.element_potential.SWEEP_MIN_SLOPE` and
+    :data:`~atmodeller.initializer.element_potential.SWEEP_MAX_STEP`)"""
     sweep_step_tolerance: float = 1e-4
     """Step size at which a 1-D Newton iteration in a sweep stops"""
     sweep_tolerance: float = 1e-2

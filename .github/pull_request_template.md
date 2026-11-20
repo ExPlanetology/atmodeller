@@ -1,28 +1,32 @@
-* **Please check if the PR fulfills these requirements** (see [CONTRIBUTING.md](../CONTRIBUTING.md); the development team is happy to help with any of these)
-- [ ] Tests for the changes have been added (for bug fixes / features)
-- [ ] Docs have been added / updated (for bug fixes / features)
-- [ ] Changes that matter to users are added to `CHANGELOG.md` under Unreleased
-- [ ] All tests pass (`pytest`)
-- [ ] The pre-commit checks pass (`pre-commit run --all-files`)
-- [ ] At least 80% of the changed lines in `atmodeller/` are covered by tests (`diff-cover`)
-- [ ] The documentation builds without warnings (if the docs, package, notebooks or dependencies changed)
+<!-- Thanks for contributing! See https://github.com/ExPlanetology/atmodeller/blob/main/CONTRIBUTING.md.
+Open the pull request even if not every box is ticked, or as a draft: we are happy to help. -->
 
+## Summary
 
-* **What kind of change does this PR introduce?** (Bug fix, feature, docs update, ...)
+What does this pull request change, and why? Link any issue (e.g. "Closes #123").
 
+## Type of change
 
+- [ ] Bug fix
+- [ ] New feature or model
+- [ ] Documentation
+- [ ] Other (refactoring, CI, dependencies)
 
-* **What is the current behaviour?** (You can also link to an open issue here)
+## Breaking changes
 
+Does this change the interface or the results for users? If so, what do they need to change?
 
+## New or changed models (delete if not applicable)
 
-* **What is the new behaviour (if this is a feature change)?**
+For an equation of state, solubility law or thermodynamic data: the source, the calibration
+range (temperature, pressure, composition), and the test against values from the source.
 
+## Checklist
 
-
-* **Does this PR introduce a breaking change?** (What changes might users need to make in their application due to this PR?)
-
-
-
-* **Other information**:
-
+- [ ] Tests added or updated (bug fixes and features)
+- [ ] Documentation added or updated
+- [ ] `CHANGELOG.md` updated under Unreleased (changes that matter to users)
+- [ ] Changed notebooks re-run and committed with their outputs
+- [ ] Checks pass locally: `pytest`, `pre-commit run --all-files`, and the documentation build
+      if the docs, package, notebooks or dependencies changed (CI runs these too, and reports
+      the coverage of changed lines)
