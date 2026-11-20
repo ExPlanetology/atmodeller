@@ -15,6 +15,11 @@ under **Unreleased**, which becomes the next version when it is released.
   element's budget that a condensate predicted or switched on as stable starts with (0.5),
   shared by both initializers. It is the default of
   `HeuristicInitializer.condensate_allocation_fraction`, which is unchanged.
+- A temperature range for the heat capacity fits of Vassiliev and Taldrik (2021)
+  (`VassilievHeatCapacity.temperature_range`, fields `temperature_min` and `temperature_max`):
+  0.1 K to T_m of their Table 6, i.e. 4600 K for carbon (the graphite triple point) and 1688 K for
+  silicon. The fits now meet `HeatCapacityProtocol`, so they can be used with
+  `IntegratedThermodynamicProperties`. Each fit's docstring notes where its data end.
 
 ### Changed
 
