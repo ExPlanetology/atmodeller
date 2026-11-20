@@ -46,11 +46,11 @@ _He_henry_sol_constant_jambon86 = (
     (_He_henry_sol_constant_jambon86 / 2.24e4) * 4.0026 * unit_conversion.fraction_to_ppm
 )
 He_basalt_jambon86: Solubility = SolubilityPowerLaw(_He_henry_sol_constant_jambon86, 1)
-"""Solubility of He in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of He in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for He from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Ar_henry_sol_constant_jambon86: Scalar = 5.9e-5  # cm3*STP/g*bar
@@ -60,11 +60,11 @@ _Ar_henry_sol_constant_jambon86 = (
     (_Ar_henry_sol_constant_jambon86 / 2.24e4) * 39.948 * unit_conversion.fraction_to_ppm
 )
 Ar_basalt_jambon86: Solubility = SolubilityPowerLaw(_Ar_henry_sol_constant_jambon86, 1)
-"""Solubility of Ar in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Ar in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Ar from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Ne_henry_sol_constant_jambon86: Scalar = 25e-5  # cm3*STP/g*bar
@@ -74,11 +74,11 @@ _Ne_henry_sol_constant_jambon86 = (
     (_Ne_henry_sol_constant_jambon86 / 2.24e4) * 20.1797 * unit_conversion.fraction_to_ppm
 )
 Ne_basalt_jambon86: Solubility = SolubilityPowerLaw(_Ne_henry_sol_constant_jambon86, 1)
-"""Solubility of Ne in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Ne in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Ne from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Kr_henry_sol_constant_jambon86: Scalar = 3.0e-5  # cm3*STP/g*bar
@@ -88,11 +88,11 @@ _Kr_henry_sol_constant_jambon86 = (
     (_Kr_henry_sol_constant_jambon86 / 2.24e4) * 83.798 * unit_conversion.fraction_to_ppm
 )
 Kr_basalt_jambon86: Solubility = SolubilityPowerLaw(_Kr_henry_sol_constant_jambon86, 1)
-"""Solubility of Kr in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Kr in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Kr from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 _Xe_henry_sol_constant_jambon86: Scalar = 1.7e-5  # cm3*STP/g*bar
@@ -102,11 +102,11 @@ _Xe_henry_sol_constant_jambon86 = (
     (_Xe_henry_sol_constant_jambon86 / 2.24e4) * 131.293 * unit_conversion.fraction_to_ppm
 )
 Xe_basalt_jambon86: Solubility = SolubilityPowerLaw(_Xe_henry_sol_constant_jambon86, 1)
-"""Solubility of Xe in tholeittic basalt melt :cite:p:`JWB86`
+"""Solubility of Xe in tholeiitic basalt melt :cite:p:`JWB86`
 
-Experiments determined Henry's law solubility constant in tholetiitic basalt melt at 1 bar and
+Experiments determined Henry's law solubility constant in tholeiitic basalt melt at 1 bar and
 1250-1600 C. Using Henry's Law solubility constant for Xe from the abstract, convert from STP
-units to mol/g*bar.
+units to mol/g/bar and then to ppmw per bar.
 """
 
 
@@ -170,7 +170,8 @@ class _N2_basalt_dasgupta22(Solubility):
     """N2 in silicate melts :cite:p:`DFP22`
 
     Using :cite:t:`DFP22{Equation 10}`, composition parameters from :cite:t:`DFP22{Figure 8}`, and
-    Iron-wustite buffer (logIW_fugacity) from :cite:t:`OP93,HGD08`.
+    the composite iron-wustite buffer of :cite:t:`OP93,HGD08` and :cite:t:`H21`
+    (:class:`~atmodeller.thermodata.IronWustiteBuffer`).
 
     :cite:p:`DFP22` performed experiments on 80:20 synthetic basalt-Si3N4 mixture at 1.5-3.0 GPa and 1300-1600 C
     fO2 from ~IW-3 to IW-4. They combined this data with prior studies to derive

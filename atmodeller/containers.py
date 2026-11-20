@@ -451,7 +451,8 @@ class ReservoirSpecies(eqx.Module):
     This is separate from :class:`ChemicalSpecies` because dissolution is given by empirically
     calibrated solubility laws, which relate the concentration of the dissolved species to the
     fugacity of its gas, rather than by the Gibbs energy of a reaction. A reservoir species
-    therefore has a solubility law instead of thermodynamic data, and only enters the mass balance.
+    therefore has a solubility law instead of thermodynamic data. It enters the mass balance and
+    its own dissolution equation (from its solubility law), not the reaction network.
 
     Args:
         data: Chemical species data

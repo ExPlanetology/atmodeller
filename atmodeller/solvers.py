@@ -216,8 +216,9 @@ def make_tau_sweep_solver(batch_retry_solver: Callable, batch_solver: Callable) 
     """Gets a solver function that performs a tau sweep for active stability systems.
 
     Closes over the provided ``batch_retry_solver`` and ``batch_solver``. The returned callable
-    first attempts a solve at the final tau, ``solver_parameters.tau``; if all batch elements
-    converge it returns immediately, otherwise it runs a full log-spaced sweep of
+    first attempts a solve at the final tau, ``solver_parameters.tau``; if every batch element
+    converges or is not well posed (``invalid_model``) it returns immediately, otherwise it runs a
+    full log-spaced sweep of
     ``solver_parameters.tau_num`` values from ``solver_parameters.tau_max`` down to the final tau
     for every batch element.
 

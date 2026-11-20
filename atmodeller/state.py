@@ -309,7 +309,8 @@ class ThermodynamicState(BaseThermodynamicState):
         Args:
             gas_species: Iterable of species in the gas phase
             pressure: Pressure (bar)
-            mass: Mass (kg). Defaults to ``1`` (i.e., reference unit mass).
+            mass: Background silicate (melt plus solid) mass (kg). Defaults to ``1`` (i.e.,
+                reference unit mass).
             melt_fraction: Melt fraction. Defaults to ``1`` (i.e., fully molten).
             temperature: Temperature (K). Defaults to ``2000``.
             background_silicate_molar_mass: Background molar mass of a silicate phase. Defaults to
@@ -698,7 +699,9 @@ class BasePlanet(BaseThermodynamicState):
     def get_planet_mass(self, log_number_moles: Float[Array, "... n_species"]) -> FloatArray:
         """Gets the planet mass.
 
-        Computes the planet mass from the mass of the condensed phases and the metallic core.
+        Computes the planet mass from the masses of the silicate melt, the silicate solid and the
+        metal (each with its background and tracked species). Pure condensates, e.g. graphite, are
+        not included.
         Unlike :attr:`background_planet_mass`, this is the self-consistent total: each of
         ``get_silicate_melt_mass``/``get_silicate_solid_mass``/``get_metal_mass`` already includes
         both the background (untracked) mass and the mass of any tracked species
@@ -934,8 +937,8 @@ class ThinAtmospherePlanet(BasePlanet):
 
     In this context, "thin atmosphere" means the atmosphere is shallow compared with the planetary
     radius, so gravity is approximated as constant throughout the atmospheric column. Surface
-    gravity is therefore set by the planetary body (condensed phases plus metallic core), and the
-    atmosphere is treated as non-self-gravitating in the pressure balance.
+    gravity is therefore set by the planetary body (silicate melt, silicate solid and metal), and
+    the atmosphere is treated as non-self-gravitating in the pressure balance.
 
     .. math::
         P_{\\rm surf} = \\frac{m_{\\rm atm} g_{\\rm surf}}{A_{\\rm surf}}
@@ -950,7 +953,8 @@ class ThinAtmospherePlanet(BasePlanet):
         pressure: Pressure (bar)
         background_planet_mass: Planet mass (kg) from only the background melt and solid mass,
             plus the metallic core mass. This value will only be equal to the actual planet mass if
-            ``include_in_phase_mass`` is ``False`` for all species in the melt and solid phases.
+            ``include_in_phase_mass`` is ``False`` for all species in the melt, solid and metal
+            phases.
     """
 
     @override
@@ -1008,7 +1012,8 @@ class PressureScalingLawPlanet(BasePlanet):
         pressure: Pressure (bar)
         background_planet_mass: Planet mass (kg) from only the background melt and solid mass, plus
             the metallic core mass. This value will only be equal to the actual planet mass if
-            ``include_in_phase_mass`` is ``False`` for all species in the melt and solid phases.
+            ``include_in_phase_mass`` is ``False`` for all species in the melt, solid and metal
+            phases.
     """
 
     @override

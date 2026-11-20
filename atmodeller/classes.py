@@ -97,7 +97,9 @@ class EquilibriumModel(eqx.Module):
             state: Thermodynamic state
             activity_constraints: Optional activity/fugacity constraint mapping. Defaults to
                 ``None``.
-            mass_constraints: Optional mass-constraint mapping. Defaults to ``None``.
+            mass_constraints: Optional mapping of an element, or a formula of elements in the
+                system, to its mass constraint (see :class:`~atmodeller.parameters.Parameters`).
+                Defaults to ``None``.
             mass_units: Units used for ``mass_constraints``. Defaults to ``"mass"``.
             solver_parameters: Optional solver parameter object. Defaults to ``None``.
             initializer: Optional initializer for the cold initial guess. Defaults to ``None``.

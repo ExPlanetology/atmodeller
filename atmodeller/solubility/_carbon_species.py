@@ -101,8 +101,8 @@ class _CO_rhyolite_yoshioka19(Solubility):
     """Carbon in silicate melts :cite:p:`YNN19`
 
     Experiments on carbon solubility in silicate melts (Fe-free) coexisting with graphite and
-    CO-CO2 fluid phase at 3 GPa and 1500 C. Henry's Law, their expression for solubility of CO in
-    rhyolite in the abstract.
+    CO-CO2 fluid phase at 3 GPa and 1500 C. A power law in fugacity (exponent 0.52), their
+    expression for the solubility of CO in rhyolite in the abstract.
     """
 
     @override
@@ -118,8 +118,8 @@ CO_rhyolite_yoshioka19: Solubility = _CO_rhyolite_yoshioka19()
 """Carbon in silicate melts :cite:p:`YNN19`
 
 Experiments on carbon solubility in silicate melts (Fe-free) coexisting with graphite and
-CO-CO2 fluid phase at 3 GPa and 1500 C. Henry's Law, their expression for solubility of CO in
-rhyolite in the abstract.
+CO-CO2 fluid phase at 3 GPa and 1500 C. A power law in fugacity (exponent 0.52), their
+expression for the solubility of CO in rhyolite in the abstract.
 """
 
 

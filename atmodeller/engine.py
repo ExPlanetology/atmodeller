@@ -23,8 +23,9 @@ wrapped with :func:`equinox.filter_vmap` to enable efficient batched evaluation 
 scenarios or parameter sets.
 
 Note:
-    The residual concatenation order in :func:`objective_function` must remain identical to the
-    mask concatenation order in :func:`get_active_mask`.
+    The residual concatenation order in :func:`get_full_residual` (used by
+    :func:`objective_function`) must remain identical to the mask concatenation order in
+    :func:`get_active_mask`.
 """
 
 import jax.numpy as jnp

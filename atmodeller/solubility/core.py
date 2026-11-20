@@ -117,15 +117,16 @@ class SolubilityPowerLawLog10(Solubility):
     """A solubility power law with log10 coefficients
 
     Args:
-        log10_constant: Log10 constant
-        log10_exponent: Log10 exponent
+        log10_constant: Log10 of the constant
+        log10_exponent: Exponent of the fugacity, i.e. the slope in log10-log10 space (not a
+            log10)
 
     """
 
     log10_constant: float = eqx.field(converter=float)
-    """Log10 constant"""
+    """Log10 of the constant"""
     log10_exponent: float = eqx.field(converter=float)
-    """Log10 exponent"""
+    """Exponent of the fugacity (the slope in log10-log10 space)"""
 
     @override
     def concentration(
