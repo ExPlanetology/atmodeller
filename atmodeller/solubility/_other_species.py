@@ -238,7 +238,8 @@ class _N2_basalt_libourel03(Solubility):
 
     :cite:t:`LMH03{Equation 23}`, includes dependencies on fN2 and fO2. Experiments conducted at 1
     atm and 1425 C (two experiments at 1400 C), fO2 from IW-8.3 to IW+8.7 using mixtures of CO, CO2
-    and N2 gases.
+    and N2 gases. Below about IW-7 their melts saturate in TiN (osbornite) and the measured N
+    levels off, which the law does not include, so it overestimates N there.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -276,5 +277,6 @@ N2_basalt_libourel03: Solubility = _N2_basalt_libourel03()
 
 :cite:t:`LMH03{Equation 23}`, includes dependencies on fN2 and fO2. Experiments conducted at 1
 atm and 1425 C (two experiments at 1400 C), fO2 from IW-8.3 to IW+8.7 using mixtures of CO, CO2
-and N2 gases.
+and N2 gases. Below about IW-7 their melts saturate in TiN (osbornite) and the measured N levels
+off, which the law does not include, so it overestimates N there.
 """
