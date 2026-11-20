@@ -19,9 +19,10 @@ under **Unreleased**, which becomes the next version when it is released.
   `HeuristicInitializer.condensate_allocation_fraction`, which is unchanged.
 - A temperature range for the heat capacity fits of Vassiliev and Taldrik (2021)
   (`VassilievHeatCapacity.temperature_range`, fields `temperature_min` and `temperature_max`):
-  0.1 K to T_m of their Table 6, i.e. 4600 K for carbon (the graphite triple point) and 1688 K for
-  silicon. The fits now meet `HeatCapacityProtocol`, so they can be used with
-  `IntegratedThermodynamicProperties`. Each fit's docstring notes where its data end.
+  0.1 K to T_m, as in their Table 6 with T_m from their Table 9, i.e. 4600 K for carbon (the
+  graphite triple point) and 1688 K for silicon. The fits now meet `HeatCapacityProtocol`, so they
+  can be used with `IntegratedThermodynamicProperties`. Each fit's docstring notes where its data
+  end.
 - Registries that pair each library model with its catalogue information:
   `atmodeller.eos.get_eos_catalogue` and `atmodeller.solubility.get_solubility_catalogue` return
   a `CatalogueEntry` (the model and its `ModelInfo`: species, phase and the citation keys of its
@@ -64,14 +65,26 @@ under **Unreleased**, which becomes the next version when it is released.
 - The documentation of the N2 solubility law `N2_basalt_bernadou21`: its Equation 18 gives the
   mass fraction of N, and its N3- term (reduced conditions, below about IW-1.5) as published
   overestimates the authors' reduced experiments, by about 8 times at 0.9 kbar. The N2 term
-  (oxidised conditions) reproduces their data to within a factor of 3. Its test is now anchored to their oxidised
-  experiment AR1FeN at a realistic fO2.
+  (oxidised conditions) reproduces their data to within a factor of 3. Its test is now anchored
+  to their oxidised experiment AR1FeN at a realistic fO2.
 - The model catalogue in the documentation: the calibrated pressure range of an EOS made of several
   calibrated segments now spans all of them (it showed only the first, e.g. 1-1000 bar for
   `H2_shi92`, whose calibration reaches 100 kbar); the H2-He mixtures of Chabrier and Debras are
-  listed as such; the sources no longer include papers cited only for comparison; and the melt of
-  seven solubility laws is correct. `models.rst` now says that only pressure is bounded and that
-  above the calibration the compressibility factor, not the volume, is held.
+  listed as such; the sources no longer include papers cited only for comparison; the melt of
+  seven solubility laws is correct; and `NO_SOLUBILITY` is listed. `models.rst` now says that only
+  pressure is bounded and that above the calibration the compressibility factor, not the volume,
+  is held.
+- The `info` sheet of the Excel output gives units for the initial-guess quantities
+  (`initial_guess`, `log_error`, `log_error_mae` and `log_error_rmse`).
+- Documentation and docstrings that did not match the code, among them: with one model solved,
+  the failed models restart from its solution (`solver.rst`); the tau sweep runs only if a model
+  fails at the final tau, and only for systems whose condensate stability is solved for
+  (`troubleshooting.rst`); the solver statistics are logged by `output.solver_stats_to_logger()`;
+  `update(core_mass_fraction=...)` can add a background core to a planet built without one; the
+  planet mass does not include pure condensates; `species_number_moles` counts only the species
+  with `include_in_phase_mass=True`; the units of the noble-gas solubility laws; and the EOS
+  docstrings (e.g. the Chabrier tables are interpolated linearly, and the bounded models hold the
+  compressibility factor above their calibration).
 
 ## [2.0.0] - 2026-11-05
 
