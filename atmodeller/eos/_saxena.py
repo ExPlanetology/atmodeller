@@ -16,6 +16,7 @@ import jax.numpy as jnp
 from jaxtyping import ArrayLike
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos._aggregators import CombinedRealGas
 from atmodeller.eos.core import RealGas
@@ -545,25 +546,29 @@ also adopted.
 """
 
 
-def get_saxena_eos_models() -> dict[str, RealGas]:
+def get_saxena_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of Saxena and colleagues EOS models
 
     'cs' refers to corresponding states.
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["Ar_cs_saxena87"] = Ar_SF87
-    eos_models["CH4_cs_shi92"] = CH4_SS92
-    eos_models["CO_cs_shi92"] = CO_SS92
-    eos_models["CO2_cs_shi92"] = CO2_SS92
-    eos_models["COS_cs_shi92"] = COS_SS92
-    eos_models["H2_shi92"] = H2_SS92
-    eos_models["H2S_shi92"] = H2S_SS92
-    eos_models["N2_cs_saxena87"] = N2_SF87
-    eos_models["O2_cs_shi92"] = O2_SS92
-    eos_models["S2_cs_shi92"] = S2_SS92
-    eos_models["O2S_shi92"] = O2S_SS92_bounded
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["Ar_cs_saxena87"] = CatalogueEntry(
+        Ar_SF87, ModelInfo("Ar", sources=("SF87", "SS92"))
+    )
+    eos_models["CH4_cs_shi92"] = CatalogueEntry(CH4_SS92, ModelInfo("CH4", sources=("SS92",)))
+    eos_models["CO_cs_shi92"] = CatalogueEntry(CO_SS92, ModelInfo("CO", sources=("SS92",)))
+    eos_models["CO2_cs_shi92"] = CatalogueEntry(CO2_SS92, ModelInfo("CO2", sources=("SS92",)))
+    eos_models["COS_cs_shi92"] = CatalogueEntry(COS_SS92, ModelInfo("COS", sources=("SS92",)))
+    eos_models["H2_shi92"] = CatalogueEntry(H2_SS92, ModelInfo("H2", sources=("SS92", "SF88")))
+    eos_models["H2S_shi92"] = CatalogueEntry(H2S_SS92, ModelInfo("H2S", sources=("SS92",)))
+    eos_models["N2_cs_saxena87"] = CatalogueEntry(
+        N2_SF87, ModelInfo("N2", sources=("SF87", "SS92"))
+    )
+    eos_models["O2_cs_shi92"] = CatalogueEntry(O2_SS92, ModelInfo("O2", sources=("SS92",)))
+    eos_models["S2_cs_shi92"] = CatalogueEntry(S2_SS92, ModelInfo("S2", sources=("SS92",)))
+    eos_models["O2S_shi92"] = CatalogueEntry(O2S_SS92_bounded, ModelInfo("O2S", sources=("SS92",)))
 
     return eos_models

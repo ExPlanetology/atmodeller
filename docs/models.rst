@@ -5,7 +5,9 @@ Model catalogue
 
 These tables list the real-gas equations of state and the solubility laws that *Atmodeller*
 provides, by the key with which they are selected. They are generated from the model registries
-when the documentation is built, so they always match the installed version.
+(:func:`~atmodeller.eos.get_eos_catalogue` and :func:`~atmodeller.solubility.get_solubility_catalogue`,
+which pair each model with its species, phase and sources) when the documentation is built, so
+they always match the installed version.
 
 .. important::
 
@@ -34,10 +36,13 @@ and given to a gas species, e.g.
     eos_models = get_eos_models()
     H2O_g = ChemicalSpecies.create_gas("H2O", activity=eos_models["H2O_cork_holland98"])
 
-Most models are bounded: they are used within their calibrated temperature and pressure range,
-and outside it they are extended (an ideal gas at low pressure and a bounded volume at high
-pressure). The calibrated range is given below; a model that is ``not bounded`` is used as it is
-at all conditions. Models with ``_unbounded`` in their key are the same model without the bounds.
+Most models are bounded in pressure: they are used within their calibrated pressure range, and
+outside it they are extended, as an ideal gas at low pressure and with the compressibility factor
+held at its value at the highest calibrated pressure above it. Temperature is not bounded: a model
+is used at the given temperature, so check that it is within the calibrated temperature range. The
+calibrated ranges are given below (an open end means no bound on that side); a model that is
+``not bounded`` is used as it is at all conditions. Models with ``_unbounded`` in their key are
+the same model without the bounds.
 
 .. include:: _generated/models_eos.rst
 

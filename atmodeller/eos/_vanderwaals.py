@@ -6,6 +6,7 @@
 """Real gas EOS from :cite:t:`Lide2005`"""
 
 from atmodeller.eos._aggregators import CombinedRealGas
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.eos.core import RealGas, VanderWaals
 from atmodeller.sci_utils import ExperimentalCalibration
 
@@ -47,20 +48,36 @@ CHN_lide_bounded: RealGas = CombinedRealGas.create([CHN_lide], [experimental_cal
 """HCN bounded to data range"""
 
 
-def get_vanderwaals_eos_models() -> dict[str, RealGas]:
+def get_vanderwaals_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of van der Waals EOS models.
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["H2_vdw_lide05"] = H2_lide_bounded
-    eos_models["He_vdw_lide05"] = He_lide_bounded
-    eos_models["N2_vdw_lide05"] = N2_lide_bounded
-    eos_models["H4Si_vdw_lide05"] = H4Si_lide_bounded
-    eos_models["H2O_vdw_lide05"] = H2O_lide_bounded
-    eos_models["CH4_vdw_lide05"] = CH4_lide_bounded
-    eos_models["H3N_vdw_lide05"] = H3N_lide_bounded
-    eos_models["CHN_vdw_lide05"] = CHN_lide_bounded
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["H2_vdw_lide05"] = CatalogueEntry(
+        H2_lide_bounded, ModelInfo("H2", sources=("Lide2005",))
+    )
+    eos_models["He_vdw_lide05"] = CatalogueEntry(
+        He_lide_bounded, ModelInfo("He", sources=("Lide2005",))
+    )
+    eos_models["N2_vdw_lide05"] = CatalogueEntry(
+        N2_lide_bounded, ModelInfo("N2", sources=("Lide2005",))
+    )
+    eos_models["H4Si_vdw_lide05"] = CatalogueEntry(
+        H4Si_lide_bounded, ModelInfo("H4Si", sources=("Lide2005",))
+    )
+    eos_models["H2O_vdw_lide05"] = CatalogueEntry(
+        H2O_lide_bounded, ModelInfo("H2O", sources=("Lide2005",))
+    )
+    eos_models["CH4_vdw_lide05"] = CatalogueEntry(
+        CH4_lide_bounded, ModelInfo("CH4", sources=("Lide2005",))
+    )
+    eos_models["H3N_vdw_lide05"] = CatalogueEntry(
+        H3N_lide_bounded, ModelInfo("H3N", sources=("Lide2005",))
+    )
+    eos_models["CHN_vdw_lide05"] = CatalogueEntry(
+        CHN_lide_bounded, ModelInfo("CHN", sources=("Lide2005",))
+    )
 
     return eos_models

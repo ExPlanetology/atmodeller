@@ -6,6 +6,7 @@
 """Real gas EOS from :cite:t:`ZD09`"""
 
 from atmodeller.eos._aggregators import CombinedRealGas
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.eos._zhang_duan_base import ZhangDuanPureFluid, epsilon_species, sigma_species
 from atmodeller.eos.core import RealGas
 from atmodeller.sci_utils import ExperimentalCalibration, unit_conversion
@@ -138,42 +139,70 @@ O2S_zhang09: RealGas = ZhangDuanPureFluid(epsilon_species["O2S"], sigma_species[
 """O2S unbounded :cite:p:`ZD09`"""
 
 
-def get_zhang_eos_models() -> dict[str, RealGas]:
+def get_zhang_eos_catalogue() -> dict[str, CatalogueEntry[RealGas]]:
     """Gets a dictionary of Zhang and Duan EOS models.
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGas] = {}
-    eos_models["CH4_zhang09"] = CH4_zhang09_bounded
-    eos_models["CH4_zhang09_unbounded"] = CH4_zhang09
-    eos_models["H2O_zhang09"] = H2O_zhang09_bounded
-    eos_models["H2O_zhang09_unbounded"] = H2O_zhang09
-    eos_models["CO2_zhang09"] = CO2_zhang09_bounded
-    eos_models["CO2_zhang09_unbounded"] = CO2_zhang09
-    eos_models["H2_zhang09"] = H2_zhang09_bounded
-    eos_models["H2_zhang09_unbounded"] = H2_zhang09
-    eos_models["CO_zhang09"] = CO_zhang09_bounded
-    eos_models["CO_zhang09_unbounded"] = CO_zhang09
-    eos_models["O2_zhang09"] = O2_zhang09_bounded
-    eos_models["O2_zhang09_unbounded"] = O2_zhang09
-    eos_models["C2H6_zhang09"] = C2H6_zhang09_bounded
-    eos_models["C2H6_zhang09_unbounded"] = C2H6_zhang09
-    eos_models["Ar_zhang09"] = Ar_zhang09
-    eos_models["He_zhang09"] = He_zhang09
-    eos_models["Kr_zhang09"] = Kr_zhang09
-    eos_models["Ne_zhang09"] = Ne_zhang09
-    eos_models["Xe_zhang09"] = Xe_zhang09
-    eos_models["COS_zhang09"] = COS_zhang09
-    eos_models["Cl2_zhang09"] = Cl2_zhang09
-    eos_models["F2_zhang09"] = F2_zhang09
-    eos_models["CHN_zhang09"] = CHN_zhang09
-    eos_models["ClH_zhang09"] = ClH_zhang09
-    eos_models["H2S_zhang09"] = H2S_zhang09
-    eos_models["H3N_zhang09"] = H3N_zhang09
-    eos_models["NO_zhang09"] = NO_zhang09
-    eos_models["N2_zhang09"] = N2_zhang09
-    eos_models["N2O_zhang09"] = N2O_zhang09
-    eos_models["O2S_zhang09"] = O2S_zhang09
+    eos_models: dict[str, CatalogueEntry[RealGas]] = {}
+    eos_models["CH4_zhang09"] = CatalogueEntry(
+        CH4_zhang09_bounded, ModelInfo("CH4", sources=("ZD09",))
+    )
+    eos_models["CH4_zhang09_unbounded"] = CatalogueEntry(
+        CH4_zhang09, ModelInfo("CH4", sources=("ZD09",))
+    )
+    eos_models["H2O_zhang09"] = CatalogueEntry(
+        H2O_zhang09_bounded, ModelInfo("H2O", sources=("ZD09",))
+    )
+    eos_models["H2O_zhang09_unbounded"] = CatalogueEntry(
+        H2O_zhang09, ModelInfo("H2O", sources=("ZD09",))
+    )
+    eos_models["CO2_zhang09"] = CatalogueEntry(
+        CO2_zhang09_bounded, ModelInfo("CO2", sources=("ZD09",))
+    )
+    eos_models["CO2_zhang09_unbounded"] = CatalogueEntry(
+        CO2_zhang09, ModelInfo("CO2", sources=("ZD09",))
+    )
+    eos_models["H2_zhang09"] = CatalogueEntry(
+        H2_zhang09_bounded, ModelInfo("H2", sources=("ZD09",))
+    )
+    eos_models["H2_zhang09_unbounded"] = CatalogueEntry(
+        H2_zhang09, ModelInfo("H2", sources=("ZD09",))
+    )
+    eos_models["CO_zhang09"] = CatalogueEntry(
+        CO_zhang09_bounded, ModelInfo("CO", sources=("ZD09",))
+    )
+    eos_models["CO_zhang09_unbounded"] = CatalogueEntry(
+        CO_zhang09, ModelInfo("CO", sources=("ZD09",))
+    )
+    eos_models["O2_zhang09"] = CatalogueEntry(
+        O2_zhang09_bounded, ModelInfo("O2", sources=("ZD09",))
+    )
+    eos_models["O2_zhang09_unbounded"] = CatalogueEntry(
+        O2_zhang09, ModelInfo("O2", sources=("ZD09",))
+    )
+    eos_models["C2H6_zhang09"] = CatalogueEntry(
+        C2H6_zhang09_bounded, ModelInfo("C2H6", sources=("ZD09",))
+    )
+    eos_models["C2H6_zhang09_unbounded"] = CatalogueEntry(
+        C2H6_zhang09, ModelInfo("C2H6", sources=("ZD09",))
+    )
+    eos_models["Ar_zhang09"] = CatalogueEntry(Ar_zhang09, ModelInfo("Ar", sources=("ZD09",)))
+    eos_models["He_zhang09"] = CatalogueEntry(He_zhang09, ModelInfo("He", sources=("ZD09",)))
+    eos_models["Kr_zhang09"] = CatalogueEntry(Kr_zhang09, ModelInfo("Kr", sources=("ZD09",)))
+    eos_models["Ne_zhang09"] = CatalogueEntry(Ne_zhang09, ModelInfo("Ne", sources=("ZD09",)))
+    eos_models["Xe_zhang09"] = CatalogueEntry(Xe_zhang09, ModelInfo("Xe", sources=("ZD09",)))
+    eos_models["COS_zhang09"] = CatalogueEntry(COS_zhang09, ModelInfo("COS", sources=("ZD09",)))
+    eos_models["Cl2_zhang09"] = CatalogueEntry(Cl2_zhang09, ModelInfo("Cl2", sources=("ZD09",)))
+    eos_models["F2_zhang09"] = CatalogueEntry(F2_zhang09, ModelInfo("F2", sources=("ZD09",)))
+    eos_models["CHN_zhang09"] = CatalogueEntry(CHN_zhang09, ModelInfo("CHN", sources=("ZD09",)))
+    eos_models["ClH_zhang09"] = CatalogueEntry(ClH_zhang09, ModelInfo("ClH", sources=("ZD09",)))
+    eos_models["H2S_zhang09"] = CatalogueEntry(H2S_zhang09, ModelInfo("H2S", sources=("ZD09",)))
+    eos_models["H3N_zhang09"] = CatalogueEntry(H3N_zhang09, ModelInfo("H3N", sources=("ZD09",)))
+    eos_models["NO_zhang09"] = CatalogueEntry(NO_zhang09, ModelInfo("NO", sources=("ZD09",)))
+    eos_models["N2_zhang09"] = CatalogueEntry(N2_zhang09, ModelInfo("N2", sources=("ZD09",)))
+    eos_models["N2O_zhang09"] = CatalogueEntry(N2O_zhang09, ModelInfo("N2O", sources=("ZD09",)))
+    eos_models["O2S_zhang09"] = CatalogueEntry(O2S_zhang09, ModelInfo("O2S", sources=("ZD09",)))
 
     return eos_models

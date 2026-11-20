@@ -19,6 +19,7 @@ from jaxtyping import ArrayLike, Float
 from molmass import Formula
 
 from atmodeller import override
+from atmodeller.interfaces import CatalogueEntry, ModelInfo
 from atmodeller.constants import STANDARD_PRESSURE
 from atmodeller.eos import DATA_DIRECTORY
 from atmodeller.eos._aggregators import CombinedRealGas, CombinedRealGasFugacity
@@ -392,19 +393,33 @@ H2_He_Y0297_chabrier21_bounded: RealGas = CombinedRealGas.create(
 """H2HeY0297 bounded :cite:p:`CD21`"""
 
 
-def get_chabrier_eos_models() -> dict[str, RealGasBase]:
+def get_chabrier_eos_catalogue() -> dict[str, CatalogueEntry[RealGasBase]]:
     """Gets a dictionary of EOS models
 
     Returns:
-        Dictionary of EOS models
+        Dictionary of EOS models with their catalogue information
     """
-    eos_models: dict[str, RealGasBase] = {}
-    eos_models["H2_chabrier21"] = H2_chabrier21_bounded
-    eos_models["H2_3000K_chabrier21"] = H2_3000K_chabrier21
-    eos_models["H2_4000K_chabrier21"] = H2_4000K_chabrier21
-    eos_models["H2_He_Y0275_chabrier21"] = H2_He_Y0275_chabrier21_bounded
-    eos_models["H2_He_Y0292_chabrier21"] = H2_He_Y0292_chabrier21_bounded
-    eos_models["H2_He_Y0297_chabrier21"] = H2_He_Y0297_chabrier21_bounded
-    eos_models["He_chabrier21"] = He_chabrier21_bounded
+    eos_models: dict[str, CatalogueEntry[RealGasBase]] = {}
+    eos_models["H2_chabrier21"] = CatalogueEntry(
+        H2_chabrier21_bounded, ModelInfo("H2", sources=("CD21",))
+    )
+    eos_models["H2_3000K_chabrier21"] = CatalogueEntry(
+        H2_3000K_chabrier21, ModelInfo("H2", sources=("CD21",))
+    )
+    eos_models["H2_4000K_chabrier21"] = CatalogueEntry(
+        H2_4000K_chabrier21, ModelInfo("H2", sources=("CD21",))
+    )
+    eos_models["H2_He_Y0275_chabrier21"] = CatalogueEntry(
+        H2_He_Y0275_chabrier21_bounded, ModelInfo("H2–He", sources=("CD21",))
+    )
+    eos_models["H2_He_Y0292_chabrier21"] = CatalogueEntry(
+        H2_He_Y0292_chabrier21_bounded, ModelInfo("H2–He", sources=("CD21",))
+    )
+    eos_models["H2_He_Y0297_chabrier21"] = CatalogueEntry(
+        H2_He_Y0297_chabrier21_bounded, ModelInfo("H2–He", sources=("CD21",))
+    )
+    eos_models["He_chabrier21"] = CatalogueEntry(
+        He_chabrier21_bounded, ModelInfo("He", sources=("CD21",))
+    )
 
     return eos_models

@@ -22,6 +22,12 @@ under **Unreleased**, which becomes the next version when it is released.
   0.1 K to T_m of their Table 6, i.e. 4600 K for carbon (the graphite triple point) and 1688 K for
   silicon. The fits now meet `HeatCapacityProtocol`, so they can be used with
   `IntegratedThermodynamicProperties`. Each fit's docstring notes where its data end.
+- Registries that pair each library model with its catalogue information:
+  `atmodeller.eos.get_eos_catalogue` and `atmodeller.solubility.get_solubility_catalogue` return
+  a `CatalogueEntry` (the model and its `ModelInfo`: species, phase and the citation keys of its
+  sources) per key. `get_eos_models` and `get_solubility_models` are derived from them and are
+  unchanged. The model catalogue in the documentation is generated from this information, and a
+  test checks that every library model has it, with sources in the bibliography.
 
 ### Changed
 
@@ -60,6 +66,12 @@ under **Unreleased**, which becomes the next version when it is released.
   overestimates the authors' reduced experiments, by about 8 times at 0.9 kbar. The N2 term
   (oxidised conditions) reproduces their data to within a factor of 3. Its test is now anchored to their oxidised
   experiment AR1FeN at a realistic fO2.
+- The model catalogue in the documentation: the calibrated pressure range of an EOS made of several
+  calibrated segments now spans all of them (it showed only the first, e.g. 1–1000 bar for
+  `H2_shi92`, whose calibration reaches 100 kbar); the H2–He mixtures of Chabrier and Debras are
+  listed as such; the sources no longer include papers cited only for comparison; and the melt of
+  seven solubility laws is correct. `models.rst` now says that only pressure is bounded and that
+  above the calibration the compressibility factor, not the volume, is held.
 
 ## [2.0.0] - 2026-11-05
 

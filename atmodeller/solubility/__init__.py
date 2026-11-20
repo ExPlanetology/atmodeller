@@ -12,12 +12,16 @@ from atmodeller.solubility.core import (  # noqa: E402, F401
     SolubilityPowerLaw,
     SolubilityPowerLawLog10,
 )
-from atmodeller.solubility.library import get_solubility_models  # noqa: E402, F401
+from atmodeller.solubility.library import (  # noqa: E402, F401
+    get_solubility_catalogue,
+    get_solubility_models,
+)
 
 __all__ = [
     "NoSolubility",
     "Solubility",
     "SolubilityPowerLaw",
     "SolubilityPowerLawLog10",
+    "get_solubility_catalogue",
     "get_solubility_models",
 ]
