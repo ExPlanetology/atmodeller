@@ -64,6 +64,8 @@ def test_H2_andesite_hirschmann(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.1,
+        pinned=8554.983406904068,
     )
 
 
@@ -86,6 +88,8 @@ def test_H2_basalt_hirschmann(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.01,
+        pinned=2208.9844882660764,
     )
 
 
@@ -107,6 +111,8 @@ def test_H2_silicic_melts_gaillard(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.1,
+        pinned=2.2021975144012234,
     )
 
 
@@ -128,6 +134,8 @@ def test_H2O_ano_dio_newcombe(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.01,
+        pinned=229.8975858942412,
     )
 
 
@@ -149,6 +157,8 @@ def test_H2O_basalt_dixon(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.1,
+        pinned=4825.0,
     )
 
 
@@ -171,6 +181,8 @@ def test_H2O_basalt_dixon_table5(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.02,
+        pinned=32623.254965718486,
     )
 
 
@@ -192,6 +204,8 @@ def test_H2O_basalt_mitchell(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.02,
+        pinned=199156.85643141632,
     )
 
 
@@ -216,6 +230,8 @@ def test_H2O_basalt_moore(check_values) -> None:
         test_temperature_moore_basalt,
         test_pressure_moore_basalt,
         TEST_FO2,
+        rtol=0.1,
+        pinned=26752.41892618175,
     )
 
 
@@ -237,6 +253,8 @@ def test_H2O_lunar_glass_newcombe(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.01,
+        pinned=354.897210470863,
     )
 
 
@@ -257,6 +275,7 @@ def test_H2_chachan18(check_values) -> None:
         solubility_model.T_calibration,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=1e-8,
     )
 
 
@@ -277,6 +296,7 @@ def test_H2_kite19(check_values) -> None:
         solubility_model.T_calibration,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=1e-8,
     )
 
 
@@ -298,4 +318,6 @@ def test_H2O_peridotite_sossi(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE,
         TEST_FO2,
+        rtol=0.1,
+        pinned=39.88375859920928,
     )

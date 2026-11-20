@@ -78,6 +78,8 @@ def test_Cl2_ano_dio_for_thomas(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE_GPA,
         TEST_FO2_GPA,
+        rtol=0.01,
+        pinned=1810.4735530794146,
     )
 
 
@@ -97,26 +99,53 @@ def test_Cl2_basalt_thomas(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE_GPA,
         TEST_FO2_GPA,
+        rtol=0.02,
+        pinned=16176.494077518775,
     )
 
 
-def test_He_basalt(check_values) -> None:
-    """He in tholeittic basalt melt :cite:p:`JWB86`"""
+@pytest.mark.parametrize(
+    "species, molar_mass, pinned, partial_pressure, measured, rtol",
+    [
+        ("He", 4.0026, 0.100065, 95300e-6, 51.0, 0.2),
+        ("Ne", 20.1797, 0.22521986607142858, 9830e-6, 22.55, 0.12),
+        ("Ar", 39.948, 0.10522017857142857, 907000e-6, 5.6, 0.15),
+        ("Kr", 83.798, 0.11222946428571429, 1000e-6, 3.5, 0.23),
+        ("Xe", 131.293, 0.09964200892857143, 547e-6, 1.75, 0.23),
+    ],
+)
+def test_noble_gas_basalt_jambon(
+    species: str,
+    molar_mass: float,
+    pinned: float,
+    partial_pressure: float,
+    measured: float,
+    rtol: float,
+) -> None:
+    """Tests the noble gases in tholeiitic basalt melt :cite:p:`JWB86`
 
-    function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
-    solubility_model: Solubility = solubility_models["He_basalt_jambon86"]
-    # target_concentration: ArrayLike = 0.20013
-    target_concentration: ArrayLike = 0.1
-    test_fugacity_He_basalt: ArrayLike = 1
-    check_values.concentration(
-        function_name,
-        solubility_model,
-        target_concentration,
-        test_fugacity_He_basalt,
-        TEST_TEMPERATURE,
-        TEST_PRESSURE,
-        TEST_FO2,
+    The concentration at 1 bar is pinned, and is proportional to the fugacity (Henry's law). It
+    is compared with the measured solubility (1e-5 cm3 STP g-1 bar-1), the mean of the two runs at
+    1400 C with their noble gas mixtures ARM and ARM (1:9) (:cite:t:`JWB86{Table 5}`), at the
+    partial pressure in ARM (:cite:t:`JWB86{Table 2}`). The law is 0.86-1.11 times the
+    measurement, within the 1-sigma scatter about their regression (12-23%).
+    """
+    model: Solubility = solubility_models[f"{species}_basalt_jambon86"]
+
+    def concentration(fugacity: float) -> float:
+        return float(
+            model.concentration(
+                fugacity, temperature=TEST_TEMPERATURE, pressure=TEST_PRESSURE, fO2=TEST_FO2
+            )
+        )
+
+    assert concentration(1) == pytest.approx(pinned, rel=1e-8)
+    assert concentration(partial_pressure) == pytest.approx(partial_pressure * pinned, rel=1e-12)
+    # cm3 STP to mol (22414 cm3 mol-1), then mass fraction to ppmw
+    measured_ppmw: float = (
+        measured * 1e-5 * partial_pressure / 22414 * molar_mass * unit_conversion.fraction_to_ppm
     )
+    assert concentration(partial_pressure) == pytest.approx(measured_ppmw, rel=rtol)
 
 
 def test_N2_basalt_bernadou(check_values) -> None:
@@ -134,18 +163,17 @@ def test_N2_basalt_bernadou(check_values) -> None:
     temperature: ArrayLike = 1473.15
     pressure: ArrayLike = 800.0
     fO2: ArrayLike = 10**-10.365073101913051
-    for expected, rtol in ((25.578390596094554, 1e-8), (20.86, 0.3)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            fugacity,
-            temperature,
-            pressure,
-            fO2,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        20.86,
+        fugacity,
+        temperature,
+        pressure,
+        fO2,
+        rtol=0.3,
+        pinned=25.578390596094554,
+    )
 
 
 def test_N2_basalt_dasgupta(check_values) -> None:
@@ -167,28 +195,38 @@ def test_N2_basalt_dasgupta(check_values) -> None:
         test_temperature_N2_basalt_dasgupta,
         test_totalP_N2_basalt_dasgupta,
         test_fO2_N2_basalt_dasgupta,
+        rtol=0.01,
+        pinned=1002.1074478063852,
     )
 
 
-def test_N2_basalt_libourel(check_values) -> None:
-    """Tests N2 in basalt (tholeiitic) magmas :cite:p:`LMH03`"""
+@pytest.mark.parametrize(
+    "fugacity, log10_fO2, pinned, measured, rtol",
+    [
+        (0.20, -16.2, 377.1406984833259, 446.675, 0.2),
+        (0.78, -0.7, 0.04765800176612579, 0.0486, 0.05),
+    ],
+)
+def test_N2_basalt_libourel(
+    check_values, fugacity: float, log10_fO2: float, pinned: float, measured: float, rtol: float
+) -> None:
+    """Tests N2 in basalt (tholeiitic) magmas :cite:p:`LMH03`
+
+    Two runs at 1425 C (:cite:t:`LMH03{Tables 1 and 2}`), with the measured N the mean of their
+    replicate analyses: CM-1#8 at IW-6.8 (pN2 = 0.20 atm, 447 ppm), where N3- dominates, and
+    CM-1#17 in air (pN2 = 0.78 atm, 0.049 ppm), where N2 dominates. The model is pinned, and
+    0.84 and 0.98 times the measurements.
+    """
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
-    solubility_model: Solubility = solubility_models["N2_basalt_libourel03"]
-    # target_concentration: ArrayLike = 0.12236470428806222
-    target_concentration: ArrayLike = 446.7
-    test_fugacity_N2_basalt_libourel: ArrayLike = 0.20
-    test_temperature_N2_basalt_libourel: ArrayLike = 1698.15
-    test_fO2_N2_basalt_libourel: ArrayLike = 6.31e-17
-    test_totalP_N2_basalt_libourel: ArrayLike = 1
-    # target_concentration: ArrayLike = 1000
-
     check_values.concentration(
         function_name,
-        solubility_model,
-        target_concentration,
-        test_fugacity_N2_basalt_libourel,
-        test_temperature_N2_basalt_libourel,
-        test_totalP_N2_basalt_libourel,
-        test_fO2_N2_basalt_libourel,
+        solubility_models["N2_basalt_libourel03"],
+        measured,
+        fugacity,
+        1698.15,
+        1,
+        10**log10_fO2,
+        rtol=rtol,
+        pinned=pinned,
     )

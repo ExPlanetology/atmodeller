@@ -65,6 +65,8 @@ def test_CH4_basalt_ardia(check_values) -> None:
         TEST_TEMPERATURE,
         test_pressureGPa_CH4_ardia_basalt,
         TEST_FO2_GPA,
+        rtol=0.01,
+        pinned=69.39515059054594,
     )
 
 
@@ -85,6 +87,8 @@ def test_CO_basalt_armstrong(check_values) -> None:
         TEST_TEMPERATURE,
         test_pressure_CO_armstrong_basalt,
         TEST_FO2_GPA,
+        rtol=0.01,
+        pinned=17.266328527432368,
     )
 
 
@@ -104,6 +108,8 @@ def test_CO_basalt_yoshioka(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE_GPA,
         TEST_FO2_GPA,
+        rtol=0.02,
+        pinned=59.7028496987225,
     )
 
 
@@ -123,6 +129,8 @@ def test_CO_rhyolite_yoshioka(check_values) -> None:
         TEST_TEMPERATURE,
         TEST_PRESSURE_GPA,
         TEST_FO2_GPA,
+        rtol=0.15,
+        pinned=181.97075433189286,
     )
 
 
@@ -144,4 +152,6 @@ def test_CO2_basalt_dixon(check_values) -> None:
         test_temperature_CO2_dixon_basalt,
         test_pressure_CO2_dixon_basalt,
         TEST_FO2,
+        rtol=0.05,
+        pinned=11.369543533586695,
     )

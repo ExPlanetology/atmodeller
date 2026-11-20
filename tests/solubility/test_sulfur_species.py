@@ -34,18 +34,17 @@ def test_S2_sulfate_andesite_boulliung(check_values) -> None:
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfate_andesite_boulliung23"]
-    for expected, rtol in ((50.35001192113412, 1e-8), (37, 0.5)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            10**-13.16,
-            1673,
-            TEST_PRESSURE,
-            10**-1.10,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        37,
+        10**-13.16,
+        1673,
+        TEST_PRESSURE,
+        10**-1.10,
+        rtol=0.5,
+        pinned=50.35001192113412,
+    )
 
 
 def test_S2_sulfide_andesite_boulliung(check_values) -> None:
@@ -57,18 +56,17 @@ def test_S2_sulfide_andesite_boulliung(check_values) -> None:
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfide_andesite_boulliung23"]
-    for expected, rtol in ((220.59185727726214, 1e-8), (376, 0.45)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            10**-1.05,
-            1473,
-            TEST_PRESSURE,
-            10**-9.4,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        376,
+        10**-1.05,
+        1473,
+        TEST_PRESSURE,
+        10**-9.4,
+        rtol=0.45,
+        pinned=220.59185727726214,
+    )
 
 
 def test_S2_sulfate_basalt_boulliung(check_values) -> None:
@@ -82,18 +80,17 @@ def test_S2_sulfate_basalt_boulliung(check_values) -> None:
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfate_basalt_boulliung23"]
-    for expected, rtol in ((454.3062304741978, 1e-8), (450, 0.3)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            10**-14.6,
-            1573,
-            TEST_PRESSURE,
-            10**-1.10,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        450,
+        10**-14.6,
+        1573,
+        TEST_PRESSURE,
+        10**-1.10,
+        rtol=0.3,
+        pinned=454.3062304741978,
+    )
 
 
 def test_S2_sulfide_basalt_boulliung(check_values) -> None:
@@ -105,18 +102,17 @@ def test_S2_sulfide_basalt_boulliung(check_values) -> None:
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfide_basalt_boulliung23"]
-    for expected, rtol in ((866.6630990827014, 1e-8), (760, 0.2)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            10**-1.05,
-            1473,
-            TEST_PRESSURE,
-            10**-9.4,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        760,
+        10**-1.05,
+        1473,
+        TEST_PRESSURE,
+        10**-9.4,
+        rtol=0.2,
+        pinned=866.6630990827014,
+    )
 
 
 def test_S2_sulfate_trachybasalt_boulliung(check_values) -> None:
@@ -131,18 +127,17 @@ def test_S2_sulfate_trachybasalt_boulliung(check_values) -> None:
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfate_trachybasalt_boulliung23"]
-    for expected, rtol in ((2086.430552541709, 1e-8), (1550, 0.5)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            10**-16.22,
-            1473,
-            TEST_PRESSURE,
-            10**-1.10,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        1550,
+        10**-16.22,
+        1473,
+        TEST_PRESSURE,
+        10**-1.10,
+        rtol=0.5,
+        pinned=2086.430552541709,
+    )
 
 
 def test_S2_sulfide_trachybasalt_boulliung(check_values) -> None:
@@ -154,18 +149,17 @@ def test_S2_sulfide_trachybasalt_boulliung(check_values) -> None:
 
     function_name: str = inspect.currentframe().f_code.co_name  # type: ignore
     solubility_model: Solubility = solubility_models["S2_sulfide_trachybasalt_boulliung23"]
-    for expected, rtol in ((1190.7802861599728, 1e-8), (1157, 0.1)):
-        check_values.concentration(
-            function_name,
-            solubility_model,
-            expected,
-            10**-1.05,
-            1473,
-            TEST_PRESSURE,
-            10**-9.4,
-            rtol=rtol,
-            atol=0.0,
-        )
+    check_values.concentration(
+        function_name,
+        solubility_model,
+        1157,
+        10**-1.05,
+        1473,
+        TEST_PRESSURE,
+        10**-9.4,
+        rtol=0.1,
+        pinned=1190.7802861599728,
+    )
 
 
 @pytest.mark.parametrize(
