@@ -67,6 +67,9 @@ under **Unreleased**, which becomes the next version when it is released.
   3), but as published it overestimates the reduced experiments (below about IW-1) of Bernadou et
   al. and of Libourel et al. (2003) by 3-16 times; the cause is being investigated. Its test is
   now anchored to their oxidised experiment AR1FeN at a realistic fO2.
+- The documentation of the N2 solubility law `N2_basalt_libourel03`: below about IW-7 the melts of
+  Libourel et al. (2003) saturate in TiN and the measured N levels off, which the law does not
+  include, so it overestimates N there.
 - The model catalogue in the documentation: the calibrated pressure range of an EOS made of several
   calibrated segments now spans all of them (it showed only the first, e.g. 1-1000 bar for
   `H2_shi92`, whose calibration reaches 100 kbar); the H2-He mixtures of Chabrier and Debras are
@@ -82,7 +85,9 @@ under **Unreleased**, which becomes the next version when it is released.
   (`troubleshooting.rst`); the solver statistics are logged by `output.solver_stats_to_logger()`;
   `update(core_mass_fraction=...)` can add a background core to a planet built without one; the
   planet mass does not include pure condensates; `species_number_moles` counts only the species
-  with `include_in_phase_mass=True`; the units of the noble-gas solubility laws; and the EOS
+  with `include_in_phase_mass=True`; the units of the noble-gas solubility laws; the description
+  of `ElementPotentialInitializer` (its docstring and `solver.rst`), e.g. in the Newton step the
+  dissolution rows use the real-gas fugacities while the gas speciation stays ideal; and the EOS
   docstrings (e.g. the Chabrier tables are interpolated linearly, and the bounded models hold the
   compressibility factor above their calibration).
 - The sulfate solubility laws of Boulliung and Wood (`S2_sulfate_andesite_boulliung23`,
