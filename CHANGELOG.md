@@ -63,10 +63,10 @@ under **Unreleased**, which becomes the next version when it is released.
   added). The library's phases set both sides the same, so this only affected a side set
   explicitly, e.g. `extrapolate_below="constant_cp"` on a pure liquid.
 - The documentation of the N2 solubility law `N2_basalt_bernadou21`: its Equation 18 gives the
-  mass fraction of N, and its N3- term (reduced conditions, below about IW-1.5) as published
-  overestimates the authors' reduced experiments, by about 8 times at 0.9 kbar. The N2 term
-  (oxidised conditions) reproduces their data to within a factor of 3. Its test is now anchored
-  to their oxidised experiment AR1FeN at a realistic fO2.
+  mass fraction of N. The law agrees with the data at oxidised conditions (to within a factor of
+  3), but as published it overestimates the reduced experiments (below about IW-1) of Bernadou et
+  al. and of Libourel et al. (2003) by 3-16 times; the cause is being investigated. Its test is
+  now anchored to their oxidised experiment AR1FeN at a realistic fO2.
 - The model catalogue in the documentation: the calibrated pressure range of an EOS made of several
   calibrated segments now spans all of them (it showed only the first, e.g. 1-1000 bar for
   `H2_shi92`, whose calibration reaches 100 kbar); the H2-He mixtures of Chabrier and Debras are
