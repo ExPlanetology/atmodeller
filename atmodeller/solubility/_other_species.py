@@ -121,13 +121,13 @@ class _N2_basalt_bernadou21(Solubility):
     IW+4.9 to IW-4.7. Using their experimental results and a database for N concentrations at
     fluid saturation from 1 bar to 10 kbar, calibrated their solubility law.
 
-    The N2 term (oxidised conditions, above about IW-1.5) reproduces the measured N contents of
-    the oxidised experiments of :cite:t:`BGF21{Table 3}` to within a factor of 3, the spread of
-    those data (4-26 ppm at similar N2 fugacity). The N\\ :sup:`3-` term (reduced conditions)
-    as published does not reproduce their reduced experiments: it gives about 8 times their N
-    content at 0.9 kbar and IW-3 to IW-5, and about 100 times at 10 kbar. The pressure correction
-    of the volume change, :cite:t:`BGF21{Equation 21}`, is omitted, since its coefficient is not
-    given. Use this law with care below about IW-1.5.
+    The law agrees with the data at oxidised conditions, where the N2 term dominates: it
+    reproduces the oxidised experiments of :cite:t:`BGF21{Table 3}` to within a factor of 3, the
+    spread of those data. It does not agree at reduced conditions (below about IW-1), where the
+    N\\ :sup:`3-` term dominates: as published it overestimates the reduced experiments of
+    :cite:t:`BGF21` and :cite:t:`LMH03`, which are part of their calibration, by 3-16 times. The
+    cause is being investigated. The pressure correction of the volume change,
+    :cite:t:`BGF21{Equation 21}`, is omitted, since its coefficient is not given.
     """
 
     requires_fO2: ClassVar[bool] = True
@@ -160,9 +160,9 @@ class _N2_basalt_bernadou21(Solubility):
 N2_basalt_bernadou21: Solubility = _N2_basalt_bernadou21()
 """N2 in basaltic silicate melt :cite:p:`BGF21`
 
-:cite:t:`BGF21{Equation 18}`. The N2 term (oxidised conditions) reproduces their data to within a
-factor of 3; the N\\ :sup:`3-` term (below about IW-1.5) as published overestimates their reduced
-experiments by about 8 times at 0.9 kbar, so use it with care there.
+:cite:t:`BGF21{Equation 18}`. It agrees with the data at oxidised conditions but not at reduced
+conditions (below about IW-1), where as published it overestimates the experiments by 3-16 times;
+the cause is being investigated.
 """
 
 
