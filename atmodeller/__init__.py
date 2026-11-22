@@ -5,7 +5,7 @@
 
 """Package-level exports and logger initialisation."""
 
-__version__: str = "2.0.0"
+__version__: str = "2.1.0"
 
 import logging
 import os

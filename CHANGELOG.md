@@ -7,6 +7,8 @@ under **Unreleased**, which becomes the next version when it is released.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-22
+
 ### Added
 
 - A check before solving that every mass constraint is positive: a mass constraint of zero or
@@ -129,5 +131,6 @@ notebooks.
 - `HeuristicInitializer`, to be removed in version 3. Use `ElementPotentialInitializer`, the
   default.
 
-[Unreleased]: https://github.com/ExPlanetology/atmodeller/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/ExPlanetology/atmodeller/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/ExPlanetology/atmodeller/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/ExPlanetology/atmodeller/compare/v1.0.1...v2.0.0
